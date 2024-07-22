@@ -14,7 +14,7 @@
 <h2>How to use ?</h2>
 
 ```
-git clone
+git clone https://github.com/Ashit-10/PYTHON_OMR_BOT.git
 cd PYTHON_OMR_BOT
 python3 app.py
 ```
