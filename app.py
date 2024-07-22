@@ -13,4 +13,4 @@ def evaluate(image_file, out_put_path, answer_key_file, has_darkness, allow_part
 
 
 
-evaluate('images/test.jpg', 'output/', "answer_key.txt", "", None, None)    
+evaluate('images/test.jpg', 'output/', "answer_key.txt", None, None)    
