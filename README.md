@@ -6,7 +6,7 @@
 - Very easy to use
 - very much compact
 - dependancies: python, opencv-python, numpy
-- only takes 1 second
+- takes less than 1 second
 - omr upto 100 questions supported
 - roll number upto 2 digits supported
 - colors for correct, wrong, unattemoted numbers
