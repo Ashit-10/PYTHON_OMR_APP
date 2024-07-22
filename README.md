@@ -22,5 +22,7 @@ python3 app.py
 
 - add sign to the output image by assing "sign.png" in the current directory
 
-  
+
+<h2>Preview:</h2>
+
 https://github.com/user-attachments/assets/b6c944cc-7de9-45f9-826e-31e621016642
