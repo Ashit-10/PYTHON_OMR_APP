@@ -4,7 +4,7 @@
 <h2>features:</h2>
 
 - Very easy to use
-- very much compact
+- very much compact size
 - dependancies: python, opencv-python, numpy
 - takes less than 1 second
 - omr upto 100 questions supported
