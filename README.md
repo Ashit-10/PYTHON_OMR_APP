@@ -1,5 +1,6 @@
 <h1>An OMR evaluatng app with python</h1>
 
+(OMR sheet formats are given in the repo)
 
 <h2>features:</h2>
 
