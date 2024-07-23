@@ -18,9 +18,11 @@ git clone https://github.com/Ashit-10/PYTHON_OMR_BOT.git
 cd PYTHON_OMR_BOT
 python3 app.py
 ```
+
+
 <h2>Extras:</h2>
 
-- add sign to the output image by assing "sign.png" in the current directory
+- add sign to the output image by adding "sign.png" in the current directory
 
 
 <h2>Preview:</h2>
