@@ -16,6 +16,7 @@
 ```
 git clone https://github.com/Ashit-10/PYTHON_OMR_BOT.git
 cd PYTHON_OMR_BOT
+pip3 -r requirements.txt
 python3 app.py
 ```
 
