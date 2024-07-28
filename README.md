@@ -10,7 +10,7 @@
 - takes less than 1 second
 - omr upto 100 questions supported
 - roll number upto 2 digits supported
-- colors for correct, wrong, unattemoted numbers
+- colors for correct, wrong, unattempted numbers
 
 <h2>How to use ?</h2>
 
