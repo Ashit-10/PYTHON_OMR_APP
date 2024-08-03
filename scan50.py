@@ -2,18 +2,18 @@ import cv2
 import numpy as np
 import json
 import datetime
+import os
 
-roll_first_column = [[257, 20], [257, 52], [257, 86], [257, 118], [257, 152], [257, 185],
-                      [257, 219], [257, 251],[257, 285],[257, 317]]
-
-roll_second_column = [[292, 20], [292, 52], [292, 86], [292, 119], [292, 152], [292, 185], 
-                     [292, 219], [292, 251],[292, 285],[292, 317] ]
+roll_first_column = [[250, 20], [250, 52], [250, 86], [250, 118], [250, 152], [250, 185],[250, 219], [250, 251],[250, 285],[250, 317]]
+roll_second_column = [[287, 20], [287, 52], [287, 86], [287, 119], [287, 152], [287, 185], [287, 219], [287, 251],[287, 285],[287, 317] ]
+location_file = "omr_50_locations.txt"
 
 
 def add_sign(base_image, dst_pts, rect, x, y, r = 0):
     try:
         # Load the signature image with alpha channel
-        signature_image = cv2.imread('sign.png', cv2.IMREAD_UNCHANGED)
+        sign_file = "sign.png"
+        signature_image = cv2.imread(sign_file, cv2.IMREAD_UNCHANGED)
 
         # Resize the signature image to width 100 while maintaining the aspect ratio
         new_width = 85
@@ -66,7 +66,7 @@ def draw_color(original_with_contours, dst_pts, rect, x, y, color, r=8, thicknes
     # Draw the circle in the original image
     cv2.circle(original_with_contours, original_center, r, color, thickness, cv2.LINE_AA)
 
-def write_text(original_with_contours, dst_pts, rect, x, y, date, largeness=0.5, thickness = 2, r = 0):
+def write_text(original_with_contours, dst_pts, rect, x, y, date, color_code = 0, largeness=0.5, thickness = 2, r = 0):
     if len(dst_pts) > 0:
         # Transform the circle coordintes back to the original perspective
         circle_pts = np.array([[x-r, y-r], [x+r, y-r], [x+r, y+r], [x-r, y+r]], dtype="float32")
@@ -77,9 +77,15 @@ def write_text(original_with_contours, dst_pts, rect, x, y, date, largeness=0.5,
     
     else:
         original_center = (x, y)
+    if not color_code:
+        color_code = (0, 0, 200)  # red
+    # else:
+    #     color_code = (100, 0, 0)  # blue
+    
     # Draw the circle in the original image
-    cv2.putText(original_with_contours, date, original_center, cv2.FONT_HERSHEY_SIMPLEX, largeness, (100, 0, 0), thickness, cv2.LINE_AA)
+    cv2.putText(original_with_contours, date, original_center, cv2.FONT_HERSHEY_SIMPLEX, largeness, color_code, thickness, cv2.LINE_AA)
     return list(original_center)
+
 def opposite_pattern(img_no):
     if img_no == 3:
         start = (img_no - 1) * 20 + 1
@@ -135,7 +141,7 @@ def choose_8(thresh1, square_contours):
     else:
         return []
     
-def get_roll_cods(cap_given):
+def get_roll_cods(cap_given, roll_first_column, roll_second_column):
     roll = []
     cap = cap_given.strip()
     if len(cap) == 1:
@@ -175,10 +181,11 @@ def find_extremes(coords):
 
 
 def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, has_shadow, allow_parcial_marking, new_cods_=[]):
-    roll_pixel = 200
-    white_pixel_value = 160
+    roll_pixel = 200 # 180
+    white_pixel_value = 220 # 170
     m_area = 150
-    shadow_pixel_value = 200
+    shadow_pixel_value = 280
+
 
     if has_shadow:
         white_pixel_value = shadow_pixel_value
@@ -191,12 +198,13 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
 
     file_height = image.shape[0]
     file_width = image.shape[1]
+    # print(file_height, file_width)
 
     new_width = 960 #   height 2560
     if file_width < file_height:
         img2 = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
         image = img2
-        print("Rotated the image.")
+        # print("Rotated the image.")
     if image.shape[1] != new_width:
         file_height = image.shape[0]
         file_width = image.shape[1]
@@ -204,24 +212,31 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
         new_height = int(new_width * a_ratio)
         resized_img = cv2.resize(image, (new_width, new_height))
         image = resized_img
-        print("Resized the image.", image.shape[0], image.shape[1])
+        # print("Resized the image.", image.shape[0], image.shape[1])
     image_height = image.shape[0]
+    # Define min and max area for filtering
     max_area = 400
     min_area = m_area
 
+    # Convert to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     for blur_value in [(1, 1), (3, 3), (5, 5), (7, 7), (9, 9), (11, 11)]:
+        # Apply Gaussian blur to smooth edges
         blurred = cv2.GaussianBlur(gray, blur_value, 0)
 
+    #####################################################new#############################################################
         # Adaptive thresholding
-        blockSize = 27  
-        C = 5 
+        blockSize = 27  # Try increasing to 15, 19, 23, etc.
+        C = 5  # Try adjusting to different values like 5, 10, etc.
         thresh1 = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, blockSize, C)
 
-        kernel_size = 3  
+        # Morphological operations to enhance square features
+        kernel_size = 3  # Try adjusting to 5, 7, etc.
         kernel = np.ones((kernel_size, kernel_size), np.uint8)
         thresh1 = cv2.morphologyEx(thresh1, cv2.MORPH_CLOSE, kernel)
 
+        # cv2.imshow("Binary Image", thresh1)
+        # cv2.waitKey(0)
         contours, _ = cv2.findContours(thresh1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         # Filter and store square-like contours
         square_contours = []
@@ -233,34 +248,95 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
                 area = cv2.contourArea(contour)
                 # Additional check for convexity and aspect ratio closer to 1
                 if 0.7 <= aspect_ratio <= 1.3 and area >= min_area and area < max_area and cv2.isContourConvex(approx):
+                    # print("Area of square boxes:", area)
                     square_contours.append(approx)
 
         if len(square_contours) > 8:
-            print("gone to choose", len(square_contours))
+            # print("gone to choose", len(square_contours))
             square_contours = choose_8(thresh1, square_contours)
-            print(len(square_contours))
+            # print(len(square_contours))
 
         if len(square_contours) == 8:
             break
 
+    ##################################################################################################################################
+    # thresh_value_fixed = 80
+    # thresh_values = [80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200, 210]
+
+    # # Define min and max area for filtering
+    # max_area = 400
+    # min_area = m_area
+
+    # for thr in thresh_values:
+    #     thresh1 = cv2.threshold(blurred, thr, 255, cv2.THRESH_BINARY_INV)[1]
+    #     thresh_value_fixed = thr
+    #     # cv2.imshow("Binary Image", thresh1)
+    #     # cv2.waitKey(0)
+
+    #     contours, _ = cv2.findContours(thresh1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    #     # Filter and store square-like contours
+    #     square_contours = []
+    #     for contour in contours:
+    #         approx = cv2.approxPolyDP(contour, 0.04 * cv2.arcLength(contour, True), True)
+    #         if len(approx) == 4:
+    #             (x, y, w, h) = cv2.boundingRect(approx)
+    #             aspect_ratio = w / float(h)
+    #             area = cv2.contourArea(contour)
+    #             if 0.8 <= aspect_ratio <= 1.3 and area >= min_area and area < max_area:
+    #                 # print("Area of square boxes;", area)
+    #                 square_contours.append(approx)
+
+    #     # print(len(square_contours))
+
+    #     if len(square_contours) < 8:
+    #         print("Not enough square contours found.")
+    #         return None, "Not enough square contours found."
+        
+    #     elif len(square_contours) > 8:
+    #         print("gone")
+    #         square_contours = choose_8(thresh1, square_contours)
+    #         # print(len(square_contours))
+
+    #     if len(square_contours) == 8:
+    #         break
+#################################################################################################################
+
+
+    if len(square_contours) != 8:
+        return None, "Could not find 8 square boxes."
     # Extract top-left corner points from the square contours
     top_left_points = []
+    x_y_w_h = []
     for approx in square_contours:
+
+        # top-left points
         top_left = min(approx, key=lambda point: point[0][0] + point[0][1])
         top_left_coord = tuple(top_left[0])
+
+        # Extract the bottom-left corner point
+        bottom_left = min(approx, key=lambda point: point[0][0] - point[0][1])
+        bottom_left_coord = tuple(bottom_left[0])
+
         (x, y, w, h) = cv2.boundingRect(approx)
         if top_left_coord[1] > image_height / 2:
-            top_left_coord = (top_left_coord[0], top_left_coord[1] + h)
+            top_left_coord = (bottom_left_coord[0], bottom_left_coord[1])
+      
         top_left_points.append(top_left_coord)
+        x_y_w_h.append([list(top_left_coord), [w, h]])
 
+
+    # print(top_left_points, "top left")
     # Sort points by x and then by y
     top_left_points.sort(key=lambda point: (point[0], point[1]))
 
+    # Print the sorted top-left coordinates of all square contours
     all_cods = []
+    # print("Sorted top-left coordinates of all square contours:")
     for point in top_left_points:
         all_cods.append([point[0], point[1]])
 
-    print(all_cods)
+    # print(all_cods)
 
     # Define the destination points for perspective transform
     width, height = 400, 340
@@ -269,7 +345,8 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
     # Store the original image with contours
     original_with_contours = image.copy()
 
-    with open("omr_50_locations.txt", 'r') as red:
+    # with open("new_omr_loc.txt", 'r') as red:
+    with open(location_file, 'r') as red:
         all_circle_cods = json.load(red)
 
     all_options_selected = {}    
@@ -278,8 +355,29 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
     unselected = {}
     # Perform perspective transform for each overlapping set of four coordinates
     for i in range(0, len(all_cods) - 3, 2):
-        src_pts = np.float32(all_cods[i:i + 4])
-        
+
+        # print(x_y_w_h)
+        per_image_coods = []
+        range_cods = all_cods[i:i + 4]
+
+        # Sort the coordinates based on the x-value
+        sorted_coordss = sorted(range_cods, key=lambda point: point[0])
+
+        # Extract the two coordinates with the lowest x-values
+        lowest_x_coords = sorted_coordss[:2]
+        per_image_coods = sorted_coordss[2:]
+        # print(per_image_coods, "per image coods")
+        for cod in lowest_x_coords:
+            per_image_w = 0
+            for an_cod in x_y_w_h:
+                if cod in an_cod:
+                    per_image_w = an_cod[1][0]
+            per_image_coods.append([cod[0] + per_image_w, cod[1]])
+            
+        src_pts = np.float32(per_image_coods)
+
+
+        # src_pts = np.float32(all_cods[i:i + 4])
         # Sort the points to match the expected order: top-left, top-right, bottom-right, bottom-left
         rect = np.zeros((4, 2), dtype="float32")
         s = np.sum(src_pts, axis=1)
@@ -294,8 +392,16 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
         M = cv2.getPerspectiveTransform(rect, dst_pts)
         warped = cv2.warpPerspective(image, M, (width, height))
 
+        # Save the transformed image
+        # transformed_output_path = f"{output_path.split('.')[0]}_transformed_{i // 2 + 1}.jpg"
+        # cv2.imwrite(transformed_output_path, warped)
+        # print(f"Transformed image {i // 2 + 1} saved at {transformed_output_path}")
+
         # Detect circular contours in the transformed image
         warped_gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
+        # circles = cv2.HoughCircles(warped_gray, cv2.HOUGH_GRADIENT, dp=1.2, minDist=30, param1=50, param2=30, minRadius=8, maxRadius=19)
+        
+
         stored_dst_rect.append([dst_pts, rect])
 
         img_no = i // 2 + 1
@@ -333,7 +439,7 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
                 roll_number_coods = [roll_first_column[9], roll_second_column[9]]
 
             if cap_given:
-                roll_number_coods = get_roll_cods(cap_given)
+                roll_number_coods = get_roll_cods(cap_given,roll_first_column, roll_second_column)
                 roll_number = cap_given.strip()
 
             if (len(roll_number) == 2) and (str(roll_number).startswith("0")):
@@ -343,19 +449,29 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
                 err_msg += "Error finding roll number, but omr sheet evaluated correctly ✅!"
                 roll_number = "0"
         if circles is not None:
+            # circles = np.round(circles[0, :]).astype("int")
             n = 0
+            # circle_cods = []
             for (x, y) in circles:
-                r = 10
+            # for (x, y, r) in circles:
+                r = 11
+                # circle_cods.append([x,y])
                 x_start, y_start = max(x-r, 0), max(y-r, 0)
                 x_end, y_end = min(x+r, width), min(y+r, height)
                 small_square = warped_gray[y_start:y_end, x_start:x_end]
                 
                 # Convert to binary (black and white)
                 _, binary_square = cv2.threshold(small_square, 120, 255, cv2.THRESH_BINARY_INV)
+                # cv2.imshow("Final Output", binary_square)
+                # cv2.waitKey(0)
                 white_pixel_count = cv2.countNonZero(binary_square)
+                # white_pixel_counts.append(white_pixel_count)
                 # print(f"Circle at ({x}, {y}): White pixel count = {white_pixel_count}")
                 un_opt = ""
                 if white_pixel_count > white_pixel_value:  # white pixel for options
+                    # print("For options", white_pixel_count)
+                    # cv2.imshow("ok", binary_square)
+                    # cv2.waitKey(0)
                     if n == 0 or (n % 4) == 0:
                         opt = ["A", [x, y]]
                     elif n == 1 or (n % 4) == 1:
@@ -364,6 +480,7 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
                         opt = ["C", [x, y]]
                     elif n == 3 or (n % 4) == 3:
                         opt = ["D", [x, y]]
+                    # print(opt, [x,y])
                 else:
                     opt = ''
                     un_opt = [x, y]
@@ -371,13 +488,36 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
                 un_opts.update({n + 1 : un_opt})
                 n += 1
                 
+
                 # Draw the circle in the transformed image
                 cv2.circle(warped, (x, y), r, (255, 0, 0), 2)
 
+                # r = 8
+                # # Transform the circle coordintes back to the original perspective
+                # circle_pts = np.array([[x-r, y-r], [x+r, y-r], [x+r, y+r], [x-r, y+r]], dtype="float32")
+                # M_inv = cv2.getPerspectiveTransform(dst_pts, rect)
+                # original_circle_pts = cv2.perspectiveTransform(np.array([circle_pts]), M_inv)[0]
+                # original_center = np.mean(original_circle_pts, axis=0).astype(int)
+
+
+                
+                # # Draw the circle in the original image
+                # cv2.circle(original_with_contours, tuple(original_center), r, (0, 0, 255), 2, cv2.LINE_AA)
+
+            # circle_cods_sort = sorted(circle_cods, key=lambda coord: coord[1])
+
+            # cv2.imshow("aa", warped)
+            # cv2.waitKey(0)
+            # cv2.imshow("aa", original_with_contours)
+            # cv2.waitKey(0)
+            # circle_cods_sort = all_circle_cods[str(i // 2 + 1)]
+            # print(circle_cods_sort)
+    
             # print(opts)
             o = 0
             selected_opts = {}
             opposite_number_list = opposite_pattern(img_no)
+            # print(opposite_number_list)
             for i in range(0, len(opts), 4):
                 chunk = rm_empty_opts(list(opts.values())[i:i+4])
 
@@ -388,26 +528,42 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
             o = 0
             for i in range(0, len(un_opts), 4):
                 chunkk = list(un_opts.values())[i:i+4]
+                # print(chunkk)
                 if "" not in chunkk:
                     unselected.update({str(opposite_number_list[o]) : chunkk})
                 o += 1
 
+            # print(len(circles))
             o = 0
             for i in range(0, len(circles), 4):
                 chunk = circles[i:i+4]
+                # print(chunk)
                 all_numbers_coods.update({str(opposite_number_list[o]) : chunk})
                 o += 1
 
             #### start coloring the correct and wrong answers #####
 
+            # Get all keys and sort them
+            sorted_keys = sorted(selected_opts.keys(), key=lambda x: int(x))
+            # Create a new dictionary with sorted keys
+            sorted_data = {key: selected_opts[key] for key in sorted_keys}
+
+            # print(sorted_data)
+
+
+    # Get all keys and sort them
     all_sorted_keys = sorted(all_options_selected.keys(), key=lambda x: int(x))
+    # Create a new dictionary with sorted keys
     all_sorted_data = {key: all_options_selected[key] for key in all_sorted_keys}
-    ######## dupe
+
+    # Get all keys and sort them
     all_sorted_number_keys = sorted(all_numbers_coods.keys(), key=lambda x: int(x))
+    # Create a new dictionary with sorted keys
     all_sorted_number_data = {key: all_numbers_coods[key] for key in all_sorted_number_keys}
 
-    print(all_sorted_data)
-    print("Unselected", unselected)
+    # print(all_numbers_coods)
+    # print(all_sorted_data)
+    # print("Unselected", unselected)
     #### start coloring the correct and wrong answers #####
 
     with open(answer_key_file, "r") as red:
@@ -415,6 +571,7 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
     total_numbers = len(answer_key)
         
     for answer in answer_key:
+        # print(answer)
         if int(answer) < 21:
             [all_dst_pts, all_rect] = stored_dst_rect[0]
         elif int(answer) < 41:
@@ -463,9 +620,11 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
         is_unselected = unselected.get(answer)
         if is_unselected:
             for u in is_unselected:
-                [unx , uny] = u
-                draw_color(original_with_contours, all_dst_pts, all_rect, unx, uny, (255, 0, 0), 6)  
+                [unx , uny] = u               ###### blue color for unattempted numbers
+                draw_color(original_with_contours, all_dst_pts, all_rect, unx, uny, (255, 0, 0), 8)  
 
+    
+            
         
         ##### Draw pink dot on correct nswer as per answer key ######
         coods = all_sorted_number_data.get(answer)
@@ -480,8 +639,8 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
             if op == "D":
                 op_index = 3
 
-            [ax, ay] = coods[op_index]        ###### Draw light blue dot on actual answer
-            draw_color(original_with_contours, all_dst_pts, all_rect, ax, ay, (255, 255, 0), 1)
+            [ax, ay] = coods[op_index]        ###### Draw pink dot
+            draw_color(original_with_contours, all_dst_pts, all_rect, ax, ay, (100, 100, 255), 1)
 
 
 
@@ -495,32 +654,35 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
         draw_color(original_with_contours, roll_dst_pts, roll_rect, xx, yy, (0, 100, 200), 8)
 
 
-
         #### add sign , date , marks   ######
-    end_x = roll_number_coods[1][0] + 15  
+    end_x = roll_second_column[5][0] + 12
     end_y = 130
     c_date = datetime.datetime.now()
-    exam_date = c_date.strftime("%d.%m.%Y")
-    safe_coods = write_text(original_with_contours, roll_dst_pts, roll_rect, end_x, end_y, exam_date, 0.5, 1)
+    exam_date = c_date.strftime("%d/%m/%Y")
+    safe_coods = write_text(original_with_contours, roll_dst_pts, roll_rect, end_x + 4, end_y, exam_date, '', 0.4, 2)
 
-    add_sign(original_with_contours, [], [], safe_coods[0], safe_coods[1] - 15)
-    draw_color(original_with_contours, [], [], safe_coods[0] + 45, safe_coods[1] + 55, (0, 0, 200), 40)
-    write_text(original_with_contours, [], [], safe_coods[0] + 20, safe_coods[1] + 53, "______")
+    add_sign(original_with_contours, [], [], safe_coods[0] + 4, safe_coods[1] - 15)
+    # add_sign(original_with_contours, roll_dst_pts, roll_rect, end_x, end_y - 15)
+    draw_color(original_with_contours, [], [], safe_coods[0] + 42, safe_coods[1] + 55, (0, 0, 200), 38)
+    # draw_color(original_with_contours, roll_dst_pts, roll_rect, end_x + 68, end_y + 100, (0, 0, 200), 48)
+    write_text(original_with_contours, [], [], safe_coods[0] + 17, safe_coods[1] + 53, "______", (100, 0, 0))
+    # write_text(original_with_contours, roll_dst_pts, roll_rect, end_x + 25, end_y + 100, "_______")
 
     if len(str(correct_numbers)) == 1:
         safe_coods[0] += 10
-        write_text(original_with_contours, [], [], safe_coods[0] + 25, safe_coods[1] + 45, str(correct_numbers), 1)
+        write_text(original_with_contours, [], [], safe_coods[0] + 22, safe_coods[1] + 45, str(correct_numbers), '', 1)
         if len(str(total_numbers)) != 1:
             safe_coods[0] -= 10
     else:
-        write_text(original_with_contours, [],[], safe_coods[0] + 22, safe_coods[1] + 45, str(correct_numbers), 1)
+        write_text(original_with_contours, [],[], safe_coods[0] + 19, safe_coods[1] + 45, str(correct_numbers), '', 1)
 
-    write_text(original_with_contours, [], [], safe_coods[0] + 25, safe_coods[1] + 85, str(total_numbers), 1)
+    write_text(original_with_contours, [], [], safe_coods[0] + 22, safe_coods[1] + 85, str(total_numbers), '', 1)
 
     # Draw the selected square contours on the original image
     for contour in square_contours:
         cv2.drawContours(original_with_contours, [contour], -1, (170, 51, 106), thickness=cv2.FILLED)
 
+    print("Input image:", image_path)
     print("Roll number:", roll_number)
     print("total numbers:", total_numbers)
     print("correct:", correct_numbers)
@@ -565,6 +727,10 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
     # Save the output image with drawn contours and circles
     out_put_name = f"{roll_number}_{correct_numbers}.jpg"
     out_put_path_name = output_path + out_put_name
+    # if os.path.isfile(out_put_path_name):
+    #     print(out_put_path_name, "already available. Override ? [y/n]")
+    #     input()
+
     cv2.imwrite(out_put_path_name, original_with_contours)
 
 
@@ -577,5 +743,6 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
 
-# # Example usage
-# find_and_draw_squares('images/n11.jpg', 'output/', "answer_key.txt", "", None, None)
+# # Example usageTrue
+# find_and_draw_squares('images/ex1.jpg', 'output_image.jpg', "answer_key.txt", "", True, None)
+
