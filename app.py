@@ -15,7 +15,7 @@ def evaluate(image_file, out_put_path, answer_key_file, caption, has_darkness, a
                                    answer_key_file, caption, has_darkness, allow_partial_mark)
 
 
-evaluate('images/n18.jpg', 'output/', "answer_key.txt", "", None, None)   
+# evaluate('images/n18.jpg', 'output/', "answer_key.txt", "", None, None)   
 
 
 if_in_output = os.listdir("output/")
