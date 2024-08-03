@@ -26,7 +26,22 @@ python3 app.py
 
 - add sign to the output image by adding "sign.png" in the current directory
 
+<h2>Setting up in termux</h2>
 
+```
+pkg update -y
+pkg upgrade
+pkg install x11-repo
+pkg install matplotlib
+pkg rei opencv-python
+pkg install python -y
+pkg install git -y
+pkg install build-essential
+pip istall pytz
+
+termux-setup-storage
+```
+git clone repo , cd to PYTHON_OMR_BOT, and run python app.py
 <h2>Preview:</h2>
 
 https://github.com/user-attachments/assets/b6c944cc-7de9-45f9-826e-31e621016642
