@@ -425,7 +425,7 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
                 # print(f"Circle at ({x}, {y}): White pixel count = {white_pixel_count}")
                 un_opt = ""
                 if white_pixel_count > white_pixel_value:  # white pixel for options
-                    print("For options", white_pixel_count)
+                    # print("For options", white_pixel_count)
                     # cv2.imshow("ok", binary_square)
                     # cv2.waitKey(0)
                     if n == 0 or (n % 4) == 0:
