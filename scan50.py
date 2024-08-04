@@ -617,6 +617,7 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
     for contour in square_contours:
         cv2.drawContours(original_with_contours, [contour], -1, (170, 51, 106), thickness=cv2.FILLED)
 
+    print("Input image:", image_path)
     print("Roll number:", roll_number)
     print("total numbers:", total_numbers)
     print("correct:", correct_numbers)
