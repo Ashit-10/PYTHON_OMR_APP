@@ -136,7 +136,7 @@ def choose_8(thresh1, square_contours):
     square_contours = [contour for contour, _ in best_contours]
     # print(square_contours)
     if len(square_contours) == 8:
-        print("Chose 8 among the list.")
+        # print("Chose 8 among the list.")
         return square_contours
     else:
         return []
@@ -204,7 +204,7 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
     if file_width < file_height:
         img2 = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
         image = img2
-        print("Rotated the image.")
+        # print("Rotated the image.")
     if image.shape[1] != new_width:
         file_height = image.shape[0]
         file_width = image.shape[1]
@@ -212,7 +212,7 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
         new_height = int(new_width * a_ratio)
         resized_img = cv2.resize(image, (new_width, new_height))
         image = resized_img
-        print("Resized the image.", image.shape[0], image.shape[1])
+        # print("Resized the image.", image.shape[0], image.shape[1])
     image_height = image.shape[0]
     # Define min and max area for filtering
     max_area = 400
@@ -252,7 +252,7 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
                     square_contours.append(approx)
 
         if len(square_contours) > 8:
-            print("gone to choose", len(square_contours))
+            # print("gone to choose", len(square_contours))
             square_contours = choose_8(thresh1, square_contours)
             # print(len(square_contours))
 
@@ -292,7 +292,7 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
     for point in top_left_points:
         all_cods.append([point[0], point[1]])
 
-    print(all_cods)
+    # print(all_cods)
 
     # Define the destination points for perspective transform
     width, height = 400, 340
@@ -497,8 +497,8 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
     all_sorted_number_data = {key: all_numbers_coods[key] for key in all_sorted_number_keys}
 
     # print(all_numbers_coods)
-    print(all_sorted_data)
-    print("Unselected", unselected)
+    # print(all_sorted_data)
+    # print("Unselected", unselected)
     #### start coloring the correct and wrong answers #####
 
     with open(answer_key_file, "r") as red:
