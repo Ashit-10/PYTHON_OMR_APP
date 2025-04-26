@@ -3,6 +3,51 @@ import numpy as np
 import matplotlib.pyplot as plt
 import json
 
+# ---------- Helper functions ----------
+
+def order_points(pts):
+    # Order points: top-left, top-right, bottom-right, bottom-left
+    rect = np.zeros((4, 2), dtype="float32")
+
+    s = pts.sum(axis=1)
+    rect[0] = pts[np.argmin(s)]  # top-left
+    rect[2] = pts[np.argmax(s)]  # bottom-right
+
+    diff = np.diff(pts, axis=1)
+    rect[1] = pts[np.argmin(diff)]  # top-right
+    rect[3] = pts[np.argmax(diff)]  # bottom-left
+
+    return rect
+
+def four_point_transform(image, pts):
+    rect = order_points(pts)
+    (tl, tr, br, bl) = rect
+
+    # Compute width and height
+    widthA = np.linalg.norm(br - bl)
+    widthB = np.linalg.norm(tr - tl)
+    maxWidth = max(int(widthA), int(widthB))
+
+    heightA = np.linalg.norm(tr - br)
+    heightB = np.linalg.norm(tl - bl)
+    maxHeight = max(int(heightA), int(heightB))
+
+    # Destination coordinates
+    dst = np.array([
+        [0, 0],
+        [maxWidth-1, 0],
+        [maxWidth-1, maxHeight-1],
+        [0, maxHeight-1]
+    ], dtype="float32")
+
+    # Perspective transform
+    M = cv2.getPerspectiveTransform(rect, dst)
+    warped = cv2.warpPerspective(image, M, (maxWidth, maxHeight))
+
+    return warped
+
+# ---------- Main Code ----------
+
 # Load the image
 image_path = 'input/test8.jpeg'
 image = cv2.imread(image_path)
@@ -37,80 +82,76 @@ for blur_value in blur_values:
     for cnt in contours:
         peri = cv2.arcLength(cnt, True)
         approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
-        if len(approx) >= 4:
-            x, y, w, h = cv2.boundingRect(approx)
-            area = cv2.contourArea(cnt)
-            aspect_ratio = h / float(w) if w != 0 else 0
-            if 28000 < area < 300000 and 1.4 < aspect_ratio < 4.0:
-                columns.append((x, y, w, h))
 
-# ----------------- Merge similar columns if more than 5 detected -----------------
+        if len(approx) >= 4:
+            area = cv2.contourArea(cnt)
+            if 28000 < area < 300000:
+                if len(approx) > 4:
+                    approx = cv2.convexHull(approx)
+
+                if len(approx) >= 4:
+                    pts = approx.reshape(-1, 2)
+                    rect = cv2.boundingRect(approx)
+                    x, y, w, h = rect
+                    aspect_ratio = h / float(w) if w != 0 else 0
+                    if 1.4 < aspect_ratio < 4.0:
+                        columns.append(pts)
+
+# ------------- Merge Close Columns -------------
 
 # Sort columns by x-coordinate
-# Sort columns by x coordinate
-columns = sorted(columns, key=lambda b: b[0])
+columns = sorted(columns, key=lambda pts: np.min(pts[:, 0]))
 
-# Merge close columns (distance < 15 pixels)
 merged_columns = []
 
 while columns:
     base = columns.pop(0)
-    x_base, y_base, w_base, h_base = base
-    x_end_base = x_base + w_base
-    y_end_base = y_base + h_base
+    base_x_min = np.min(base[:, 0])
+    base_x_max = np.max(base[:, 0])
 
     close = [base]
     to_remove = []
 
     for i, other in enumerate(columns):
-        x_other, y_other, w_other, h_other = other
-        x_end_other = x_other + w_other
+        other_x_min = np.min(other[:, 0])
+        other_x_max = np.max(other[:, 0])
 
-        if abs(x_other - x_base) <= 15 or abs(x_end_other - x_end_base) <= 15:
+        if abs(other_x_min - base_x_min) <= 15 or abs(other_x_max - base_x_max) <= 15:
             close.append(other)
             to_remove.append(i)
 
-    # Remove merged elements from columns
     for index in sorted(to_remove, reverse=True):
         columns.pop(index)
 
-    # Merge all close ones into one box
-    xs = [item[0] for item in close]
-    ys = [item[1] for item in close]
-    ws = [item[0] + item[2] for item in close]
-    hs = [item[1] + item[3] for item in close]
+    # Merge points
+    merged_pts = np.vstack(close)
+    merged_columns.append(merged_pts)
 
-    new_x = min(xs)
-    new_y = min(ys)
-    new_w = max(ws) - new_x
-    new_h = max(hs) - new_y
-
-    merged_columns.append((new_x, new_y, new_w, new_h))
-
-# Sort merged columns again by x
-columns = sorted(merged_columns, key=lambda b: b[0])
+# Sort again by x
+columns = sorted(merged_columns, key=lambda pts: np.min(pts[:, 0]))
 
 # After full merging, if still more than 5, cut to first 5
 if len(columns) > 5:
     columns = columns[:5]
 
+# ------------- Save Detected Columns -------------
 
-# ----------------- Save the detected columns -----------------
 column_images = []
-for i, (x, y, w, h) in enumerate(columns):
-    column_image = original[y:y + h, x:x + w]
+for i, pts in enumerate(columns):
+    warped = four_point_transform(original, pts)
     column_image_path = f"column_{i + 1}.jpeg"
-    cv2.imwrite(column_image_path, column_image)
-    column_images.append((column_image_path, x, y))
+    cv2.imwrite(column_image_path, warped)
+    column_images.append((column_image_path, 0, 0))  # Offset is (0,0) because warped
 
-# ----------------- Detect Bubbles and Save Coords -----------------
+# ------------- Detect Bubbles and Save Coords -------------
+
 final_result = {}
 
 for i, (column_image_path, offset_x, offset_y) in enumerate(column_images):
     column_image = cv2.imread(column_image_path)
     gray_column = cv2.cvtColor(column_image, cv2.COLOR_BGR2GRAY)
 
-    blurred_column = cv2.GaussianBlur(gray_column, (1, 1), 0)
+    blurred_column = cv2.GaussianBlur(gray_column, (3, 3), 0)
 
     _, thresh_column = cv2.threshold(blurred_column, 127, 255, cv2.THRESH_BINARY_INV)
 
@@ -121,7 +162,7 @@ for i, (column_image_path, offset_x, offset_y) in enumerate(column_images):
     for cnt in contours_bubbles:
         x_bubble, y_bubble, w_bubble, h_bubble = cv2.boundingRect(cnt)
 
-        if 70 < cv2.contourArea(cnt) < 500:  # Filtering bubbles
+        if 50 < cv2.contourArea(cnt) < 500:  # Filtering bubbles
             bubbles_in_column.append({
                 "x": int(x_bubble + offset_x),
                 "y": int(y_bubble + offset_y)
@@ -138,5 +179,5 @@ for i, (column_image_path, offset_x, offset_y) in enumerate(column_images):
     plt.axis('off')
     plt.show()
 
-# ----------------- Print final result in JSON -----------------
+# ------------- Print Final Result -------------
 print(json.dumps(final_result, indent=4))
