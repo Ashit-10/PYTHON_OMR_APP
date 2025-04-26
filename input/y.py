@@ -47,40 +47,53 @@ for blur_value in blur_values:
 # ----------------- Merge similar columns if more than 5 detected -----------------
 
 # Sort columns by x-coordinate
-columns = sorted(columns, key=lambda col: col[0])
+# Sort columns by x coordinate
+columns = sorted(columns, key=lambda b: b[0])
 
-# Merge close columns (threshold = 15 pixels)
+# Merge close columns (distance < 15 pixels)
 merged_columns = []
-skip = False
 
-for i in range(len(columns)):
-    if skip:
-        skip = False
-        continue
+while columns:
+    base = columns.pop(0)
+    x_base, y_base, w_base, h_base = base
+    x_end_base = x_base + w_base
+    y_end_base = y_base + h_base
 
-    x1, y1, w1, h1 = columns[i]
+    close = [base]
+    to_remove = []
 
-    if i + 1 < len(columns):
-        x2, y2, w2, h2 = columns[i + 1]
-        if abs(x2 - x1) < 15:  # If two columns are very close, merge them
-            # Take min x, min y, max right-x, max bottom-y
-            new_x = min(x1, x2)
-            new_y = min(y1, y2)
-            new_w = max(x1 + w1, x2 + w2) - new_x
-            new_h = max(y1 + h1, y2 + h2) - new_y
-            merged_columns.append((new_x, new_y, new_w, new_h))
-            skip = True
-        else:
-            merged_columns.append((x1, y1, w1, h1))
-    else:
-        merged_columns.append((x1, y1, w1, h1))
+    for i, other in enumerate(columns):
+        x_other, y_other, w_other, h_other = other
+        x_end_other = x_other + w_other
 
-# Use merged columns
-columns = merged_columns
+        if abs(x_other - x_base) <= 15 or abs(x_end_other - x_end_base) <= 15:
+            close.append(other)
+            to_remove.append(i)
 
-# After merging, again take only first 5 columns if more
+    # Remove merged elements from columns
+    for index in sorted(to_remove, reverse=True):
+        columns.pop(index)
+
+    # Merge all close ones into one box
+    xs = [item[0] for item in close]
+    ys = [item[1] for item in close]
+    ws = [item[0] + item[2] for item in close]
+    hs = [item[1] + item[3] for item in close]
+
+    new_x = min(xs)
+    new_y = min(ys)
+    new_w = max(ws) - new_x
+    new_h = max(hs) - new_y
+
+    merged_columns.append((new_x, new_y, new_w, new_h))
+
+# Sort merged columns again by x
+columns = sorted(merged_columns, key=lambda b: b[0])
+
+# After full merging, if still more than 5, cut to first 5
 if len(columns) > 5:
     columns = columns[:5]
+
 
 # ----------------- Save the detected columns -----------------
 column_images = []
