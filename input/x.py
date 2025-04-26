@@ -3,11 +3,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Load the image
-image_path = 'input/test7.jpeg'
+image_path = 'input/test6.jpeg'
 image = cv2.imread(image_path)
 
 # Resize image to 1200x800
-image = cv2.resize(image, (900, 440))
+image = cv2.resize(image, (1200, 550))
 
 # Copy original image for later use
 original = image.copy()
@@ -50,20 +50,20 @@ for blur_value in blur_values:
         approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
 
         # Check if the shape has 4 vertices (rectangular shape)
-        if len(approx) == 4:
+        if len(approx) >= 4:
             x, y, w, h = cv2.boundingRect(approx)
             area = cv2.contourArea(cnt)
             aspect_ratio = h / float(w) if w != 0 else 0
-            if 1800 < area:
-                print(area, aspect_ratio, w, h,         x, y)
+            # if 18000 < area:
+                # print(area, aspect_ratio, w, h,         x, y)
 
             # Filters: Area and Aspect Ratio tuned for OMR columns
-            if 2800 < area < 300000 and 1.4 < aspect_ratio < 8.0:
-                # print(area, aspect_ratio, w, h)
+            if 28000 < area < 300000 and 1.4 < aspect_ratio < 4.0:
+                print(area, aspect_ratio)
                 columns.append((x, y, w, h))
 
-    print(columns)
-    if len(columns) > 8:
+    # print(columns)
+    if len(columns) > 5:
          print("Done")
             # print("gone to choose", len(square_contours))
             # square_contours = choose_8(thresh1, square_contours)
