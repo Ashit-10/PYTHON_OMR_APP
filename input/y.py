@@ -123,7 +123,7 @@ for i in range(5):
         x, y = int(x), int(y)
 
         # Draw a circle at each location (radius=5, color=green, thickness=-1)
-        cv2.circle(column_image, (x, y), 5, (0, 255, 0), -1)  # Green circles
+        cv2.circle(column_image, (x, y), 15, (0, 255, 0), -1)  # Green circles
 
         # Count white pixels around the bubble
         half_size = 7  # For 15x15 area
