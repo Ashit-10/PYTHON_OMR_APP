@@ -116,6 +116,9 @@ for i in range(5):
 
     column_locations = locations[str(i + 1)]
 
+    # Create a colored version of the image to draw contours
+    color_img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+
     for j in range(0, len(column_locations), 4):
         question_bubbles = []
 
@@ -132,10 +135,17 @@ for i in range(5):
 
             white_pixel_count = cv2.countNonZero(roi)
 
+            # Draw a contour (circle) around the bubble based on the (x, y) location
+            cv2.circle(color_img, (x, y), 7, (0, 255, 0), 2)
+
             question_bubbles.append([x, y, int(white_pixel_count)])
 
         final_data[str(question_number)] = question_bubbles
         question_number += 1
+
+    # Save the image with contours drawn
+    contour_image_path = f"column_{i + 1}_contours.jpeg"
+    cv2.imwrite(contour_image_path, color_img)
 
 # Print final JSON
 print(json.dumps(final_data, indent=4))
