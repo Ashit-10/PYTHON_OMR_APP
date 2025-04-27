@@ -1,15 +1,14 @@
-# === Step 12: Draw final evaluation circles ===
+# === Step 12: Draw final evaluation circles (Updated Logic) ===
 
 final_visual = original.copy()
 
 # Map each column number to its corresponding contour
 column_contours = {i+1: columns[i] for i in range(len(columns))}
 
-# Load all column images and prepare for mapping
 for col_num in range(1, 6):
     points = locations[str(col_num)]  # Points for this column
 
-    for q_idx in range(0, len(points), 4):  # Each set of 4 options (A, B, C, D)
+    for q_idx in range(0, len(points), 4):  # Each group of 4 points (A, B, C, D)
         question_number = (col_num - 1) * (len(points) // 4) + (q_idx // 4) + 1
         q_no_str = str(question_number)
 
@@ -22,8 +21,7 @@ for col_num in range(1, 6):
                 break
             x, y = points[idx]
 
-            # Transform (x, y) back to original image space
-            # Map points from column image to original
+            # Transform (x, y) from column to original image
             src_pts = np.array([
                 [0, 0],
                 [186 - 1, 0],
@@ -38,18 +36,30 @@ for col_num in range(1, 6):
             x_orig, y_orig = transformed[0][0]
             x_orig, y_orig = int(x_orig), int(y_orig)
 
-            # Decide color
             option_label = ["A", "B", "C", "D"][j]
-            if not detected:
-                circle_color = (255, 0, 0)  # Blue for unattempted
-            elif option_label in detected and option_label in actual:
-                circle_color = (0, 255, 0)  # Green for correct
-            elif option_label in detected and option_label not in actual:
-                circle_color = (0, 0, 255)  # Red for wrong
-            else:
-                continue  # No need to draw on unselected correct options
 
-            # Draw circle
+            # Determine color based on your updated rules
+            if not detected:
+                # No option selected -> Blue circles on all 4 options
+                circle_color = (255, 0, 0)  # Blue
+            elif len(detected) > 1:
+                # Multiple options selected -> Red on selected options only
+                if option_label in detected:
+                    circle_color = (0, 0, 255)  # Red
+                else:
+                    continue  # Don't draw anything for unselected ones
+            else:
+                # Exactly one option selected
+                if option_label == detected[0]:
+                    if detected[0] in actual:
+                        circle_color = (0, 255, 0)  # Green (correct)
+                    else:
+                        circle_color = (0, 0, 255)  # Red (wrong)
+
+                else:
+                    continue  # Don't draw for unselected ones
+
+            # Draw the circle
             cv2.circle(final_visual, (x_orig, y_orig), 15, circle_color, thickness=4)
 
 # Save the final image
