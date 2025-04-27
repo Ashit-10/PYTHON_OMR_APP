@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 import json
 
 # ----------------- Step 1: Detect and Crop 5 Columns -----------------
@@ -129,14 +128,19 @@ for i in range(5):
             x, y = column_locations[j + k]
             x, y = int(x), int(y)
 
+            # Ensure the coordinates are within the image bounds
+            if x < 0 or y < 0 or x >= img.shape[1] or y >= img.shape[0]:
+                continue
+
+            # Draw a contour (circle) around the bubble based on the (x, y) location
+            cv2.circle(color_img, (x, y), 10, (0, 255, 0), 3)  # Larger circle for visibility
+
+            # Extract white pixel count
             half_size = 7  # For 15x15 area
             roi = binary[max(0, y - half_size): y + half_size + 1,
                          max(0, x - half_size): x + half_size + 1]
 
             white_pixel_count = cv2.countNonZero(roi)
-
-            # Draw a contour (circle) around the bubble based on the (x, y) location
-            cv2.circle(color_img, (x, y), 7, (0, 255, 0), 2)
 
             question_bubbles.append([x, y, int(white_pixel_count)])
 
