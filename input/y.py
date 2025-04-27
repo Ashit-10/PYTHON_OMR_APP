@@ -42,7 +42,7 @@ def four_point_transform(image, pts):
 # === Step 1: Read and preprocess ===
 
 # Use your uploaded image
-image_path = 'input/test10.jpeg'  # Your uploaded file path
+image_path = 'input/test8.jpeg'  # Your uploaded file path
 image = cv2.imread(image_path)
 image = cv2.resize(image, (1200, 550))  # Resize for faster processing
 original = image.copy()
@@ -111,8 +111,8 @@ for i in range(1, 6):  # For columns 1 to 5
     img = cv2.imread(f"column_{i}.jpg")
     points = locations[str(i)]  # Get points for this column
 
-    # for (x, y) in points:
-    #     cv2.circle(img, (x, y), 10, (0, 255, 0), thickness=2)  # Green, unfilled circle
+    for (x, y) in points:
+        cv2.circle(img, (x, y), 10, (0, 255, 0), thickness=2)  # Green, unfilled circle
 
     cv2.imwrite(f"column_{i}_with_circles.jpg", img)
     print(f"Saved -> column_{i}_with_circles.jpg with circles.")
@@ -148,7 +148,7 @@ for col_num in range(1, 6):
             x, y = points[idx]
 
             # Define a small ROI around the (x, y)
-            roi_size = 11  # 10x10 square
+            roi_size = 10  # 10x10 square
             x1, y1 = max(0, x - roi_size), max(0, y - roi_size)
             x2, y2 = min(edges.shape[1], x + roi_size), min(edges.shape[0], y + roi_size)
             roi = edges[y1:y2, x1:x2]
@@ -174,7 +174,7 @@ for q_no, options in final_data.items():
     selected_options = []
     for opt in options:
         label, x, y, white_pixel_value = opt
-        if white_pixel_value > 300:
+        if white_pixel_value > 180:
             selected_options.append(label)
     filtered_data[q_no] = selected_options
 
