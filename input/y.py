@@ -97,65 +97,59 @@ for i, (x, y, w, h) in enumerate(columns):
     cv2.imwrite(column_image_path, column_image)
     column_images.append((column_image_path, x, y))
 
-# ----------------- Step 2: Read locations.txt and Extract White Pixels -----------------
+# ----------------- Step 2: Read locations.txt, Draw Circles, and Print x, y Values -----------------
 
-# Load bubble locations
+# Load bubble locations from locations.txt
 with open('locations.txt', 'r') as f:
     locations = json.load(f)
 
+# Process each column and draw circles for the x, y coordinates
 final_data = {}
 question_number = 1
 
 for i in range(5):
     column_image_path = f"column_{i + 1}.jpeg"
-    img = cv2.imread(column_image_path, cv2.IMREAD_GRAYSCALE)
+    column_image = cv2.imread(column_image_path)
 
-    # Threshold
-    _, binary = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
-
+    # Get the x, y locations for the current column
     column_locations = locations[str(i + 1)]
 
-    # Create a colored version of the image to draw contours
-    color_img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    # List to hold bubble data for this column
+    question_bubbles = []
 
-    for j in range(0, len(column_locations), 4):
-        question_bubbles = []
+    # Draw circles and print x, y values for each bubble location
+    for (x, y) in column_locations:
+        # Convert to integers for proper drawing
+        x, y = int(x), int(y)
 
-        for k in range(4):
-            if j + k >= len(column_locations):
-                break
+        # Draw a circle at each location (radius=5, color=green, thickness=-1)
+        cv2.circle(column_image, (x, y), 5, (0, 255, 0), -1)  # Green circles
 
-            x, y = column_locations[j + k]
-            x, y = int(x), int(y)
+        # Count white pixels around the bubble
+        half_size = 7  # For 15x15 area
+        roi = column_image[max(0, y - half_size): y + half_size + 1,
+                           max(0, x - half_size): x + half_size + 1]
 
-            # Ensure the coordinates are within the image bounds
-            if x < 0 or y < 0 or x >= img.shape[1] or y >= img.shape[0]:
-                continue
+        white_pixel_count = cv2.countNonZero(cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY))
 
-            # Draw a contour (circle) around the bubble based on the (x, y) location
-            cv2.circle(color_img, (x, y), 10, (0, 255, 0), 3)  # Larger circle for visibility
+        # Store bubble data
+        question_bubbles.append([x, y, white_pixel_count])
 
-            # Extract white pixel count
-            half_size = 7  # For 15x15 area
-            roi = binary[max(0, y - half_size): y + half_size + 1,
-                         max(0, x - half_size): x + half_size + 1]
+        # Print x, y and white pixel values
+        print(f"Question {question_number}, Bubble {len(question_bubbles)}: x = {x}, y = {y}, white pixel count = {white_pixel_count}")
 
-            white_pixel_count = cv2.countNonZero(roi)
+    # Save the column image with the drawn circles
+    column_image_with_circles_path = f"column_{i + 1}_with_circles.jpeg"
+    cv2.imwrite(column_image_with_circles_path, column_image)
 
-            question_bubbles.append([x, y, int(white_pixel_count)])
+    # Store final data for this column
+    final_data[str(question_number)] = question_bubbles
+    question_number += 1
 
-        final_data[str(question_number)] = question_bubbles
-        question_number += 1
-
-    # Save the image with contours drawn
-    contour_image_path = f"column_{i + 1}_contours.jpeg"
-    cv2.imwrite(contour_image_path, color_img)
-
-# Print final JSON
-print(json.dumps(final_data, indent=4))
+    print(f"Saved {column_image_with_circles_path}")
 
 # Save JSON to file
 with open('white_pixel_data.txt', 'w') as f:
     json.dump(final_data, f, indent=4)
 
-print("\nSaved white_pixel_data.txt successfully.")
+print("\nAll images with circles saved successfully and white pixel data printed.")
