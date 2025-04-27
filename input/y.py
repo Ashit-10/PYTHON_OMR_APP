@@ -1,24 +1,22 @@
 import cv2
 import numpy as np
-import json
 
-# ======= Utilities =======
+# === Utilities ===
 
 def order_points(pts):
-    """ Order the points: top-left, top-right, bottom-right, bottom-left """
+    """Order points: top-left, top-right, bottom-right, bottom-left."""
     rect = np.zeros((4, 2), dtype="float32")
     s = pts.sum(axis=1)
-    rect[0] = pts[np.argmin(s)]      # top-left
-    rect[2] = pts[np.argmax(s)]      # bottom-right
+    rect[0] = pts[np.argmin(s)]  # Top-left
+    rect[2] = pts[np.argmax(s)]  # Bottom-right
 
     diff = np.diff(pts, axis=1)
-    rect[1] = pts[np.argmin(diff)]   # top-right
-    rect[3] = pts[np.argmax(diff)]   # bottom-left
-
+    rect[1] = pts[np.argmin(diff)]  # Top-right
+    rect[3] = pts[np.argmax(diff)]  # Bottom-left
     return rect
 
 def four_point_transform(image, pts):
-    """ Apply perspective transform """
+    """Apply perspective warp."""
     rect = order_points(pts)
     (tl, tr, br, bl) = rect
 
@@ -41,124 +39,174 @@ def four_point_transform(image, pts):
 
     return warped
 
-def is_bubble_filled(white_pixel_count, threshold=100):
-    """ Return True if bubble is filled based on white pixel count """
-    return white_pixel_count < threshold
+# === Step 1: Read and preprocess ===
 
-# ======= Step 1: Deskew and Detect Columns =======
-
-image_path = 'input/test8.jpeg'
+# Use your uploaded image
+image_path = 'input/test10.jpeg'  # Your uploaded file path
 image = cv2.imread(image_path)
-image = cv2.resize(image, (1200, 550))
+image = cv2.resize(image, (1200, 550))  # Resize for faster processing
 original = image.copy()
 
 gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-# Deskew
-edges = cv2.Canny(gray, 50, 150)
-lines = cv2.HoughLines(edges, 1, np.pi / 180, 200)
-
-angle = 0
-if lines is not None:
-    for rho, theta in lines[:, 0]:
-        angle += theta
-    angle /= len(lines)
-    angle = (angle - np.pi/2) * (180/np.pi)
-
-    (h, w) = image.shape[:2]
-    center = (w // 2, h // 2)
-    M = cv2.getRotationMatrix2D(center, angle, 1.0)
-    image = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
-
-    original = image.copy()
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    print(f"Deskewed image by {angle:.2f} degrees")
-
-# Detect contours
-blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
                                 cv2.THRESH_BINARY_INV, 27, 5)
 
-kernel = np.ones((3, 3), np.uint8)
-thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-
-contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+# Find contours
+contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
 columns = []
 
+# === Step 2: Detect rectangles ===
 for cnt in contours:
     peri = cv2.arcLength(cnt, True)
     approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
-    if len(approx) == 4:
+    if len(approx) == 4:  # Only quadrilaterals
         area = cv2.contourArea(cnt)
         x, y, w, h = cv2.boundingRect(approx)
         aspect_ratio = h / float(w) if w != 0 else 0
-        if 28000 < area < 300000 and 1.4 < aspect_ratio < 4.0:
+
+        # Filter based on size and aspect ratio
+        if 20000 < area < 300000 and 1.3 < aspect_ratio < 5.0:
             columns.append(approx.reshape(4, 2))
 
-# Sort columns left to right
+# Sort left to right
 columns = sorted(columns, key=lambda c: np.min(c[:, 0]))
-columns = columns[:5]
 
-# Warp each column
+print(f"Detected {len(columns)} columns.")
+
+# === Step 3: Draw rectangles for visualization ===
+
+visual = original.copy()
+
+for i, points in enumerate(columns):
+    points = points.reshape((-1,1,2)).astype(np.int32)
+    cv2.polylines(visual, [points], isClosed=True, color=(0,255,0), thickness=5)
+    cv2.putText(visual, f"Col {i+1}", tuple(points[0][0]), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2)
+
+
+cv2.imwrite("with_rectangles.jpg", visual)
+print("Saved visualization with rectangles -> with_rectangles.jpg")
+
+# === Step 4: Warp each column separately ===
+
 for i, corner_points in enumerate(columns):
     warped = four_point_transform(original, corner_points)
-    cv2.imwrite(f"column_{i + 1}.jpeg", warped)
+    warped = cv2.resize(warped, (186, 450))  # Resize for faster processing
 
-print("Warped and saved all 5 columns perfectly!")
+    cv2.imwrite(f"column_{i+1}.jpg", warped)
+    print(f"Saved warped column -> column_{i+1}.jpg")
 
-# ======= Step 2: Read locations.txt, Analyze Bubbles =======
+print("\nAll Done! Now you can see the results.")
+import json
 
+# === Step 5: Draw green unfilled circles based on locations.txt ===
+
+# Load locations.txt
 with open('locations.txt', 'r') as f:
     locations = json.load(f)
 
+# Draw circles on each column image
+for i in range(1, 6):  # For columns 1 to 5
+    img = cv2.imread(f"column_{i}.jpg")
+    points = locations[str(i)]  # Get points for this column
+
+    # for (x, y) in points:
+    #     cv2.circle(img, (x, y), 10, (0, 255, 0), thickness=2)  # Green, unfilled circle
+
+    cv2.imwrite(f"column_{i}_with_circles.jpg", img)
+    print(f"Saved -> column_{i}_with_circles.jpg with circles.")
+
+print("\nAll circles drawn successfully!")
+
+
+# === Step 6: Canny and Measure White Pixels at Circle Locations ===
+
 final_data = {}
-question_number = 1
 
-for i in range(5):
-    column_image_path = f"column_{i + 1}.jpeg"
-    column_image = cv2.imread(column_image_path)
-    column_image_copy = column_image.copy()
+question_counter = 1  # Start question number from 1
 
-    column_locations = locations[str(i + 1)]
-    question_bubbles = []
+for col_num in range(1, 6):
+    img = cv2.imread(f"column_{col_num}_with_circles.jpg", cv2.IMREAD_GRAYSCALE)
 
-    for (x, y) in column_locations:
-        x, y = int(x), int(y)
+    # Apply Canny edge detection
+    # edges = cv2.Canny(img, threshold1=50, threshold2=150)
+    _, edges = cv2.threshold(img, 120, 255, cv2.THRESH_BINARY_INV)
+    cv2.imshow("hi", edges)
+    cv2.waitKey(0)
 
-        half_size = 7
-        roi = column_image_copy[max(0, y - half_size): y + half_size + 1,
-                                max(0, x - half_size): x + half_size + 1]
+    points = locations[str(col_num)]  # Get corresponding points
 
-        gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        white_pixel_count = cv2.countNonZero(gray_roi)
+    for i in range(0, len(points), 4):  # Every 4 points (A, B, C, D)
+        question_data = []
+        option_labels = ["A", "B", "C", "D"]
+        
+        for j in range(4):
+            idx = i + j
+            if idx >= len(points):
+                break
+            x, y = points[idx]
 
-        filled = is_bubble_filled(white_pixel_count)
+            # Define a small ROI around the (x, y)
+            roi_size = 11  # 10x10 square
+            x1, y1 = max(0, x - roi_size), max(0, y - roi_size)
+            x2, y2 = min(edges.shape[1], x + roi_size), min(edges.shape[0], y + roi_size)
+            roi = edges[y1:y2, x1:x2]
 
-        # Draw
-        color = (0, 255, 0) if filled else (0, 0, 255)  # Green if filled, Red if empty
-        cv2.circle(column_image, (x, y), 12, color, -1)
+            white_pixels = cv2.countNonZero(roi)
+            # mask = np.zeros_like(roi)
+            # white_pixels = cv2.countNonZero(cv2.bitwise_and(roi, roi, mask=mask))
 
-        question_bubbles.append({
-            "x": x,
-            "y": y,
-            "white_pixel_count": white_pixel_count,
-            "filled": filled
-        })
+            question_data.append([option_labels[j], x, y, white_pixels])
 
-        print(f"Question {question_number}, Bubble {len(question_bubbles)}: x = {x}, y = {y}, white pixels = {white_pixel_count}, Filled: {filled}")
+        final_data[str(question_counter)] = question_data
+        question_counter += 1
 
-    column_image_with_circles_path = f"column_{i + 1}_with_circles.jpeg"
-    cv2.imwrite(column_image_with_circles_path, column_image)
+# === Step 7: Print Final JSON ===
+# print("\n\n=== Final Data ===\n")
+print(json.dumps(final_data))
 
-    final_data[str(question_number)] = question_bubbles
-    question_number += 1
+# === Step 8: Filter options based on white pixel threshold ===
 
-    print(f"Saved {column_image_with_circles_path}")
+filtered_data = {}
 
-# Save JSON to file
-with open('white_pixel_data.txt', 'w') as f:
-    json.dump(final_data, f, indent=4)
+for q_no, options in final_data.items():
+    selected_options = []
+    for opt in options:
+        label, x, y, white_pixel_value = opt
+        if white_pixel_value > 300:
+            selected_options.append(label)
+    filtered_data[q_no] = selected_options
 
-print("\nAll images with circles saved successfully and white pixel data printed.")
+print("\n\n=== Filtered Data (options with white pixels > 200) ===\n")
+print(json.dumps(filtered_data))
+
+# === Step 9: Load correct answers ===
+
+with open('answer_key.txt', 'r') as f:
+    answer_key = json.load(f)
+
+# === Step 10: Compare answers ===
+
+correct = 0
+incorrect = 0
+unattempted = 0
+
+for q_no in range(1, 51):
+    q_no_str = str(q_no)
+    detected = filtered_data.get(q_no_str, [])
+    actual = answer_key.get(q_no_str, [])
+
+    if not detected:
+        unattempted += 1
+    elif len(detected) == 1 and detected[0] in actual:
+        correct += 1
+    else:
+        incorrect += 1
+
+# === Step 11: Print result ===
+
+print("\n\n=== Result Summary ===")
+print(f"Correct answers: {correct}")
+print(f"Incorrect answers: {incorrect}")
+print(f"Unattempted questions: {unattempted}")
