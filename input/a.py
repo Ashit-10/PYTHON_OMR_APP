@@ -1,30 +1,52 @@
-if not detected_columns:
-    # Draw rectangles found so far for visualization
-    visual = original.copy()
-    for i, points in enumerate(columns):
-        points = points.reshape((-1,1,2)).astype(np.int32)
-        cv2.polylines(visual, [points], isClosed=True, color=(0,0,255), thickness=5)  # RED for error
+import cv2
+import numpy as np
 
-    # Add error message text at bottom
-    h, w = visual.shape[:2]
-    new_image = np.ones((h + 180, w, 3), dtype=np.uint8) * 255  # white background
-    new_image[:h, :w] = visual
+# Load the image
+image = cv2.imread('input_image.jpg')
 
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 1
-    thickness = 2
-    y_start = h + 40
+# Convert to grayscale
+gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    cv2.putText(new_image, f"ERROR: Columns not detected", (50, y_start), font, font_scale, (0, 0, 255), thickness)
-    cv2.putText(new_image, f"FILE: {photo_name}", (50, y_start + 40), font, font_scale, (0, 0, 0), thickness)
+# Apply edge detection
+edges = cv2.Canny(gray, 50, 150)
 
-    # Save to error folder
-    import os
-    os.makedirs("error", exist_ok=True)
-    error_filename = f"error/{photo_name}_error.jpg"
-    cv2.imwrite(error_filename, new_image)
+# Find contours
+contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
-    print(f"Saved {error_filename} due to column detection failure.")
+# Iterate through contours and detect rectangles
+rectangles = []
+for contour in contours:
+    # Approximate contour to polygon
+    epsilon = 0.04 * cv2.arcLength(contour, True)
+    approx = cv2.approxPolyDP(contour, epsilon, True)
 
-    # Skip further processing for this image
-    return 0, 0, 0, 0, "00", "Column Detection Failed"
+    # If the polygon has 4 vertices, it's a rectangle
+    if len(approx) == 4:
+        rectangles.append(approx)
+
+# Now we have the detected rectangles, we need to warp each of them
+for rect in rectangles:
+    # Get the corner points of the rectangle
+    points = rect.reshape(4, 2)
+
+    # Sort the points in a consistent order (top-left, top-right, bottom-right, bottom-left)
+    points = sorted(points, key=lambda x: x[0])
+    if points[0][1] > points[1][1]:
+        points[0], points[1] = points[1], points[0]
+    if points[2][1] > points[3][1]:
+        points[2], points[3] = points[3], points[2]
+
+    # Create the target points for perspective transformation (a perfect rectangle)
+    width = int(np.linalg.norm(points[0] - points[1]))
+    height = int(np.linalg.norm(points[0] - points[3]))
+    target_points = np.array([[0, 0], [width-1, 0], [width-1, height-1], [0, height-1]], dtype="float32")
+
+    # Perform perspective warp for each rectangle
+    M = cv2.getPerspectiveTransform(np.float32(points), target_points)
+    warped = cv2.warpPerspective(image, M, (width, height))
+
+    # Show or save the warped rectangle
+    cv2.imshow("Warped Rectangle", warped)
+    cv2.waitKey(0)
+
+cv2.destroyAllWindows()
