@@ -3,6 +3,7 @@ import scan100 as s100
 import os
 import json
 import time
+import glob
 
 def evaluate(image_file, out_put_path, answer_key_file, caption, has_darkness, allow_partial_mark):
     with open(answer_key_file, 'r') as readd:
