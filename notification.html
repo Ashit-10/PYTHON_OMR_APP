@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Web Notification Demo</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding-top: 100px;
+    }
+    button {
+      font-size: 18px;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Web Notification Example</h1>
+  <button onclick="showNotification()">Send Notification</button>
+
+  <script>
+    // Request permission on page load
+    document.addEventListener("DOMContentLoaded", function () {
+      if ("Notification" in window) {
+        Notification.requestPermission().then(function (permission) {
+          console.log("Notification permission:", permission);
+        });
+      }
+    });
+
+    // Function to show notification
+    function showNotification() {
+      if (!("Notification" in window)) {
+        alert("This browser does not support desktop notifications.");
+        return;
+      }
+
+      if (Notification.permission === "granted") {
+        const notification = new Notification("✅ Task Complete!", {
+          body: "You clicked the notification button.",
+          icon: "https://cdn-icons-png.flaticon.com/512/190/190411.png" // Optional icon
+        });
+
+        // Optional click handler
+        notification.onclick = function () {
+          window.open("https://www.google.com");
+        };
+
+      } else {
+        alert("Notification permission not granted.");
+      }
+    }
+  </script>
+
+</body>
+</html>
