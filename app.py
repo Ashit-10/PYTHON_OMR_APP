@@ -17,6 +17,8 @@ def evaluate(image_file, out_put_path, answer_key_file, caption, has_darkness, a
 
 # evaluate('images/n18.jpg', 'output/', "answer_key.txt", "", None, None)   
 
+moved = [shutil.move(f, '.') for f in glob.glob('/sdcard/Download/answer_key*.txt')]
+print("Moved files:", moved)
 
 if_in_output = os.listdir("output/")
 if len(if_in_output) > 0:
