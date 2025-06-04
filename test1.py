@@ -179,134 +179,142 @@ def index():
   <div id="errorMessage"></div>
 
   <script>
-    let stream = null;
-    let torchOn = false;
+  let stream = null;
+  let torchOn = false;
 
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const resultImg = document.getElementById("resultImg");
-    const flashBtn = document.getElementById("flashBtn");
-    const captureBtn = document.getElementById("captureBtn");
-    const nextBtn = document.getElementById("nextBtn");
-    const refreshBtn = document.getElementById("refreshBtn");
-    const overlay = document.getElementById("overlay");
-    const errorMessage = document.getElementById("errorMessage");
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  const resultImg = document.getElementById("resultImg");
+  const flashBtn = document.getElementById("flashBtn");
+  const captureBtn = document.getElementById("captureBtn");
+  const nextBtn = document.getElementById("nextBtn");
+  const refreshBtn = document.getElementById("refreshBtn");
+  const overlay = document.getElementById("overlay");
+  const errorMessage = document.getElementById("errorMessage");
 
-    async function startCamera() {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } }
-        });
-        video.srcObject = stream;
-        video.play();
-      } catch (e) {
-        alert("Camera access denied.");
-      }
-    }
-
-    async function toggleFlash() {
-      try {
-        if (!stream) return;
-        const track = stream.getVideoTracks()[0];
-        await track.applyConstraints({
-          advanced: [{ torch: !torchOn }]
-        });
-        torchOn = !torchOn;
-        flashBtn.textContent = torchOn ? "Flash Off" : "🔦 Flash";
-      } catch (e) {
-        alert("Flash not supported.");
-      }
-    }
-
-    function showControls(mode) {
-      // modes: "initial", "processing", "result"
-      flashBtn.style.display = mode === "initial" ? "inline-block" : "none";
-      captureBtn.style.display = mode === "initial" ? "inline-block" : "none";
-      nextBtn.style.display = mode === "result" ? "inline-block" : "none";
-      refreshBtn.style.display = mode === "processing" ? "inline-block" : "none";
-    }
-
-    captureBtn.onclick = () => {
-      errorMessage.textContent = "";
-      showControls("processing");
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      stream.getTracks().forEach(t => t.stop());
-      video.style.display = "none";
-      overlay.style.display = "none";
-
-      const loading = document.createElement("div");
-      loading.id = "loadingOverlay";
-      loading.textContent = "🔄 Processing the file…";
-      Object.assign(loading.style, {
-        position: 'fixed',
-        top: 0, left: 0,
-        width: '100vw',
-        height: '100vh',
-        background: 'black',
-        color: 'white',
-        fontSize: '22px',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 9999
+  async function startCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } }
       });
-      document.body.appendChild(loading);
+      video.srcObject = stream;
+      video.play();
+    } catch (e) {
+      alert("Camera access denied.");
+    }
+  }
 
-      canvas.toBlob(blob => {
-        const formData = new FormData();
-        formData.append("image", blob, "capture.jpg");
+  async function toggleFlash() {
+    try {
+      if (!stream) return;
+      const track = stream.getVideoTracks()[0];
+      await track.applyConstraints({
+        advanced: [{ torch: !torchOn }]
+      });
+      torchOn = !torchOn;
+      flashBtn.textContent = torchOn ? "Flash Off" : "🔦 Flash";
+    } catch (e) {
+      alert("Flash not supported.");
+    }
+  }
 
-        fetch("/upload", { method: "POST", body: formData })
-          .then(() => {
-            const interval = setInterval(() => {
-              fetch("/status")
-                .then(res => res.json())
-                .then(data => {
-                  if (!data.processing) {
-                    clearInterval(interval);
-                    loading.remove();
-                    if (data.filename) {
-                      resultImg.src = "/temp_output/" + data.filename + "?t=" + Date.now();
-                      resultImg.id = "fullImageView";
-                      document.body.innerHTML = "";
-                      document.body.appendChild(resultImg);
-                      document.body.appendChild(nextBtn);
-                      showControls("result");
-                    } else {
-                      errorMessage.textContent = "❌ Failed to process the image.";
-                      showControls("initial");
-                      startCamera();
-                    }
-                  }
-                }).catch(err => {
+  function showControls(mode) {
+    // Modes: "initial", "processing", "result", "error"
+    flashBtn.style.display = (mode === "initial") ? "inline-block" : "none";
+    captureBtn.style.display = (mode === "initial") ? "inline-block" : "none";
+    refreshBtn.style.display = (mode === "initial" || mode === "processing") ? "inline-block" : "none";
+    nextBtn.style.display = (mode === "result" || mode === "error") ? "inline-block" : "none";
+  }
+
+  captureBtn.onclick = () => {
+    errorMessage.textContent = "";
+    showControls("processing");
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    stream.getTracks().forEach(t => t.stop());
+    video.style.display = "none";
+    overlay.style.display = "none";
+
+    const loading = document.createElement("div");
+    loading.id = "loadingOverlay";
+    loading.textContent = "🔄 Processing the file…";
+    Object.assign(loading.style, {
+      position: 'fixed',
+      top: 0, left: 0,
+      width: '100vw',
+      height: '100vh',
+      background: 'black',
+      color: 'white',
+      fontSize: '22px',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 9999
+    });
+    document.body.appendChild(loading);
+
+    canvas.toBlob(blob => {
+      const formData = new FormData();
+      formData.append("image", blob, "capture.jpg");
+
+      fetch("/upload", { method: "POST", body: formData })
+        .then(() => {
+          const interval = setInterval(() => {
+            fetch("/status")
+              .then(res => res.json())
+              .then(data => {
+                if (!data.processing) {
                   clearInterval(interval);
                   loading.remove();
-                  errorMessage.textContent = "❌ Error during processing.";
-                  showControls("initial");
-                  startCamera();
-                });
-            }, 1000);
-          })
-          .catch(err => {
-            loading.remove();
-            errorMessage.textContent = "❌ Upload error.";
-            showControls("initial");
-            startCamera();
-          });
-      }, "image/jpeg");
-    };
+                  if (data.filename) {
+                    resultImg.src = "/temp_output/" + data.filename + "?t=" + Date.now();
+                    resultImg.id = "fullImageView";
+                    document.body.innerHTML = "";
+                    document.body.appendChild(resultImg);
+                    document.body.appendChild(nextBtn);
+                    showControls("result");
+                  } else {
+                    errorMessage.textContent = "❌ Failed to process the image.";
+                    document.body.innerHTML = "";
+                    document.body.appendChild(errorMessage);
+                    document.body.appendChild(nextBtn);
+                    showControls("error");
+                  }
+                }
+              })
+              .catch(err => {
+                clearInterval(interval);
+                loading.remove();
+                errorMessage.textContent = "❌ Error during processing.";
+                document.body.innerHTML = "";
+                document.body.appendChild(errorMessage);
+                document.body.appendChild(nextBtn);
+                showControls("error");
+              });
+          }, 1000);
+        })
+        .catch(err => {
+          loading.remove();
+          errorMessage.textContent = "❌ Upload error.";
+          document.body.innerHTML = "";
+          document.body.appendChild(errorMessage);
+          document.body.appendChild(nextBtn);
+          showControls("error");
+        });
+    }, "image/jpeg");
+  };
 
-    flashBtn.onclick = toggleFlash;
-    refreshBtn.onclick = () => location.reload();
-    nextBtn.onclick = () => location.reload();
+  flashBtn.onclick = toggleFlash;
+  refreshBtn.onclick = () => location.reload();
+  nextBtn.onclick = () => location.reload();
 
-    startCamera();
-    showControls("initial");
-  </script>
+  startCamera();
+  showControls("initial");
+</script>
+
 </body>
 </html>
 
