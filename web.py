@@ -55,6 +55,8 @@ def move_and_process(file_path):
     files = [f for f in os.listdir(output_folder) if f.endswith(extensions)]
     if files:
         latest_output_filename = files[-1]
+        shutil.copy(os.path.join(output_folder, latest_output_filename),
+                    os.path.join("output", latest_output_filename))
     else:
         latest_output_filename = ""
 
