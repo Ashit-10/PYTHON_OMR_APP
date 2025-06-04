@@ -81,84 +81,205 @@ def move_and_process(file_path):
 
 @app.route('/')
 def index():
+    @app.route('/')
+def index():
     return render_template_string('''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>OMR sheet evaluator</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                text-align: center;
-            }
-            video, canvas, #resultImg {
-                width: 90%;
-                max-width: 400px;
-                margin: 10px auto;
-                display: block;
-                border: 4px solid black;
-            }
-            .qr-box {
-                position: absolute;
-                border: 3px solid lime;
-                width: 50px; height: 50px;
-            }
-            .qr-tl { top: 10%; left: 10%; }
-            .qr-tr { top: 10%; right: 10%; }
-            .qr-bl { bottom: 10%; left: 10%; }
-            .qr-br { bottom: 10%; right: 10%; }
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OMR sheet evaluator</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: sans-serif;
+      background-color: black;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #wrap {
+      position: relative;
+      width: 180px;
+      height: 480px;
+      margin-top: 15px;
+      border: 4px solid white;
+      box-sizing: content-box;
+    }
+    video, canvas, #resultImg {
+      width: 180px;
+      height: 480px;
+      object-fit: cover;
+      display: block;
+    }
+    .overlay .qr-box {
+      position: absolute;
+      border: 2px solid lime;
+      width: 30px;
+      height: 30px;
+    }
+    .qr-tl { top: 10px; left: 10px; }
+    .qr-tr { top: 10px; right: 10px; }
+    .qr-bl { bottom: 10px; left: 10px; }
+    .qr-br { bottom: 10px; right: 10px; }
 
-            .overlay {
-                position: absolute;
-                top: 0; left: 0; right: 0; bottom: 0;
-                pointer-events: none;
-            }
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+    }
 
-            .hidden {
-                display: none;
-            }
+    .controls {
+      width: 100%;
+      padding: 15px;
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      background-color: rgba(0,0,0,0.8);
+    }
 
-            button {
-                padding: 12px 24px;
-                font-size: 16px;
-                margin: 10px;
-            }
+    button {
+      font-size: 16px;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      background: white;
+      color: black;
+    }
 
-            #wrap {
-                position: relative;
-                display: inline-block;
-            }
-        </style>
-    </head>
-    <body>
-        <h2>OMR sheet evaluator</h2>
+    canvas, #resultImg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      display: none;
+    }
+  </style>
+</head>
+<body>
 
-        <div id="wrap">
-            <video id="video" autoplay playsinline></video>
-            <canvas id="canvas" class="hidden"></canvas>
-            <div class="overlay">
-                <div class="qr-box qr-tl"></div>
-                <div class="qr-box qr-tr"></div>
-                <div class="qr-box qr-bl"></div>
-                <div class="qr-box qr-br"></div>
-            </div>
-        </div>
+  <div id="wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <img id="resultImg" />
+    <div class="overlay">
+      <div class="qr-box qr-tl"></div>
+      <div class="qr-box qr-tr"></div>
+      <div class="qr-box qr-bl"></div>
+      <div class="qr-box qr-br"></div>
+    </div>
+  </div>
 
-        <div>
-            <button id="captureBtn">Capture</button>
-            <button id="nextBtn" class="hidden" onclick="location.reload()">Next / Redo</button>
-        </div>
+  <div class="controls">
+    <button id="flashlightButton" onclick="toggleFlash()">🔦 Flash</button>
+    <button id="captureBtn">📸 Capture</button>
+    <button id="nextBtn" style="display:none;" onclick="location.reload()">🔁 Next</button>
+    <button id="toggleCameraBtn">📷 Camera Off</button>
+  </div>
 
-        <img id="resultImg" class="hidden" />
+  <script>
+    let stream, videoStream, track;
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const resultImg = document.getElementById('resultImg');
+    const captureBtn = document.getElementById('captureBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const flashlightButton = document.getElementById('flashlightButton');
+    const toggleCameraBtn = document.getElementById('toggleCameraBtn');
 
-        ;
-    }, 'image/jpeg', 0.9);
-  };
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 960 },
+            height: { ideal: 1920 },
+            facingMode: { ideal: "environment" }
+          }
+        });
+        videoStream = stream;
+        video.srcObject = stream;
+        video.play();
+      } catch (e) {
+        alert("Back camera not accessible. Allow camera access in settings.");
+        console.error(e);
+      }
+    }
 
-</script>
-    </body>
-    </html>
-    ''')
+    let torchOn = false;
+
+    async function toggleFlash() {
+      if (stream) {
+        const track = stream.getVideoTracks()[0];
+        if (torchOn) {
+          await track.applyConstraints({ advanced: [{ torch: false }] });
+          torchOn = false;
+          location.reload(); // Reload to reset UI
+        } else {
+          await track.applyConstraints({ advanced: [{ torch: true }] });
+          torchOn = true;
+          flashlightButton.textContent = "Flash Off";
+        }
+      }
+    }
+
+    let cameraOn = true;
+    toggleCameraBtn.onclick = () => {
+      if (cameraOn) {
+        video.pause();
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        video.style.display = "none";
+        toggleCameraBtn.textContent = "📷 Camera On";
+      } else {
+        startCamera();
+        video.style.display = "block";
+        toggleCameraBtn.textContent = "📷 Camera Off";
+      }
+      cameraOn = !cameraOn;
+    };
+
+    captureBtn.onclick = () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(blob => {
+        // ⬇️ Trigger download
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = "OMR_sheet.jpg";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        const formData = new FormData();
+        formData.append('image', blob, 'capture.jpg');
+        fetch('/upload', { method: 'POST', body: formData })
+          .then(r => r.json())
+          .then(data => {
+            video.style.display = "none";
+            resultImg.src = "/temp_output/" + data.filename + "?t=" + new Date().getTime();
+            resultImg.style.display = "block";
+            captureBtn.style.display = "none";
+            nextBtn.style.display = "inline-block";
+          });
+      }, 'image/jpeg');
+    };
+
+    document.getElementById('flashlightButton').addEventListener('click', toggleFlash);
+    startCamera();
+  </script>
+</body>
+</html>
+''')
+
 
 @app.route('/upload', methods=['POST'])
 def upload():
