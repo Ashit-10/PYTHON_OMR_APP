@@ -6,326 +6,414 @@ import signal
 import sys
 import threading
 import glob
-import base64
 from flask import Flask, send_from_directory, render_template_string, jsonify, request
-import logging
 
-# === Logging Filter ===
-class FilterRequests(logging.Filter):
-    def filter(self, record):
-        return "GET /" not in record.getMessage() and "POST /" not in record.getMessage()
+app = Flask(__name__)
 
-log = logging.getLogger('werkzeug')
-log.setLevel(logging.INFO)
-log.addFilter(FilterRequests())
-
-# === Paths ===
 download_folder = "/sdcard/Download"
 input_folder = "temp_input"
 output_folder = "temp_output"
 error_folder = "error"
 extensions = ('.jpg', '.jpeg', '.png')
 
-# === Globals ===
 processing = False
-current_filename = ""
 latest_output_filename = ""
 error_occurred = False
 
-app = Flask(__name__)
+# Ensure folders exist
+os.makedirs(input_folder, exist_ok=True)
+os.makedirs(output_folder, exist_ok=True)
+os.makedirs(error_folder, exist_ok=True)
 
-# === Signal handler for Ctrl+C ===
-def signal_handler(sig, frame):
-    print("\nStopped by user.")
-    sys.exit(0)
+def safe_move_answer_key():
+    # Move answer_key*.txt files if available
+    try:
+        key_files = [f for f in os.listdir(download_folder) if f.startswith("answer_key") and f.endswith(".txt")]
+        for key_file in key_files:
+            src = os.path.join(download_folder, key_file)
+            dst = "answer_key.txt"
+            if os.path.exists(dst):
+                os.remove(dst)
+            shutil.move(src, dst)
+            print(f"Moved answer key: {key_file}")
+    except Exception as e:
+        print(f"Error moving answer key: {e}")
 
-signal.signal(signal.SIGINT, signal_handler)
-
-# === Utility Functions ===
-def get_latest_error_image():
-    error_files = glob.glob(os.path.join(error_folder, "*"))
-    error_files = [f for f in error_files if f.lower().endswith(extensions)]
-    if not error_files:
-        return None
-    return max(error_files, key=os.path.getmtime)
-
-def move_and_process(file_path):
-    global processing, current_filename, latest_output_filename, error_occurred
-    filename = os.path.basename(file_path)
-    current_filename = filename
+def process_image(file_path):
+    global processing, latest_output_filename, error_occurred
     processing = True
     error_occurred = False
 
-    os.system("mkdir -p temp_input temp_output")
-    os.system("rm -rf temp_input/*")
-    os.system("rm -rf temp_output/*")
-    shutil.move(file_path, os.path.join(input_folder, filename))
-    print(f"Moved {filename} to input folder.")
+    # Clear temp folders
+    for folder in [input_folder, output_folder]:
+        for f in os.listdir(folder):
+            try:
+                os.remove(os.path.join(folder, f))
+            except Exception:
+                pass
 
+    filename = os.path.basename(file_path)
+    shutil.move(file_path, os.path.join(input_folder, filename))
+    print(f"Moved file {filename} to input folder")
+
+    # Run your processing script here (replace 'autoapp.py' with your actual processing script)
     process = subprocess.Popen(
         ["python3", "autoapp.py"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True
     )
-
     stdout, stderr = process.communicate()
+    print("Processing stdout:", stdout)
+    print("Processing stderr:", stderr)
 
-    if stdout:
-        print("Output from autoapp.py:")
-        print(stdout)
-
-    if stderr:
-        print("Error from autoapp.py:", file=sys.stderr)
-        print(stderr, file=sys.stderr)
+    if "fail" in stdout.lower() or "fail" in stderr.lower():
         error_occurred = True
 
-    if "fail" in str(stdout).lower() or "fail" in str(stderr).lower():
-        error_occurred = True
-
-    output_files = os.listdir(output_folder)
-    output_files = [f for f in output_files if f.lower().endswith(extensions)]
-
-    if output_files:
-        latest_output_filename = output_files[-1]
-        print(f"Processed output: {latest_output_filename}")
+    # Find output image
+    output_images = [f for f in os.listdir(output_folder) if f.lower().endswith(extensions)]
+    if output_images:
+        # Use the last created output image and copy it to a stable filename
+        latest_file = sorted(output_images, key=lambda f: os.path.getmtime(os.path.join(output_folder, f)))[-1]
+        src = os.path.join(output_folder, latest_file)
+        dst = os.path.join(output_folder, "latest_output.jpg")
+        shutil.copy(src, dst)
+        latest_output_filename = "latest_output.jpg"
+        print(f"Output image ready: {latest_output_filename}")
     else:
-        error_file = get_latest_error_image()
-        if error_occurred and error_file:
-            dest = os.path.join(output_folder, os.path.basename(error_file))
-            shutil.copy(error_file, dest)
-            latest_output_filename = os.path.basename(error_file)
-            print(f"Displayed error image: {latest_output_filename}")
+        # Show error image if exists
+        error_images = [f for f in os.listdir(error_folder) if f.lower().endswith(extensions)]
+        if error_images:
+            latest_error = sorted(error_images, key=lambda f: os.path.getmtime(os.path.join(error_folder, f)))[-1]
+            src = os.path.join(error_folder, latest_error)
+            dst = os.path.join(output_folder, latest_error)
+            shutil.copy(src, dst)
+            latest_output_filename = latest_error
+            error_occurred = True
+            print(f"Error image displayed: {latest_output_filename}")
         else:
             latest_output_filename = ""
+            print("No output or error images found.")
 
     processing = False
 
-def watch_folder():
-    print("Watching for new OMR images...")
-    already_seen = set()
-
+def watch_folder_thread():
+    # Continuously watch for new images and answer keys
     while True:
-        try:
-            key_files = [f for f in os.listdir(download_folder) if f.startswith("answer_key") and f.endswith(".txt")]
-            for key_file in key_files:
-                key_path = os.path.join(download_folder, key_file)
-                shutil.move(key_path, "answer_key.txt")
-                print(f"Moved answer key: {key_path}")
-        except:
-            pass
+        safe_move_answer_key()
+        files = [f for f in os.listdir(download_folder) if f.startswith("OMR_") and f.lower().endswith(extensions)]
+        for f in files:
+            full_path = os.path.join(download_folder, f)
+            if not processing:
+                try:
+                    print(f"Found new file to process: {f}")
+                    process_image(full_path)
+                except Exception as e:
+                    print(f"Error processing file {f}: {e}")
+        time.sleep(2)
 
-        try:
-            files = [f for f in os.listdir(download_folder) if f.startswith("OMR_") and f.lower().endswith(extensions)]
-            for file in files:
-                full_path = os.path.join(download_folder, file)
-                if full_path not in already_seen:
-                    move_and_process(full_path)
-                    already_seen.add(full_path)
-            time.sleep(1)
-        except Exception as e:
-            print(f"Error: {e}")
-            time.sleep(1)
-
-# === Routes ===
-@app.route('/')
+@app.route("/")
 def index():
-    return render_template_string('''
+    # Serve main page with full UI logic handled by JS below
+    return render_template_string("""
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OMR sheet evaluator</title>
-  <style>
-    body, html {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: sans-serif;
-      background-color: black;
-      color: white;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
-    }
-    #wrap {
-      position: relative;
-      width: 180px;
-      height: 480px;
-      margin-top: 20px;
-      border: 4px solid white;
-      box-sizing: content-box;
-    }
-    video, canvas, #resultImg {
-      width: 180px;
-      height: 480px;
-      object-fit: cover;
-      display: block;
-    }
-    .overlay .qr-box {
-      position: absolute;
-      border: 2px solid lime;
-      width: 30px;
-      height: 30px;
-    }
-    .qr-tl { top: 10px; left: 10px; }
-    .qr-tr { top: 10px; right: 10px; }
-    .qr-bl { bottom: 10px; left: 10px; }
-    .qr-br { bottom: 10px; right: 10px; }
-
-    .overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      pointer-events: none;
-    }
-
-    .controls {
-      width: 100%;
-      padding: 15px;
-      display: flex;
-      justify-content: center;
-      gap: 20px;
-      background-color: rgba(0,0,0,0.8);
-    }
-
-    button {
-      font-size: 16px;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      background: white;
-      color: black;
-    }
-
-    canvas, #resultImg {
-      position: absolute;
-      top: 0;
-      left: 0;
-      display: none;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Camera OMR</title>
+<style>
+  body { margin:0; background:#111; color:#eee; font-family: Arial, sans-serif; }
+  #camera-container { position: relative; width: 180px; height: 480px; margin: 20px auto; border: 3px solid #0f0; box-sizing: border-box; }
+  video#video { width: 180px; height: 480px; object-fit: cover; background:#000; }
+  #overlay-box { position: absolute; top: 50px; left: 10px; width: 160px; height: 380px; border: 2px solid lime; pointer-events:none; }
+  #output-image { display:none; max-width: 100vw; max-height: 100vh; margin: auto; }
+  #message { text-align:center; margin: 15px 0; font-size: 1.2em; }
+  #buttons { text-align:center; margin: 10px; }
+  button {
+    background: #222;
+    color: #0f0;
+    border: 1px solid #0f0;
+    padding: 8px 12px;
+    margin: 5px;
+    font-size: 1em;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  button:disabled {
+    color: #444;
+    border-color: #444;
+    cursor: default;
+  }
+</style>
 </head>
 <body>
-  <h3>OMR Sheet Evaluator</h3>
 
-  <div id="wrap">
-    <video id="video" autoplay playsinline muted></video>
-    <canvas id="canvas"></canvas>
-    <img id="resultImg" />
-    <div class="overlay">
-      <div class="qr-box qr-tl"></div>
-      <div class="qr-box qr-tr"></div>
-      <div class="qr-box qr-bl"></div>
-      <div class="qr-box qr-br"></div>
-    </div>
-  </div>
+<div id="camera-container">
+  <video id="video" autoplay playsinline></video>
+  <div id="overlay-box"></div>
+</div>
 
-  <div class="controls">
-    <button onclick="toggleFlash()">🔦 Flash</button>
-    <button id="captureBtn">📸 Capture</button>
-    <button id="nextBtn" style="display:none;" onclick="location.reload()">🔁 Next</button>
-  </div>
+<img id="output-image" src="" alt="Output Result" />
 
-  <script>
-    let stream, track;
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const resultImg = document.getElementById('resultImg');
-    const captureBtn = document.getElementById('captureBtn');
-    const nextBtn = document.getElementById('nextBtn');
+<div id="message"></div>
 
-    async function startCamera() {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 960 },
-            height: { ideal: 1920 },
-            facingMode: "environment"
-          }
-        });
-        video.srcObject = stream;
-        track = stream.getVideoTracks()[0];
-      } catch (e) {
-        alert("Back camera not accessible. Allow camera access in settings.");
-        console.error(e);
-      }
+<div id="buttons">
+  <button id="flash-btn">Flash On</button>
+  <button id="capture-btn">Capture</button>
+  <button id="refresh-btn" style="display:none;">Refresh</button>
+  <button id="next-btn" style="display:none;">Next</button>
+</div>
+
+<script>
+  const video = document.getElementById('video');
+  const outputImage = document.getElementById('output-image');
+  const message = document.getElementById('message');
+  const flashBtn = document.getElementById('flash-btn');
+  const captureBtn = document.getElementById('capture-btn');
+  const refreshBtn = document.getElementById('refresh-btn');
+  const nextBtn = document.getElementById('next-btn');
+  const cameraContainer = document.getElementById('camera-container');
+
+  let stream = null;
+  let track = null;
+  let flashOn = false;
+  let processing = false;
+  let cameraOn = true;
+
+  async function startCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: "environment" }, width: 180, height: 480 },
+        audio: false
+      });
+      video.srcObject = stream;
+      track = stream.getVideoTracks()[0];
+      flashBtn.style.display = 'inline-block';
+      captureBtn.style.display = 'inline-block';
+      refreshBtn.style.display = 'none';
+      nextBtn.style.display = 'none';
+      message.textContent = '';
+      outputImage.style.display = 'none';
+      cameraContainer.style.display = 'block';
+      cameraOn = true;
+      processing = false;
+      flashOn = false;
+      flashBtn.textContent = 'Flash On';
+    } catch (e) {
+      message.textContent = 'Error accessing back camera.';
+      flashBtn.style.display = 'none';
+      captureBtn.style.display = 'none';
+      refreshBtn.style.display = 'inline-block';
+      nextBtn.style.display = 'none';
+      cameraOn = false;
+      console.error(e);
     }
+  }
 
-    function toggleFlash() {
-      if (!track) return;
+  async function stopCamera() {
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+      track = null;
+      cameraOn = false;
+      flashOn = false;
+      flashBtn.textContent = 'Flash On';
+    }
+  }
+
+  flashBtn.onclick = async () => {
+    if (!track) return;
+    try {
       const capabilities = track.getCapabilities();
-      if ('torch' in capabilities) {
-        const isTorchOn = track.getSettings().torch || false;
-        track.applyConstraints({ advanced: [{ torch: !isTorchOn }] })
-          .catch(e => alert("Torch toggle not supported."));
-      } else {
-        alert("Torch not available on this device.");
+      if (!capabilities.torch) {
+        alert('Flash not supported on this device');
+        return;
       }
+      flashOn = !flashOn;
+      await track.applyConstraints({ advanced: [{ torch: flashOn }] });
+      flashBtn.textContent = flashOn ? 'Flash Off' : 'Flash On';
+    } catch (err) {
+      alert('Error toggling flash: ' + err.message);
     }
+  };
 
-    captureBtn.onclick = () => {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(blob => {
-        const formData = new FormData();
-        formData.append('image', blob, 'capture.jpg');
-        fetch('/upload', { method: 'POST', body: formData })
-          .then(r => r.json())
-          .then(data => {
-            video.style.display = "none";
-            resultImg.src = "/temp_output/" + data.filename + "?t=" + new Date().getTime();
-            resultImg.style.display = "block";
-            captureBtn.style.display = "none";
-            nextBtn.style.display = "inline-block";
-          });
-      }, 'image/jpeg');
-    };
+  captureBtn.onclick = () => {
+    if (!stream || processing) return;
+    processing = true;
 
+    // Show processing message and refresh button only
+    message.textContent = 'Processing the file…';
+    refreshBtn.style.display = 'inline-block';
+    flashBtn.style.display = 'none';
+    captureBtn.style.display = 'none';
+    nextBtn.style.display = 'none';
+    outputImage.style.display = 'none';
+    cameraContainer.style.display = 'block';
+
+    // Capture the photo
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 180;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        alert('Failed to capture image');
+        processing = false;
+        return;
+      }
+      // Send blob to server
+      const formData = new FormData();
+      formData.append('file', blob, 'capture.jpg');
+
+      try {
+        const res = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.status === 'processing') {
+          pollResult();
+        } else {
+          showError('Unexpected server response');
+        }
+      } catch (e) {
+        showError('Upload failed: ' + e.message);
+      }
+    }, 'image/jpeg');
+  };
+
+  refreshBtn.onclick = () => {
+    // Reset UI to initial camera mode
+    if (processing) return; // block refresh during processing
+    message.textContent = '';
+    outputImage.style.display = 'none';
+    cameraContainer.style.display = 'block';
+    flashBtn.style.display = 'inline-block';
+    captureBtn.style.display = 'inline-block';
+    refreshBtn.style.display = 'none';
+    nextBtn.style.display = 'none';
     startCamera();
-  </script>
+  };
+
+  nextBtn.onclick = () => {
+    // Clear output and start fresh camera
+    message.textContent = '';
+    outputImage.style.display = 'none';
+    cameraContainer.style.display = 'block';
+    flashBtn.style.display = 'inline-block';
+    captureBtn.style.display = 'inline-block';
+    refreshBtn.style.display = 'none';
+    nextBtn.style.display = 'none';
+    startCamera();
+  };
+
+  function showError(text) {
+    processing = false;
+    message.textContent = text;
+    cameraContainer.style.display = 'none';
+    outputImage.style.display = 'block';
+    outputImage.src = '';
+    refreshBtn.style.display = 'none';
+    flashBtn.style.display = 'none';
+    captureBtn.style.display = 'none';
+    nextBtn.style.display = 'inline-block';
+  }
+
+  async function pollResult() {
+    try {
+      const res = await fetch('/status');
+      const data = await res.json();
+
+      if (data.processing) {
+        setTimeout(pollResult, 1500);
+      } else if (data.error) {
+        // Show error image + next button only
+        showOutputImage(data.output_url);
+        message.textContent = 'Error occurred during processing.';
+        flashBtn.style.display = 'none';
+        captureBtn.style.display = 'none';
+        refreshBtn.style.display = 'none';
+        nextBtn.style.display = 'inline-block';
+        processing = false;
+      } else if (data.output_url) {
+        // Show full output image + next button
+        showOutputImage(data.output_url);
+        message.textContent = '';
+        flashBtn.style.display = 'none';
+        captureBtn.style.display = 'none';
+        refreshBtn.style.display = 'none';
+        nextBtn.style.display = 'inline-block';
+        processing = false;
+      } else {
+        showError('No output image found.');
+      }
+    } catch (e) {
+      showError('Error fetching status: ' + e.message);
+    }
+  }
+
+  function showOutputImage(url) {
+    cameraContainer.style.display = 'none';
+    outputImage.style.display = 'block';
+    outputImage.src = url + '?_=' + new Date().getTime(); // cache bust
+  }
+
+  window.addEventListener('beforeunload', () => {
+    stopCamera();
+  });
+
+  // Start camera on page load
+  window.onload = () => {
+    refreshBtn.style.display = 'none';
+    nextBtn.style.display = 'none';
+    flashBtn.style.display = 'inline-block';
+    captureBtn.style.display = 'inline-block';
+    startCamera();
+  };
+</script>
+
 </body>
 </html>
-''')
+    """)
 
-
-@app.route('/status')
-def status():
-    global processing, current_filename, latest_output_filename
-    return jsonify({
-        "processing": processing,
-        "filename": current_filename if processing else latest_output_filename
-    })
-
-@app.route('/temp_output/<path:filename>')
-def serve_output_file(filename):
-    return send_from_directory(output_folder, filename)
+from flask import request
 
 @app.route('/upload', methods=['POST'])
 def upload():
-    try:
-        data = request.get_json()
-        image_data = data['image'].split(",")[1]
-        image_bytes = base64.b64decode(image_data)
-        filename = f"OMR_camera_{int(time.time())}.jpg"
-        file_path = os.path.join(download_folder, filename)
+    global processing, error_occurred
+    if processing:
+        return jsonify({"status": "busy"})
 
-        with open(file_path, 'wb') as f:
-            f.write(image_bytes)
+    file = request.files.get('file')
+    if not file:
+        return jsonify({"status": "error", "message": "No file received"})
 
-        print(f"Captured image saved as {filename}")
-        return jsonify({"message": "Image uploaded successfully"})
-    except Exception as e:
-        print("Upload error:", e)
-        return jsonify({"message": "Upload failed"}), 500
+    filepath = os.path.join(download_folder, file.filename)
+    file.save(filepath)
+    print(f"Received file {file.filename}")
 
-# === Start App ===
+    threading.Thread(target=process_image, args=(filepath,), daemon=True).start()
+    return jsonify({"status": "processing"})
+
+@app.route('/status')
+def status():
+    global processing, latest_output_filename, error_occurred
+    if processing:
+        return jsonify({"processing": True})
+    if latest_output_filename:
+        url_path = "/output/" + latest_output_filename
+        return jsonify({"processing": False, "output_url": url_path, "error": error_occurred})
+    return jsonify({"processing": False, "output_url": None})
+
+@app.route('/output/<filename>')
+def serve_output(filename):
+    return send_from_directory(output_folder, filename)
+
+@app.route('/static/<path:path>')
+def send_static(path):
+    return send_from_directory('static', path)
+
 if __name__ == "__main__":
-    threading.Thread(target=watch_folder, daemon=True).start()
-    app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
+    # Start folder watcher in background thread
+    watcher = threading.Thread(target=watch_folder_thread, daemon=True)
+    watcher.start()
+    app.run(host='0.0.0.0', port=5000, debug=True)
