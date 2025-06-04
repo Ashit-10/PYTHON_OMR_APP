@@ -243,8 +243,8 @@ def index():
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            width: { ideal: 180 },
-            height: { ideal: 480 },
+            width: { ideal: 960 },
+            height: { ideal: 1920 },
             facingMode: "environment"
           }
         });
