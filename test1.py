@@ -154,14 +154,16 @@ def index():
     }
 
     #fullImageView {
-      background: black;
-      height: 80vh;
-      width: auto;
-      max-width: 100vw;
-      display: block;
-      margin-left: auto;
-      margin-right: auto;
-    }
+  height: 80vh;
+  width: auto;
+  max-width: 100vw;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  transform: rotate(90deg);
+  transform-origin: center center;
+}
+
 
     #processingImage {
       background: black;
