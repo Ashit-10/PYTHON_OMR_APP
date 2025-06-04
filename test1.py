@@ -151,39 +151,11 @@ def index():
 
         <img id="resultImg" class="hidden" />
 
-        <script>
-            const video = document.getElementById('video');
-            const canvas = document.getElementById('canvas');
-            const captureBtn = document.getElementById('captureBtn');
-            const nextBtn = document.getElementById('nextBtn');
-            const resultImg = document.getElementById('resultImg');
+        ;
+    }, 'image/jpeg', 0.9);
+  };
 
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(stream => {
-                    video.srcObject = stream;
-                });
-
-            captureBtn.onclick = function() {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                canvas.getContext('2d').drawImage(video, 0, 0);
-
-                canvas.toBlob(blob => {
-                    const formData = new FormData();
-                    formData.append('image', blob, 'capture.jpg');
-
-                    fetch('/upload', { method: 'POST', body: formData })
-                        .then(r => r.json())
-                        .then(data => {
-                            video.classList.add("hidden");
-                            resultImg.src = "/temp_output/" + data.filename + "?t=" + new Date().getTime();
-                            resultImg.classList.remove("hidden");
-                            captureBtn.classList.add("hidden");
-                            nextBtn.classList.remove("hidden");
-                        });
-                }, 'image/jpeg');
-            };
-        </script>
+</script>
     </body>
     </html>
     ''')
