@@ -1,16 +1,31 @@
 import os
 import time
 import shutil
+import subprocess
+import signal
+import sys
 import threading
 import glob
-from flask import Flask, request, jsonify, send_from_directory, render_template_string
+from flask import Flask, send_from_directory, render_template_string, jsonify, request
+import logging
 
+# === Logging Filter ===
+class FilterRequests(logging.Filter):
+    def filter(self, record):
+        return "GET /" not in record.getMessage() and "POST /" not in record.getMessage()
+
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.INFO)
+log.addFilter(FilterRequests())
+
+# === Paths ===
 download_folder = "/sdcard/Download"
 input_folder = "temp_input"
 output_folder = "temp_output"
 error_folder = "error"
 extensions = ('.jpg', '.jpeg', '.png')
 
+# === Globals ===
 processing = False
 current_filename = ""
 latest_output_filename = ""
@@ -18,6 +33,14 @@ error_occurred = False
 
 app = Flask(__name__)
 
+# === Signal handler for Ctrl+C ===
+def signal_handler(sig, frame):
+    print("\nStopped by user.")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+
+# === Utility Functions ===
 def get_latest_error_image():
     error_files = glob.glob(os.path.join(error_folder, "*"))
     error_files = [f for f in error_files if f.lower().endswith(extensions)]
@@ -35,27 +58,68 @@ def move_and_process(file_path):
     os.makedirs(input_folder, exist_ok=True)
     os.makedirs(output_folder, exist_ok=True)
 
-    # Clear old temp files
-    for f in glob.glob(os.path.join(input_folder, "*")):
-        os.remove(f)
-    for f in glob.glob(os.path.join(output_folder, "*")):
-        os.remove(f)
+    # Clear input and output folders
+    for f in os.listdir(input_folder):
+        os.remove(os.path.join(input_folder, f))
+    for f in os.listdir(output_folder):
+        os.remove(os.path.join(output_folder, f))
 
     shutil.move(file_path, os.path.join(input_folder, filename))
     print(f"Moved {filename} to input folder.")
 
-    # Dummy processing simulation (replace with your actual autoapp.py call)
-    time.sleep(3)  # simulate processing time
-    # For demo, just copy input file to output folder
-    shutil.copy(os.path.join(input_folder, filename), os.path.join(output_folder, filename))
-    latest_output_filename = filename
+    process = subprocess.Popen(
+        ["python3", "autoapp.py"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
+    stdout, stderr = process.communicate()
+
+    if stdout:
+        print("Output from autoapp.py:")
+        print(stdout)
+
+    if stderr:
+        print("Error from autoapp.py:", file=sys.stderr)
+        print(stderr, file=sys.stderr)
+        error_occurred = True
+
+    if "fail" in str(stdout).lower() or "fail" in str(stderr).lower():
+        error_occurred = True
+
+    output_files = os.listdir(output_folder)
+    output_files = [f for f in output_files if f.lower().endswith(extensions)]
+
+    if output_files:
+        latest_output_filename = output_files[-1]
+        print(f"Processed output: {latest_output_filename}")
+    else:
+        error_file = get_latest_error_image()
+        if error_occurred and error_file:
+            dest = os.path.join(output_folder, os.path.basename(error_file))
+            shutil.copy(error_file, dest)
+            latest_output_filename = os.path.basename(error_file)
+            print(f"Displayed error image: {latest_output_filename}")
+        else:
+            latest_output_filename = ""
 
     processing = False
 
 def watch_folder():
     print("Watching for new OMR images...")
     already_seen = set()
+
     while True:
+        try:
+            key_files = [f for f in os.listdir(download_folder) if f.startswith("answer_key") and f.endswith(".txt")]
+            for key_file in key_files:
+                key_path = os.path.join(download_folder, key_file)
+                shutil.move(key_path, "answer_key.txt")
+                print(f"Moved answer key: {key_path}")
+        except:
+            pass
+
         try:
             files = [f for f in os.listdir(download_folder) if f.startswith("OMR_") and f.lower().endswith(extensions)]
             for file in files:
@@ -65,9 +129,10 @@ def watch_folder():
                     already_seen.add(full_path)
             time.sleep(1)
         except Exception as e:
-            print(f"Watch folder error: {e}")
+            print(f"Error: {e}")
             time.sleep(1)
 
+# === Routes ===
 @app.route('/')
 def index():
     return render_template_string('''
@@ -75,158 +140,254 @@ def index():
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OMR Sheet Evaluator</title>
+  <title>OMR sheet evaluator</title>
   <style>
-    body, html { margin:0; padding:0; background:black; color:white; font-family:sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
-    #wrap { position: relative; width: 180px; height: 480px; margin-top: 15px; border: 4px solid white; }
-    video, canvas, #resultImg { width: 180px; height: 480px; object-fit: contain; display: block; }
-    #resultImg { display:none; }
-    .controls { margin-top: 15px; display: flex; gap: 10px; }
-    button { font-size: 16px; padding: 10px 15px; border-radius:5px; cursor:pointer; border:none; background:white; color:black; }
-    #loadingOverlay {
-      position: fixed; top:0; left:0; width:100vw; height:100vh;
-      background: rgba(0,0,0,0.9); color:white; font-size: 22px;
-      display:flex; justify-content:center; align-items:center; z-index:9999;
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: sans-serif;
+      background-color: black;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #wrap {
+      position: relative;
+      width: 180px;
+      height: 480px;
+      margin-top: 15px;
+      border: 4px solid white;
+      box-sizing: content-box;
+    }
+    video, canvas, #resultImg {
+      width: 180px;
+      height: 480px;
+      object-fit: contain; /* changed to contain for full display */
+      display: block;
+    }
+    .overlay .qr-box {
+      position: absolute;
+      border: 2px solid lime;
+      width: 30px;
+      height: 30px;
+    }
+    .qr-tl { top: 10px; left: 10px; }
+    .qr-tr { top: 10px; right: 10px; }
+    .qr-bl { bottom: 10px; left: 10px; }
+    .qr-br { bottom: 10px; right: 10px; }
+
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+    }
+
+    .controls {
+      width: 100%;
+      padding: 15px;
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      background-color: rgba(0,0,0,0.8);
+    }
+
+    button {
+      font-size: 16px;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      background: white;
+      color: black;
+    }
+
+    canvas, #resultImg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      display: none;
     }
   </style>
 </head>
 <body>
 
-<div id="wrap">
-  <video id="video" autoplay playsinline muted></video>
-  <canvas id="canvas" style="display:none;"></canvas>
-  <img id="resultImg" />
-</div>
+  <div id="wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <img id="resultImg" />
+    <div class="overlay" id="overlayDiv">
+      <div class="qr-box qr-tl"></div>
+      <div class="qr-box qr-tr"></div>
+      <div class="qr-box qr-bl"></div>
+      <div class="qr-box qr-br"></div>
+    </div>
+  </div>
 
-<div class="controls">
-  <button id="captureBtn">📸 Capture</button>
-  <button id="nextBtn" style="display:none;">🔁 Next</button>
-</div>
+  <div class="controls">
+    <button id="flashlightButton" onclick="toggleFlash()">🔦 Flash</button>
+    <button id="captureBtn">📸 Capture</button>
+    <button id="nextBtn" style="display:none;" onclick="location.reload()">🔁 Next</button>
+    <button id="toggleCameraBtn">📷 Camera Off</button>
+  </div>
 
-<script>
-  const video = document.getElementById('video');
-  const canvas = document.getElementById('canvas');
-  const resultImg = document.getElementById('resultImg');
-  const captureBtn = document.getElementById('captureBtn');
-  const nextBtn = document.getElementById('nextBtn');
-  let stream;
+  <script>
+    let stream;
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const resultImg = document.getElementById('resultImg');
+    const captureBtn = document.getElementById('captureBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const flashlightButton = document.getElementById('flashlightButton');
+    const toggleCameraBtn = document.getElementById('toggleCameraBtn');
+    const overlayDiv = document.getElementById('overlayDiv');
 
-  async function startCamera() {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: 180,
-          height: 480,
-          facingMode: "environment"
-        }
-      });
-      video.srcObject = stream;
-      await video.play();
-    } catch (err) {
-      alert("Cannot access back camera. Check permissions.");
-      console.error(err);
-    }
-  }
-
-  captureBtn.onclick = () => {
-    if (!video.videoWidth || !video.videoHeight) {
-      alert("Video not ready yet.");
-      return;
-    }
-    // Set canvas size same as video stream
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    // Stop the camera
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-    }
-    video.style.display = 'none';
-
-    // Show loading overlay
-    const loadingOverlay = document.createElement('div');
-    loadingOverlay.id = 'loadingOverlay';
-    loadingOverlay.textContent = "🔄 Processing the file…";
-    document.body.appendChild(loadingOverlay);
-
-    canvas.toBlob(blob => {
-      // Download captured image
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = "OMR_sheet.jpg";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-
-      // Upload to backend
-      const formData = new FormData();
-      formData.append('image', blob, 'capture.jpg');
-
-      fetch('/upload', { method: 'POST', body: formData })
-        .then(res => res.json())
-        .then(data => {
-          // Poll for processing status
-          const intervalId = setInterval(() => {
-            fetch('/status')
-              .then(res => res.json())
-              .then(status => {
-                if (!status.processing && status.filename) {
-                  clearInterval(intervalId);
-                  loadingOverlay.remove();
-
-                  // Show processed image
-                  resultImg.src = "/temp_output/" + status.filename + "?t=" + new Date().getTime();
-                  resultImg.style.display = "block";
-
-                  // Hide capture button, show next
-                  captureBtn.style.display = "none";
-                  nextBtn.style.display = "inline-block";
-                }
-              });
-          }, 1000);
-        })
-        .catch(err => {
-          loadingOverlay.remove();
-          alert("Upload or processing failed");
-          console.error(err);
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 960 },
+            height: { ideal: 1920 },
+            facingMode: { ideal: "environment" }
+          }
         });
-    }, 'image/jpeg');
-  };
+        video.srcObject = stream;
+        video.play();
+        overlayDiv.style.display = "block"; // show overlay with camera
+        resultImg.style.display = "none";   // hide result image
+        canvas.style.display = "none";
+      } catch (e) {
+        alert("Back camera not accessible. Allow camera access in settings.");
+        console.error(e);
+      }
+    }
 
-  nextBtn.onclick = () => {
-    // Reset UI to take another capture
-    resultImg.style.display = 'none';
-    captureBtn.style.display = 'inline-block';
-    nextBtn.style.display = 'none';
-    video.style.display = 'block';
+    let torchOn = false;
+    async function toggleFlash() {
+      if (stream) {
+        const track = stream.getVideoTracks()[0];
+        if (torchOn) {
+          await track.applyConstraints({ advanced: [{ torch: false }] });
+          torchOn = false;
+          flashlightButton.textContent = "🔦 Flash";
+        } else {
+          await track.applyConstraints({ advanced: [{ torch: true }] });
+          torchOn = true;
+          flashlightButton.textContent = "Flash Off";
+        }
+      }
+    }
+
+    let cameraOn = true;
+    toggleCameraBtn.onclick = () => {
+      if (cameraOn) {
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        video.style.display = "none";
+        overlayDiv.style.display = "none";
+        toggleCameraBtn.textContent = "📷 Camera On";
+      } else {
+        startCamera();
+        video.style.display = "block";
+        overlayDiv.style.display = "block";
+        toggleCameraBtn.textContent = "📷 Camera Off";
+      }
+      cameraOn = !cameraOn;
+    };
+
+    captureBtn.onclick = () => {
+      if (!stream) return alert("Camera not started!");
+
+      // Setup canvas size and draw current frame
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Stop camera
+      stream.getTracks().forEach(t => t.stop());
+      video.style.display = "none";
+      overlayDiv.style.display = "none";
+
+      // Show loading overlay
+      const loading = document.createElement('div');
+      loading.id = 'loadingOverlay';
+      loading.textContent = "🔄 Processing the file…";
+      Object.assign(loading.style, {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        background: 'black',
+        color: 'white',
+        fontSize: '22px',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 9999
+      });
+      document.body.appendChild(loading);
+
+      // Save image blob + download + send to backend
+      canvas.toBlob(blob => {
+        // Download image
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = "OMR_sheet.jpg";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        // Upload image
+        const formData = new FormData();
+        formData.append('image', blob, 'capture.jpg');
+
+        fetch('/upload', { method: 'POST', body: formData })
+          .then(() => {
+            // Poll server for processing status
+            const checkStatus = setInterval(() => {
+              fetch('/status')
+                .then(res => res.json())
+                .then(data => {
+                  if (!data.processing && data.filename) {
+                    clearInterval(checkStatus);
+                    loading.remove();
+
+                    // Show processed image
+                    resultImg.src = "/temp_output/" + data.filename + "?t=" + new Date().getTime();
+                    resultImg.style.display = "block";
+                    captureBtn.style.display = "none";
+                    nextBtn.style.display = "inline-block";
+                    toggleCameraBtn.style.display = "inline-block";
+                  }
+                })
+                .catch(e => {
+                  console.error("Status fetch error:", e);
+                });
+            }, 1000);
+          })
+          .catch(e => {
+            console.error("Upload error:", e);
+            loading.remove();
+            alert("Upload failed");
+          });
+      }, 'image/jpeg');
+    };
+
+    flashlightButton.addEventListener('click', toggleFlash);
+
     startCamera();
-  };
-
-  startCamera();
-</script>
-
+  </script>
 </body>
 </html>
-    ''')
+''')
 
-@app.route('/upload', methods=['POST'])
-def upload():
-    global processing, current_filename, latest_output_filename, error_occurred
-    try:
-        file = request.files['image']
-        filename = f"OMR_camera_{int(time.time())}.jpg"
-        file_path = os.path.join(download_folder, filename)
-        file.save(file_path)
-        print(f"Image saved: {filename}")
-        # Start processing in background thread so upload returns immediately
-        threading.Thread(target=move_and_process, args=(file_path,), daemon=True).start()
-        return jsonify({"message": "Image uploaded"})
-    except Exception as e:
-        print(f"Upload error: {e}")
-        return jsonify({"message": "Upload failed"}), 500
 
 @app.route('/status')
 def status():
@@ -237,9 +398,23 @@ def status():
     })
 
 @app.route('/temp_output/<path:filename>')
-def serve_output(filename):
+def serve_output_file(filename):
     return send_from_directory(output_folder, filename)
-
+    
+@app.route('/upload', methods=['POST'])
+def upload():
+    try:
+        file = request.files['image']  # form field name is 'image'
+        filename = f"OMR_camera_{int(time.time())}.jpg"
+        file_path = os.path.join(download_folder, filename)
+        file.save(file_path)
+        print(f"Captured image saved as {filename}")
+        return jsonify({"message": "Image uploaded successfully", "filename": filename})
+    except Exception as e:
+        print("Upload error:", e)
+        return jsonify({"message": "Upload failed"}), 500
+        
+# === Start App ===
 if __name__ == "__main__":
     threading.Thread(target=watch_folder, daemon=True).start()
     app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
