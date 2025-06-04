@@ -63,7 +63,7 @@ def watch_folder():
 @app.route('/')
 def index():
     return render_template_string('''
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -166,20 +166,31 @@ def index():
   <div class="controls">
     <button id="flashlightButton" onclick="toggleFlash()">🔦 Flash</button>
     <button id="captureBtn">📸 Capture</button>
-    <button id="nextBtn" onclick="location.reload()">🔁 Next</button>
+    <button id="nextBtn" class="hide" onclick="location.reload()">🔁 Next</button>
+    <button id="refreshBtn" class="hide" onclick="location.reload()">🔄 Refresh</button>
     <button id="toggleCameraBtn">📷 Camera Off</button>
   </div>
 
   <script>
-    let stream, videoStream, torchOn = false;
+    let stream, torchOn = false;
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const resultImg = document.getElementById('resultImg');
-    const flashlightButton = document.getElementById('flashlightButton');
-    const toggleCameraBtn = document.getElementById('toggleCameraBtn');
-    const captureBtn = document.getElementById('captureBtn');
-    const overlay = document.getElementById('overlay');
     const wrap = document.getElementById('wrap');
+    const overlay = document.getElementById('overlay');
+    const flashlightButton = document.getElementById('flashlightButton');
+    const captureBtn = document.getElementById('captureBtn');
+    const toggleCameraBtn = document.getElementById('toggleCameraBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+
+    function showButtons({ flash = false, capture = false, next = false, refresh = false, cameraToggle = false }) {
+      flashlightButton.classList.toggle("hide", !flash);
+      captureBtn.classList.toggle("hide", !capture);
+      nextBtn.classList.toggle("hide", !next);
+      refreshBtn.classList.toggle("hide", !refresh);
+      toggleCameraBtn.classList.toggle("hide", !cameraToggle);
+    }
 
     async function startCamera() {
       try {
@@ -234,6 +245,7 @@ def index():
 
       wrap.classList.add("hide");
       overlay.classList.add("hide");
+      showButtons({ refresh: true });
 
       const loading = document.createElement('div');
       loading.id = 'loadingOverlay';
@@ -274,6 +286,7 @@ def index():
                     loading.remove();
                     resultImg.src = "/temp_output/" + data.filename + "?t=" + new Date().getTime();
                     resultImg.style.display = "block";
+                    showButtons({ next: true });
                   }
                 });
             }, 1000);
@@ -281,6 +294,8 @@ def index():
       }, 'image/jpeg');
     };
 
+    // On initial load
+    showButtons({ flash: true, capture: true, cameraToggle: true });
     startCamera();
   </script>
 
