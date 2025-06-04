@@ -66,151 +66,227 @@ def index():
 <!DOCTYPE html>
 <html>
 <head>
-  <title>OMR Capture</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OMR sheet evaluator</title>
   <style>
-    html, body {
+    body, html {
       margin: 0;
       padding: 0;
-      background: black;
-      color: white;
+      height: 100%;
+      background-color: black;
       font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      color: white;
     }
     #wrap {
+      position: relative;
       width: 180px;
       height: 480px;
+      margin-top: 15px;
       border: 4px solid white;
-      margin: auto;
-      margin-top: 20px;
-      position: relative;
+      box-sizing: content-box;
     }
-    video {
+    video, canvas {
       width: 180px;
       height: 480px;
       object-fit: cover;
+      display: block;
     }
-    .overlay {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      pointer-events: none;
+    #resultImg {
+      display: none;
+      width: 100vw;
+      height: 100vh;
+      object-fit: contain;
+      background-color: black;
     }
-    .qr-box {
+    .overlay .qr-box {
       position: absolute;
+      border: 2px solid lime;
       width: 30px;
       height: 30px;
-      border: 2px solid lime;
     }
     .qr-tl { top: 10px; left: 10px; }
     .qr-tr { top: 10px; right: 10px; }
     .qr-bl { bottom: 10px; left: 10px; }
     .qr-br { bottom: 10px; right: 10px; }
 
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+    }
+
     .controls {
-      text-align: center;
-      margin: 15px 0;
+      width: 100%;
+      padding: 10px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      background-color: rgba(0, 0, 0, 0.8);
+      position: fixed;
+      bottom: 0;
     }
 
     button {
-      padding: 10px 15px;
       font-size: 16px;
-      background: white;
-      color: black;
+      padding: 8px 12px;
       border: none;
       border-radius: 5px;
-      margin: 5px;
+      cursor: pointer;
+      background: white;
+      color: black;
     }
 
-    #resultImg {
-      display: none;
-      width: 100vw;
-      height: 100vh;
-      object-fit: contain;
-    }
-
-    #loadingOverlay {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: black;
-      color: white;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 20px;
-      z-index: 9999;
+    .hide {
+      display: none !important;
     }
   </style>
 </head>
 <body>
-  <div id="mainUI">
-    <div id="wrap">
-      <video id="video" autoplay playsinline muted></video>
-      <div class="overlay">
-        <div class="qr-box qr-tl"></div>
-        <div class="qr-box qr-tr"></div>
-        <div class="qr-box qr-bl"></div>
-        <div class="qr-box qr-br"></div>
-      </div>
-    </div>
-    <div class="controls">
-      <button id="captureBtn">📸 Capture</button>
+
+  <div id="wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <div class="overlay" id="overlay">
+      <div class="qr-box qr-tl"></div>
+      <div class="qr-box qr-tr"></div>
+      <div class="qr-box qr-bl"></div>
+      <div class="qr-box qr-br"></div>
     </div>
   </div>
+
   <img id="resultImg" />
 
-  <script>
-    const video = document.getElementById("video");
-    const captureBtn = document.getElementById("captureBtn");
-    const resultImg = document.getElementById("resultImg");
+  <div class="controls">
+    <button id="flashlightButton" onclick="toggleFlash()">🔦 Flash</button>
+    <button id="captureBtn">📸 Capture</button>
+    <button id="nextBtn" onclick="location.reload()">🔁 Next</button>
+    <button id="toggleCameraBtn">📷 Camera Off</button>
+  </div>
 
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 960 }, height: { ideal: 1920 } }
-    }).then(stream => {
-      video.srcObject = stream;
-    }).catch(err => {
-      alert("Camera access denied");
-      console.error(err);
-    });
+  <script>
+    let stream, videoStream, torchOn = false;
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const resultImg = document.getElementById('resultImg');
+    const flashlightButton = document.getElementById('flashlightButton');
+    const toggleCameraBtn = document.getElementById('toggleCameraBtn');
+    const captureBtn = document.getElementById('captureBtn');
+    const overlay = document.getElementById('overlay');
+    const wrap = document.getElementById('wrap');
+
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 960 },
+            height: { ideal: 1920 },
+            facingMode: { ideal: "environment" }
+          }
+        });
+        video.srcObject = stream;
+        video.play();
+      } catch (e) {
+        alert("Back camera not accessible.");
+        console.error(e);
+      }
+    }
+
+    async function toggleFlash() {
+      if (stream) {
+        const track = stream.getVideoTracks()[0];
+        try {
+          await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
+          torchOn = !torchOn;
+          flashlightButton.textContent = torchOn ? "Flash Off" : "🔦 Flash";
+        } catch (e) {
+          alert("Flash not supported");
+        }
+      }
+    }
+
+    toggleCameraBtn.onclick = () => {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+        video.style.display = "none";
+        toggleCameraBtn.textContent = "📷 Camera On";
+      } else {
+        startCamera();
+        video.style.display = "block";
+        toggleCameraBtn.textContent = "📷 Camera Off";
+      }
+    };
 
     captureBtn.onclick = () => {
-      const canvas = document.createElement("canvas");
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // stop camera
-      video.srcObject.getTracks().forEach(track => track.stop());
+      if (stream) stream.getTracks().forEach(t => t.stop());
 
-      // loading screen
-      const loading = document.createElement("div");
-      loading.id = "loadingOverlay";
+      wrap.classList.add("hide");
+      overlay.classList.add("hide");
+
+      const loading = document.createElement('div');
+      loading.id = 'loadingOverlay';
       loading.textContent = "🔄 Processing the file…";
+      Object.assign(loading.style, {
+        position: 'fixed',
+        top: 0, left: 0,
+        width: '100vw', height: '100vh',
+        background: 'black',
+        color: 'white',
+        fontSize: '22px',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 9999
+      });
       document.body.appendChild(loading);
 
       canvas.toBlob(blob => {
-        const form = new FormData();
-        form.append("image", blob, "capture.jpg");
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = "OMR_sheet.jpg";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
 
-        fetch("/upload", { method: "POST", body: form }).then(() => {
-          const poll = setInterval(() => {
-            fetch("/status").then(res => res.json()).then(data => {
-              if (!data.processing && data.filename) {
-                clearInterval(poll);
-                loading.remove();
-                document.getElementById("mainUI").remove();
-                resultImg.src = "/temp_output/" + data.filename + "?t=" + new Date().getTime();
-                resultImg.style.display = "block";
-              }
-            });
-          }, 1000);
-        });
-      }, "image/jpeg");
+        const formData = new FormData();
+        formData.append('image', blob, 'capture.jpg');
+
+        fetch('/upload', { method: 'POST', body: formData })
+          .then(() => {
+            const checkStatus = setInterval(() => {
+              fetch('/status')
+                .then(res => res.json())
+                .then(data => {
+                  if (!data.processing && data.filename) {
+                    clearInterval(checkStatus);
+                    loading.remove();
+                    resultImg.src = "/temp_output/" + data.filename + "?t=" + new Date().getTime();
+                    resultImg.style.display = "block";
+                  }
+                });
+            }, 1000);
+          });
+      }, 'image/jpeg');
     };
+
+    startCamera();
   </script>
+
 </body>
 </html>
+
 ''')
 
 @app.route('/upload', methods=['POST'])
