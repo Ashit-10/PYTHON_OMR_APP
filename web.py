@@ -228,6 +228,14 @@ def index():
       alert("Flash not supported.");
     }
   }
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      stream = null;
+    }
+  }
+});
 
   function showControls(mode) {
     // Modes: "initial", "processing", "result", "error"
