@@ -131,99 +131,150 @@ def watch_folder():
 @app.route('/')
 def index():
     return render_template_string('''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>OMR Result Viewer</title>
-        <style>
-            video, canvas {
-                max-width: 95%;
-                margin-top: 10px;
-            }
-            .spinner {
-                margin: 40px auto;
-                width: 80px;
-                height: 80px;
-                border: 10px solid #f3f3f3;
-                border-top: 10px solid #3498db;
-                border-radius: 50%;
-                animation: spin 1.2s linear infinite;
-            }
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-            #loading { display: none; text-align: center; }
-            body { text-align: center; font-family: Arial, sans-serif; }
-            img { max-width: 95%; margin-top: 20px; }
-        </style>
-    </head>
-    <body>
-        <h1>OMR Result Viewer</h1>
-        <h2 id="status">Waiting for OMR sheet...</h2>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OMR sheet evaluator</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+      background: black;
+      color: white;
+    }
+    #wrap {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    canvas, #resultImg {
+      display: none;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      position: absolute;
+      top: 0; left: 0;
+    }
+    .overlay .qr-box {
+      position: absolute;
+      border: 3px solid lime;
+      width: 10vw; height: 10vw;
+    }
+    .qr-tl { top: 5vw; left: 5vw; }
+    .qr-tr { top: 5vw; right: 5vw; }
+    .qr-bl { bottom: 15vh; left: 5vw; }
+    .qr-br { bottom: 15vh; right: 5vw; }
 
-        <video id="video" autoplay playsinline></video><br>
-        <button onclick="capture()">📸 Capture</button><br>
+    .bottom-controls {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      display: flex;
+      justify-content: space-around;
+      background: rgba(0,0,0,0.7);
+      padding: 10px;
+    }
 
-        <div id="loading">
-            <div class="spinner"></div>
-            <p>Processing... Please wait</p>
-        </div>
+    button {
+      background: white;
+      border: none;
+      padding: 12px 20px;
+      font-size: 18px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <img id="resultImg" />
 
-        <img id="result" style="display:none;">
+    <div class="overlay">
+      <div class="qr-box qr-tl"></div>
+      <div class="qr-box qr-tr"></div>
+      <div class="qr-box qr-bl"></div>
+      <div class="qr-box qr-br"></div>
+    </div>
 
-        <script>
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(stream => {
-                    document.getElementById('video').srcObject = stream;
-                });
+    <div class="bottom-controls">
+      <button onclick="toggleFlash()">🔦</button>
+      <button id="captureBtn">📷 Capture</button>
+      <button id="nextBtn" style="display:none;" onclick="location.reload()">🔁 Next</button>
+    </div>
+  </div>
 
-            function capture() {
-                let video = document.getElementById('video');
-                let canvas = document.createElement('canvas');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                let ctx = canvas.getContext('2d');
-                ctx.drawImage(video, 0, 0);
-                let imageData = canvas.toDataURL('image/jpeg');
+<script>
+  let stream, track;
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const resultImg = document.getElementById('resultImg');
+  const captureBtn = document.getElementById('captureBtn');
+  const nextBtn = document.getElementById('nextBtn');
 
-                fetch("/upload", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ image: imageData })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    alert(data.message);
-                });
-            }
+  async function startCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 720 },
+          height: { ideal: 1280 },
+          facingMode: { exact: "environment" }
+        }
+      });
+      video.srcObject = stream;
+      track = stream.getVideoTracks()[0];
+    } catch (err) {
+      alert("Error accessing back camera.");
+    }
+  }
 
-            function checkProcessingStatus() {
-                fetch("/status")
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.processing) {
-                            document.getElementById('status').innerText = "Processing " + data.filename + "...";
-                            document.getElementById('loading').style.display = "block";
-                            document.getElementById('result').style.display = "none";
-                        } else if (data.filename) {
-                            document.getElementById('status').innerText = "";
-                            document.getElementById('loading').style.display = "none";
-                            document.getElementById('result').style.display = "block";
-                            document.getElementById('result').src = "/temp_output/" + data.filename + "?t=" + new Date().getTime();
-                        } else {
-                            document.getElementById('status').innerText = "No OMR sheet processed yet.";
-                            document.getElementById('loading').style.display = "none";
-                            document.getElementById('result').style.display = "none";
-                        }
-                    });
-            }
+  function toggleFlash() {
+    if (!track) return;
+    const capabilities = track.getCapabilities();
+    if ('torch' in capabilities) {
+      const constraints = { advanced: [{ torch: !track.getSettings().torch }] };
+      track.applyConstraints(constraints).catch(e => alert("Flash not supported"));
+    } else {
+      alert("Flash not supported on this device");
+    }
+  }
 
-            setInterval(checkProcessingStatus, 2000);
-        </script>
-    </body>
-    </html>
-    ''')
+  captureBtn.onclick = () => {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(blob => {
+      const formData = new FormData();
+      formData.append('image', blob, 'capture.jpg');
+      fetch('/upload', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+          video.style.display = "none";
+          resultImg.src = "/temp_output/" + data.filename + "?t=" + new Date().getTime();
+          resultImg.style.display = "block";
+          captureBtn.style.display = "none";
+          nextBtn.style.display = "inline-block";
+        });
+    }, 'image/jpeg');
+  };
+
+  startCamera();
+</script>
+</body>
+</html>
+''')
+
 
 @app.route('/status')
 def status():
