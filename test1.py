@@ -1,16 +1,16 @@
 import os
+import time
 import shutil
 import subprocess
+import signal
 import sys
 import threading
-import time
-import signal
 import glob
-from flask import Flask, send_from_directory, render_template_string, request, jsonify
+import base64
+from flask import Flask, send_from_directory, render_template_string, jsonify, request
 import logging
-from datetime import datetime
 
-# Logging setup
+# === Logging Filter ===
 class FilterRequests(logging.Filter):
     def filter(self, record):
         return "GET /" not in record.getMessage() and "POST /" not in record.getMessage()
@@ -19,25 +19,28 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.INFO)
 log.addFilter(FilterRequests())
 
-# Paths
+# === Paths ===
 download_folder = "/sdcard/Download"
 input_folder = "temp_input"
 output_folder = "temp_output"
 error_folder = "error"
 extensions = ('.jpg', '.jpeg', '.png')
 
-# Globals
+# === Globals ===
 processing = False
 current_filename = ""
 latest_output_filename = ""
 error_occurred = False
 
 app = Flask(__name__)
-signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(0))
 
-os.makedirs(input_folder, exist_ok=True)
-os.makedirs(output_folder, exist_ok=True)
+def signal_handler(sig, frame):
+    print("\nStopped by user.")
+    sys.exit(0)
 
+signal.signal(signal.SIGINT, signal_handler)
+
+# === Utility Functions ===
 def get_latest_error_image():
     error_files = glob.glob(os.path.join(error_folder, "*"))
     error_files = [f for f in error_files if f.lower().endswith(extensions)]
@@ -52,36 +55,78 @@ def move_and_process(file_path):
     processing = True
     error_occurred = False
 
-    os.system("rm -rf temp_input/* temp_output/*")
+    os.system("mkdir -p temp_input temp_output")
+    os.system("rm -rf temp_input/*")
+    os.system("rm -rf temp_output/*")
     shutil.move(file_path, os.path.join(input_folder, filename))
     print(f"Moved {filename} to input folder.")
 
-    process = subprocess.Popen(["python3", "autoapp.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    process = subprocess.Popen(
+        ["python3", "autoapp.py"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
     stdout, stderr = process.communicate()
 
-    if stdout: print(stdout)
-    if stderr: print(stderr, file=sys.stderr)
+    if stdout:
+        print("Output from autoapp.py:")
+        print(stdout)
 
-    if "fail" in stdout.lower() or "fail" in stderr.lower():
+    if stderr:
+        print("Error from autoapp.py:", file=sys.stderr)
+        print(stderr, file=sys.stderr)
         error_occurred = True
 
-    output_files = [f for f in os.listdir(output_folder) if f.lower().endswith(extensions)]
+    if "fail" in str(stdout).lower() or "fail" in str(stderr).lower():
+        error_occurred = True
+
+    output_files = os.listdir(output_folder)
+    output_files = [f for f in output_files if f.lower().endswith(extensions)]
+
     if output_files:
         latest_output_filename = output_files[-1]
+        print(f"Processed output: {latest_output_filename}")
     else:
-        err_img = get_latest_error_image()
-        if error_occurred and err_img:
-            dest = os.path.join(output_folder, os.path.basename(err_img))
-            shutil.copy(err_img, dest)
-            latest_output_filename = os.path.basename(err_img)
+        error_file = get_latest_error_image()
+        if error_occurred and error_file:
+            dest = os.path.join(output_folder, os.path.basename(error_file))
+            shutil.copy(error_file, dest)
+            latest_output_filename = os.path.basename(error_file)
+            print(f"Displayed error image: {latest_output_filename}")
         else:
             latest_output_filename = ""
 
     processing = False
 
+def watch_folder():
+    print("Watching for new OMR images...")
+    already_seen = set()
+
+    while True:
+        try:
+            key_files = [f for f in os.listdir(download_folder) if f.startswith("answer_key") and f.endswith(".txt")]
+            for key_file in key_files:
+                key_path = os.path.join(download_folder, key_file)
+                shutil.move(key_path, "answer_key.txt")
+                print(f"Moved answer key: {key_path}")
+        except:
+            pass
+
+        try:
+            files = [f for f in os.listdir(download_folder) if f.startswith("OMR_") and f.lower().endswith(extensions)]
+            for file in files:
+                full_path = os.path.join(download_folder, file)
+                if full_path not in already_seen:
+                    move_and_process(full_path)
+                    already_seen.add(full_path)
+            time.sleep(1)
+        except Exception as e:
+            print(f"Error: {e}")
+            time.sleep(1)
+
 @app.route('/')
-def index():
-    @app.route('/')
 def index():
     return render_template_string('''
 <!DOCTYPE html>
@@ -221,7 +266,7 @@ def index():
         if (torchOn) {
           await track.applyConstraints({ advanced: [{ torch: false }] });
           torchOn = false;
-          location.reload(); // Reload to reset UI
+          location.reload();
         } else {
           await track.applyConstraints({ advanced: [{ torch: true }] });
           torchOn = true;
@@ -250,8 +295,32 @@ def index():
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        video.style.display = "none";
+      }
+
+      const loading = document.createElement('div');
+      loading.id = 'loadingOverlay';
+      loading.textContent = "🔄 Processing the file…";
+      Object.assign(loading.style, {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        background: 'black',
+        color: 'white',
+        fontSize: '22px',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 9999
+      });
+      document.body.appendChild(loading);
+
       canvas.toBlob(blob => {
-        // ⬇️ Trigger download
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = "OMR_sheet.jpg";
@@ -261,48 +330,66 @@ def index():
 
         const formData = new FormData();
         formData.append('image', blob, 'capture.jpg');
+
         fetch('/upload', { method: 'POST', body: formData })
-          .then(r => r.json())
-          .then(data => {
-            video.style.display = "none";
-            resultImg.src = "/temp_output/" + data.filename + "?t=" + new Date().getTime();
-            resultImg.style.display = "block";
-            captureBtn.style.display = "none";
-            nextBtn.style.display = "inline-block";
+          .then(() => {
+            const checkStatus = setInterval(() => {
+              fetch('/status')
+                .then(res => res.json())
+                .then(data => {
+                  if (!data.processing && data.filename) {
+                    clearInterval(checkStatus);
+                    loading.remove();
+                    document.querySelector('.overlay').style.display = "none";
+                    const imageUrl = "/temp_output/" + data.filename + "?t=" + new Date().getTime();
+                    resultImg.onload = () => {
+                      resultImg.style.display = "block";
+                    };
+                    resultImg.onerror = () => {
+                      alert("❌ Failed to load result image.");
+                    };
+                    resultImg.src = imageUrl;
+                    captureBtn.style.display = "none";
+                    nextBtn.style.display = "inline-block";
+                    toggleCameraBtn.style.display = "inline-block";
+                  }
+                });
+            }, 1000);
           });
       }, 'image/jpeg');
     };
 
-    document.getElementById('flashlightButton').addEventListener('click', toggleFlash);
     startCamera();
   </script>
 </body>
 </html>
 ''')
 
-
-@app.route('/upload', methods=['POST'])
-def upload():
-    if 'image' not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
-
-    image = request.files['image']
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"OMR_{timestamp}.jpg"
-    save_path = os.path.join(download_folder, filename)
-    image.save(save_path)
-
-    threading.Thread(target=move_and_process, args=(save_path,), daemon=True).start()
-
-    # Wait until result is available
-    while processing:
-        time.sleep(0.5)
-
-    return jsonify({"filename": latest_output_filename})
+@app.route('/status')
+def status():
+    global processing, latest_output_filename
+    return jsonify({
+        "processing": processing,
+        "filename": None if processing else latest_output_filename
+    })
 
 @app.route('/temp_output/<path:filename>')
 def serve_output_file(filename):
     return send_from_directory(output_folder, filename)
 
+@app.route('/upload', methods=['POST'])
+def upload():
+    try:
+        file = request.files['image']
+        filename = f"OMR_camera_{int(time.time())}.jpg"
+        file_path = os.path.join(download_folder, filename)
+        file.save(file_path)
+        print(f"Captured image saved as {filename}")
+        return jsonify({"message": "Image uploaded successfully", "filename": filename})
+    except Exception as e:
+        print("Upload error:", e)
+        return jsonify({"message": "Upload failed"}), 500
+
 if __name__ == "__main__":
+    threading.Thread(target=watch_folder, daemon=True).start()
     app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
