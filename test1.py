@@ -6,7 +6,6 @@ import signal
 import sys
 import threading
 import glob
-import base64
 from flask import Flask, send_from_directory, render_template_string, jsonify, request
 import logging
 
@@ -34,13 +33,14 @@ error_occurred = False
 
 app = Flask(__name__)
 
+# === Signal handler ===
 def signal_handler(sig, frame):
     print("\nStopped by user.")
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
 
-# === Utility Functions ===
+# === Utility ===
 def get_latest_error_image():
     error_files = glob.glob(os.path.join(error_folder, "*"))
     error_files = [f for f in error_files if f.lower().endswith(extensions)]
@@ -133,14 +133,13 @@ def index():
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OMR sheet evaluator</title>
+  <title>OMR Evaluator</title>
   <style>
     body, html {
-      margin: 0;
-      padding: 0;
+      margin: 0; padding: 0;
       height: 100%;
       font-family: sans-serif;
-      background-color: black;
+      background: black;
       color: white;
       display: flex;
       flex-direction: column;
@@ -155,7 +154,7 @@ def index():
       border: 4px solid white;
       box-sizing: content-box;
     }
-    video, canvas, #resultImg {
+    video, canvas {
       width: 180px;
       height: 480px;
       object-fit: cover;
@@ -174,10 +173,7 @@ def index():
 
     .overlay {
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      top: 0; left: 0; right: 0; bottom: 0;
       pointer-events: none;
     }
 
@@ -201,11 +197,10 @@ def index():
       color: black;
     }
 
-    canvas, #resultImg {
-      position: absolute;
-      top: 0;
-      left: 0;
+    #resultImg {
       display: none;
+      width: 100vw;
+      height: auto;
     }
   </style>
 </head>
@@ -214,7 +209,6 @@ def index():
   <div id="wrap">
     <video id="video" autoplay playsinline muted></video>
     <canvas id="canvas"></canvas>
-    <img id="resultImg" />
     <div class="overlay">
       <div class="qr-box qr-tl"></div>
       <div class="qr-box qr-tr"></div>
@@ -223,15 +217,17 @@ def index():
     </div>
   </div>
 
+  <img id="resultImg" />
+
   <div class="controls">
-    <button id="flashlightButton" onclick="toggleFlash()">🔦 Flash</button>
+    <button id="flashlightButton">🔦 Flash</button>
     <button id="captureBtn">📸 Capture</button>
     <button id="nextBtn" style="display:none;" onclick="location.reload()">🔁 Next</button>
     <button id="toggleCameraBtn">📷 Camera Off</button>
   </div>
 
   <script>
-    let stream, videoStream, track;
+    let stream, track;
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const resultImg = document.getElementById('resultImg');
@@ -249,37 +245,30 @@ def index():
             facingMode: { ideal: "environment" }
           }
         });
-        videoStream = stream;
+        track = stream.getVideoTracks()[0];
         video.srcObject = stream;
         video.play();
       } catch (e) {
-        alert("Back camera not accessible. Allow camera access in settings.");
+        alert("Back camera not accessible.");
         console.error(e);
       }
     }
 
-    let torchOn = false;
-
     async function toggleFlash() {
-      if (stream) {
-        const track = stream.getVideoTracks()[0];
-        if (torchOn) {
-          await track.applyConstraints({ advanced: [{ torch: false }] });
-          torchOn = false;
-          location.reload();
-        } else {
-          await track.applyConstraints({ advanced: [{ torch: true }] });
-          torchOn = true;
-          flashlightButton.textContent = "Flash Off";
-        }
+      if (!track) return;
+      try {
+        const settings = track.getSettings();
+        const torch = !settings.torch;
+        await track.applyConstraints({ advanced: [{ torch }] });
+        flashlightButton.textContent = torch ? "Flash Off" : "🔦 Flash";
+      } catch (e) {
+        alert("Flash not supported.");
       }
     }
 
-    let cameraOn = true;
     toggleCameraBtn.onclick = () => {
-      if (cameraOn) {
-        video.pause();
-        if (stream) stream.getTracks().forEach(t => t.stop());
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
         video.style.display = "none";
         toggleCameraBtn.textContent = "📷 Camera On";
       } else {
@@ -287,35 +276,25 @@ def index():
         video.style.display = "block";
         toggleCameraBtn.textContent = "📷 Camera Off";
       }
-      cameraOn = !cameraOn;
     };
 
     captureBtn.onclick = () => {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.getContext('2d').drawImage(video, 0, 0);
 
-      if (stream) {
-        stream.getTracks().forEach(t => t.stop());
-        video.style.display = "none";
-      }
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      document.getElementById('wrap').style.display = "none";
 
       const loading = document.createElement('div');
       loading.id = 'loadingOverlay';
       loading.textContent = "🔄 Processing the file…";
       Object.assign(loading.style, {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        background: 'black',
-        color: 'white',
+        position: 'fixed', top: 0, left: 0,
+        width: '100vw', height: '100vh',
+        background: 'black', color: 'white',
         fontSize: '22px',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
+        display: 'flex', justifyContent: 'center', alignItems: 'center',
         zIndex: 9999
       });
       document.body.appendChild(loading);
@@ -340,18 +319,10 @@ def index():
                   if (!data.processing && data.filename) {
                     clearInterval(checkStatus);
                     loading.remove();
-                    document.querySelector('.overlay').style.display = "none";
-                    const imageUrl = "/temp_output/" + data.filename + "?t=" + new Date().getTime();
-                    resultImg.onload = () => {
-                      resultImg.style.display = "block";
-                    };
-                    resultImg.onerror = () => {
-                      alert("❌ Failed to load result image.");
-                    };
-                    resultImg.src = imageUrl;
+                    resultImg.src = "/temp_output/" + data.filename + "?t=" + new Date().getTime();
+                    resultImg.style.display = "block";
                     captureBtn.style.display = "none";
                     nextBtn.style.display = "inline-block";
-                    toggleCameraBtn.style.display = "inline-block";
                   }
                 });
             }, 1000);
@@ -359,6 +330,7 @@ def index():
       }, 'image/jpeg');
     };
 
+    flashlightButton.onclick = toggleFlash;
     startCamera();
   </script>
 </body>
@@ -367,10 +339,9 @@ def index():
 
 @app.route('/status')
 def status():
-    global processing, latest_output_filename
     return jsonify({
         "processing": processing,
-        "filename": None if processing else latest_output_filename
+        "filename": current_filename if processing else latest_output_filename
     })
 
 @app.route('/temp_output/<path:filename>')
@@ -390,6 +361,7 @@ def upload():
         print("Upload error:", e)
         return jsonify({"message": "Upload failed"}), 500
 
+# === Run Server ===
 if __name__ == "__main__":
     threading.Thread(target=watch_folder, daemon=True).start()
     app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
