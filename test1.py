@@ -153,15 +153,16 @@ def index():
       left: 0;
     }
 
-   #fullImageView {
+  #fullImageView {
   height: 80vh;
   width: auto;              /* width adjusts automatically */
   display: block;
   margin-left: auto;
   margin-right: auto;
   transform-origin: center center;
-  /* Do NOT set width or max-width */
+  transform: rotate(90deg); /* rotate right 90 degrees */
 }
+
 
 
 
