@@ -67,84 +67,91 @@ def index():
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OMR sheet evaluator</title>
+  <title>OMR Sheet Evaluator</title>
   <style>
     body, html {
       margin: 0;
       padding: 0;
-      height: 100%;
       background-color: black;
+      color: white;
       font-family: sans-serif;
+      height: 100%;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: flex-start;
-      color: white;
+      justify-content: center;
     }
+
     #wrap {
       position: relative;
       width: 180px;
       height: 480px;
-      margin-top: 15px;
       border: 4px solid white;
       box-sizing: content-box;
     }
-    video, canvas {
+
+    video, canvas, #resultImg {
       width: 180px;
       height: 480px;
       object-fit: cover;
       display: block;
     }
-    #resultImg {
-      display: none;
-      width: 100vw;
-      height: 100vh;
-      object-fit: contain;
-      background-color: black;
-    }
-    .overlay .qr-box {
+
+    .overlay {
       position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+    }
+
+    .qr-box {
       border: 2px solid lime;
       width: 30px;
       height: 30px;
+      position: absolute;
     }
+
     .qr-tl { top: 10px; left: 10px; }
     .qr-tr { top: 10px; right: 10px; }
     .qr-bl { bottom: 10px; left: 10px; }
     .qr-br { bottom: 10px; right: 10px; }
 
-    .overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      pointer-events: none;
-    }
-
     .controls {
-      width: 100%;
-      padding: 10px;
+      margin-top: 10px;
       display: flex;
-      justify-content: center;
       gap: 10px;
-      background-color: rgba(0, 0, 0, 0.8);
-      position: fixed;
-      bottom: 0;
+      flex-wrap: wrap;
+      justify-content: center;
     }
 
     button {
       font-size: 16px;
-      padding: 8px 12px;
+      padding: 10px 15px;
       border: none;
       border-radius: 5px;
-      cursor: pointer;
       background: white;
       color: black;
+      cursor: pointer;
     }
 
-    .hide {
-      display: none !important;
+    #canvas, #resultImg {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    #fullImageView {
+      width: 100vw;
+      height: 100vh;
+      object-fit: contain;
+      background: black;
+    }
+
+    #errorMessage {
+      color: red;
+      font-size: 18px;
+      margin-top: 20px;
     }
   </style>
 </head>
@@ -153,6 +160,7 @@ def index():
   <div id="wrap">
     <video id="video" autoplay playsinline muted></video>
     <canvas id="canvas"></canvas>
+    <img id="resultImg" />
     <div class="overlay" id="overlay">
       <div class="qr-box qr-tl"></div>
       <div class="qr-box qr-tr"></div>
@@ -161,99 +169,83 @@ def index():
     </div>
   </div>
 
-  <img id="resultImg" />
-
   <div class="controls">
-    <button id="flashlightButton" onclick="toggleFlash()">🔦 Flash</button>
+    <button id="flashBtn">🔦 Flash</button>
     <button id="captureBtn">📸 Capture</button>
-    <button id="nextBtn" class="hide" onclick="location.reload()">🔁 Next</button>
-    <button id="refreshBtn" class="hide" onclick="location.reload()">🔄 Refresh</button>
-    <button id="toggleCameraBtn">📷 Camera Off</button>
+    <button id="nextBtn" style="display:none;">🔁 Next</button>
+    <button id="refreshBtn" style="display:none;">🔄 Refresh</button>
   </div>
 
-  <script>
-    let stream, torchOn = false;
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const resultImg = document.getElementById('resultImg');
-    const wrap = document.getElementById('wrap');
-    const overlay = document.getElementById('overlay');
-    const flashlightButton = document.getElementById('flashlightButton');
-    const captureBtn = document.getElementById('captureBtn');
-    const toggleCameraBtn = document.getElementById('toggleCameraBtn');
-    const nextBtn = document.getElementById('nextBtn');
-    const refreshBtn = document.getElementById('refreshBtn');
+  <div id="errorMessage"></div>
 
-    function showButtons({ flash = false, capture = false, next = false, refresh = false, cameraToggle = false }) {
-      flashlightButton.classList.toggle("hide", !flash);
-      captureBtn.classList.toggle("hide", !capture);
-      nextBtn.classList.toggle("hide", !next);
-      refreshBtn.classList.toggle("hide", !refresh);
-      toggleCameraBtn.classList.toggle("hide", !cameraToggle);
-    }
+  <script>
+    let stream = null;
+    let torchOn = false;
+
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const resultImg = document.getElementById("resultImg");
+    const flashBtn = document.getElementById("flashBtn");
+    const captureBtn = document.getElementById("captureBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const overlay = document.getElementById("overlay");
+    const errorMessage = document.getElementById("errorMessage");
 
     async function startCamera() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 960 },
-            height: { ideal: 1920 },
-            facingMode: { ideal: "environment" }
-          }
+          video: { facingMode: { ideal: "environment" } }
         });
         video.srcObject = stream;
         video.play();
       } catch (e) {
-        alert("Back camera not accessible.");
-        console.error(e);
+        alert("Camera access denied.");
       }
     }
 
     async function toggleFlash() {
-      if (stream) {
+      try {
+        if (!stream) return;
         const track = stream.getVideoTracks()[0];
-        try {
-          await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
-          torchOn = !torchOn;
-          flashlightButton.textContent = torchOn ? "Flash Off" : "🔦 Flash";
-        } catch (e) {
-          alert("Flash not supported");
-        }
+        await track.applyConstraints({
+          advanced: [{ torch: !torchOn }]
+        });
+        torchOn = !torchOn;
+        flashBtn.textContent = torchOn ? "Flash Off" : "🔦 Flash";
+      } catch (e) {
+        alert("Flash not supported.");
       }
     }
 
-    toggleCameraBtn.onclick = () => {
-      if (stream) {
-        stream.getTracks().forEach(t => t.stop());
-        stream = null;
-        video.style.display = "none";
-        toggleCameraBtn.textContent = "📷 Camera On";
-      } else {
-        startCamera();
-        video.style.display = "block";
-        toggleCameraBtn.textContent = "📷 Camera Off";
-      }
-    };
+    function showControls(mode) {
+      // modes: "initial", "processing", "result"
+      flashBtn.style.display = mode === "initial" ? "inline-block" : "none";
+      captureBtn.style.display = mode === "initial" ? "inline-block" : "none";
+      nextBtn.style.display = mode === "result" ? "inline-block" : "none";
+      refreshBtn.style.display = mode === "processing" ? "inline-block" : "none";
+    }
 
     captureBtn.onclick = () => {
+      errorMessage.textContent = "";
+      showControls("processing");
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      if (stream) stream.getTracks().forEach(t => t.stop());
+      stream.getTracks().forEach(t => t.stop());
+      video.style.display = "none";
+      overlay.style.display = "none";
 
-      wrap.classList.add("hide");
-      overlay.classList.add("hide");
-      showButtons({ refresh: true });
-
-      const loading = document.createElement('div');
-      loading.id = 'loadingOverlay';
+      const loading = document.createElement("div");
+      loading.id = "loadingOverlay";
       loading.textContent = "🔄 Processing the file…";
       Object.assign(loading.style, {
         position: 'fixed',
         top: 0, left: 0,
-        width: '100vw', height: '100vh',
+        width: '100vw',
+        height: '100vh',
         background: 'black',
         color: 'white',
         fontSize: '22px',
@@ -265,42 +257,59 @@ def index():
       document.body.appendChild(loading);
 
       canvas.toBlob(blob => {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = "OMR_sheet.jpg";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
         const formData = new FormData();
-        formData.append('image', blob, 'capture.jpg');
+        formData.append("image", blob, "capture.jpg");
 
-        fetch('/upload', { method: 'POST', body: formData })
+        fetch("/upload", { method: "POST", body: formData })
           .then(() => {
-            const checkStatus = setInterval(() => {
-              fetch('/status')
+            const interval = setInterval(() => {
+              fetch("/status")
                 .then(res => res.json())
                 .then(data => {
-                  if (!data.processing && data.filename) {
-                    clearInterval(checkStatus);
+                  if (!data.processing) {
+                    clearInterval(interval);
                     loading.remove();
-                    resultImg.src = "/temp_output/" + data.filename + "?t=" + new Date().getTime();
-                    resultImg.style.display = "block";
-                    showButtons({ next: true });
+                    if (data.filename) {
+                      resultImg.src = "/temp_output/" + data.filename + "?t=" + Date.now();
+                      resultImg.id = "fullImageView";
+                      document.body.innerHTML = "";
+                      document.body.appendChild(resultImg);
+                      document.body.appendChild(nextBtn);
+                      showControls("result");
+                    } else {
+                      errorMessage.textContent = "❌ Failed to process the image.";
+                      showControls("initial");
+                      startCamera();
+                    }
                   }
+                }).catch(err => {
+                  clearInterval(interval);
+                  loading.remove();
+                  errorMessage.textContent = "❌ Error during processing.";
+                  showControls("initial");
+                  startCamera();
                 });
             }, 1000);
+          })
+          .catch(err => {
+            loading.remove();
+            errorMessage.textContent = "❌ Upload error.";
+            showControls("initial");
+            startCamera();
           });
-      }, 'image/jpeg');
+      }, "image/jpeg");
     };
 
-    // On initial load
-    showButtons({ flash: true, capture: true, cameraToggle: true });
-    startCamera();
-  </script>
+    flashBtn.onclick = toggleFlash;
+    refreshBtn.onclick = () => location.reload();
+    nextBtn.onclick = () => location.reload();
 
+    startCamera();
+    showControls("initial");
+  </script>
 </body>
 </html>
+
 
 ''')
 
