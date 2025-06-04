@@ -1,13 +1,20 @@
-# app.py
 import os
 import time
 import shutil
 import subprocess
-import signal
 import sys
 import threading
-import glob
 from flask import Flask, send_from_directory, render_template_string, jsonify, request
+
+import logging
+
+class FilterRequests(logging.Filter):
+    def filter(self, record):
+        return "GET /" not in record.getMessage() and "POST /" not in record.getMessage()
+
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.INFO)
+log.addFilter(FilterRequests())
 
 download_folder = "/sdcard/Download"
 input_folder = "temp_input"
@@ -16,18 +23,15 @@ extensions = ('.jpg', '.jpeg', '.png')
 
 app = Flask(__name__)
 processing = False
-current_filename = ""
 latest_output_filename = ""
 error_occurred = False
 
 def move_and_process(file_path):
-    global processing, current_filename, latest_output_filename, error_occurred
+    global processing, latest_output_filename, error_occurred
     processing = True
     error_occurred = False
-    os.makedirs(input_folder, exist_ok=True)
-    os.makedirs(output_folder, exist_ok=True)
-    shutil.rmtree(input_folder)
-    shutil.rmtree(output_folder)
+    shutil.rmtree(input_folder, ignore_errors=True)
+    shutil.rmtree(output_folder, ignore_errors=True)
     os.makedirs(input_folder)
     os.makedirs(output_folder)
     shutil.move(file_path, os.path.join(input_folder, os.path.basename(file_path)))
@@ -44,6 +48,7 @@ def move_and_process(file_path):
     files = [f for f in os.listdir(output_folder) if f.endswith(extensions)]
     if files:
         latest_output_filename = files[-1]
+        shutil.copy(os.path.join(output_folder, latest_output_filename), os.path.join("output", latest_output_filename))
     else:
         latest_output_filename = ""
 
@@ -63,15 +68,14 @@ def watch_folder():
 @app.route('/')
 def index():
     return render_template_string('''
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OMR Sheet Evaluator</title>
   <style>
     body, html {
-      margin: 0;
-      padding: 0;
+      margin: 0; padding: 0;
       background-color: black;
       color: white;
       font-family: sans-serif;
@@ -82,7 +86,6 @@ def index():
       align-items: center;
       justify-content: center;
     }
-
     #wrap {
       position: relative;
       width: 180px;
@@ -90,27 +93,23 @@ def index():
       border: 4px solid white;
       box-sizing: content-box;
     }
-
     video, canvas, #resultImg {
       width: 180px;
       height: 480px;
       object-fit: cover;
       display: block;
     }
-
     .overlay {
       position: absolute;
       top: 0; left: 0; right: 0; bottom: 0;
       pointer-events: none;
     }
-
     .qr-box {
       border: 2px solid lime;
       width: 30px;
       height: 30px;
       position: absolute;
     }
-
     .qr-tl { top: 10px; left: 10px; }
     .qr-tr { top: 10px; right: 10px; }
     .qr-bl { bottom: 10px; left: 10px; }
@@ -123,7 +122,6 @@ def index():
       flex-wrap: wrap;
       justify-content: center;
     }
-
     button {
       font-size: 16px;
       padding: 10px 15px;
@@ -145,6 +143,7 @@ def index():
       width: 100vw;
       height: 100vh;
       object-fit: contain;
+      transform: rotate(90deg);
       background: black;
     }
 
@@ -153,10 +152,20 @@ def index():
       font-size: 18px;
       margin-top: 20px;
     }
+
+    #processingImg {
+      width: 100vw;
+      height: 100vh;
+      object-fit: contain;
+      transform: rotate(90deg);
+      position: fixed;
+      top: 0;
+      left: 0;
+      background: black;
+    }
   </style>
 </head>
 <body>
-
   <div id="wrap">
     <video id="video" autoplay playsinline muted></video>
     <canvas id="canvas"></canvas>
@@ -173,152 +182,117 @@ def index():
     <button id="flashBtn">🔦 Flash</button>
     <button id="captureBtn">📸 Capture</button>
     <button id="nextBtn" style="display:none;">🔁 Next</button>
-    <button id="refreshBtn" style="display:none;">🔄 Refresh</button>
+    <button id="refreshBtn">🔄 Refresh</button>
   </div>
 
   <div id="errorMessage"></div>
 
   <script>
-  let stream = null;
-  let torchOn = false;
+    let stream = null;
+    let torchOn = false;
 
-  const video = document.getElementById("video");
-  const canvas = document.getElementById("canvas");
-  const resultImg = document.getElementById("resultImg");
-  const flashBtn = document.getElementById("flashBtn");
-  const captureBtn = document.getElementById("captureBtn");
-  const nextBtn = document.getElementById("nextBtn");
-  const refreshBtn = document.getElementById("refreshBtn");
-  const overlay = document.getElementById("overlay");
-  const errorMessage = document.getElementById("errorMessage");
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const resultImg = document.getElementById("resultImg");
+    const flashBtn = document.getElementById("flashBtn");
+    const captureBtn = document.getElementById("captureBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const overlay = document.getElementById("overlay");
+    const errorMessage = document.getElementById("errorMessage");
 
-  async function startCamera() {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } }
-      });
-      video.srcObject = stream;
-      video.play();
-    } catch (e) {
-      alert("Camera access denied.");
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } }
+        });
+        video.srcObject = stream;
+        video.play();
+      } catch (e) {
+        alert("Camera access denied.");
+      }
     }
-  }
 
-  async function toggleFlash() {
-    try {
-      if (!stream) return;
-      const track = stream.getVideoTracks()[0];
-      await track.applyConstraints({
-        advanced: [{ torch: !torchOn }]
-      });
-      torchOn = !torchOn;
-      flashBtn.textContent = torchOn ? "Flash Off" : "🔦 Flash";
-    } catch (e) {
-      alert("Flash not supported.");
+    async function toggleFlash() {
+      try {
+        if (!stream) return;
+        const track = stream.getVideoTracks()[0];
+        await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
+        torchOn = !torchOn;
+        flashBtn.textContent = torchOn ? "Flash Off" : "🔦 Flash";
+      } catch (e) {
+        alert("Flash not supported.");
+      }
     }
-  }
 
-  function showControls(mode) {
-    // Modes: "initial", "processing", "result", "error"
-    flashBtn.style.display = (mode === "initial") ? "inline-block" : "none";
-    captureBtn.style.display = (mode === "initial") ? "inline-block" : "none";
-    refreshBtn.style.display = (mode === "initial" || mode === "processing") ? "inline-block" : "none";
-    nextBtn.style.display = (mode === "result" || mode === "error") ? "inline-block" : "none";
-  }
-
-  captureBtn.onclick = () => {
-    errorMessage.textContent = "";
-    showControls("processing");
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    stream.getTracks().forEach(t => t.stop());
-    video.style.display = "none";
-    overlay.style.display = "none";
-
-    const loading = document.createElement("div");
-    loading.id = "loadingOverlay";
-    loading.textContent = "🔄 Processing the file…";
-    Object.assign(loading.style, {
-      position: 'fixed',
-      top: 0, left: 0,
-      width: '100vw',
-      height: '100vh',
-      background: 'black',
-      color: 'white',
-      fontSize: '22px',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 9999
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+      }
     });
-    document.body.appendChild(loading);
 
-    canvas.toBlob(blob => {
-      const formData = new FormData();
-      formData.append("image", blob, "capture.jpg");
+    captureBtn.onclick = () => {
+      errorMessage.textContent = "";
 
-      fetch("/upload", { method: "POST", body: formData })
-        .then(() => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      stream.getTracks().forEach(t => t.stop());
+      video.style.display = "none";
+      overlay.style.display = "none";
+
+      canvas.toBlob(blob => {
+        const formData = new FormData();
+        formData.append("image", blob, "capture.jpg");
+
+        const imgBlob = URL.createObjectURL(blob);
+        const img = document.createElement("img");
+        img.id = "processingImg";
+        img.src = imgBlob;
+        document.body.innerHTML = "";
+        document.body.appendChild(img);
+        document.body.appendChild(refreshBtn);
+
+        fetch("/upload", { method: "POST", body: formData }).then(() => {
           const interval = setInterval(() => {
-            fetch("/status")
-              .then(res => res.json())
-              .then(data => {
-                if (!data.processing) {
-                  clearInterval(interval);
-                  loading.remove();
-                  if (data.filename) {
-                    resultImg.src = "/temp_output/" + data.filename + "?t=" + Date.now();
-                    resultImg.id = "fullImageView";
-                    document.body.innerHTML = "";
-                    document.body.appendChild(resultImg);
-                    document.body.appendChild(nextBtn);
-                    showControls("result");
-                  } else {
-                    errorMessage.textContent = "❌ Failed to process the image.";
-                    document.body.innerHTML = "";
-                    document.body.appendChild(errorMessage);
-                    document.body.appendChild(nextBtn);
-                    showControls("error");
-                  }
-                }
-              })
-              .catch(err => {
+            fetch("/status").then(res => res.json()).then(data => {
+              if (!data.processing) {
                 clearInterval(interval);
-                loading.remove();
-                errorMessage.textContent = "❌ Error during processing.";
-                document.body.innerHTML = "";
-                document.body.appendChild(errorMessage);
-                document.body.appendChild(nextBtn);
-                showControls("error");
-              });
+                if (data.filename) {
+                  const result = document.createElement("img");
+                  result.src = "/temp_output/" + data.filename + "?t=" + Date.now();
+                  result.id = "fullImageView";
+                  document.body.innerHTML = "";
+                  document.body.appendChild(result);
+                  document.body.appendChild(nextBtn);
+                } else {
+                  document.body.innerHTML = "";
+                  errorMessage.textContent = "❌ Failed to process the image.";
+                  document.body.appendChild(errorMessage);
+                  document.body.appendChild(nextBtn);
+                }
+              }
+            });
           }, 1000);
-        })
-        .catch(err => {
-          loading.remove();
-          errorMessage.textContent = "❌ Upload error.";
+        }).catch(() => {
           document.body.innerHTML = "";
+          errorMessage.textContent = "❌ Upload error.";
           document.body.appendChild(errorMessage);
           document.body.appendChild(nextBtn);
-          showControls("error");
         });
-    }, "image/jpeg");
-  };
+      }, "image/jpeg");
+    };
 
-  flashBtn.onclick = toggleFlash;
-  refreshBtn.onclick = () => location.reload();
-  nextBtn.onclick = () => location.reload();
+    flashBtn.onclick = toggleFlash;
+    refreshBtn.onclick = () => location.reload();
+    nextBtn.onclick = () => location.reload();
 
-  startCamera();
-  showControls("initial");
-</script>
-
+    startCamera();
+  </script>
 </body>
 </html>
-
-
 ''')
 
 @app.route('/upload', methods=['POST'])
