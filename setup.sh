@@ -1,5 +1,6 @@
 #!/bin/bash
 
+clear
 # Step 1: Create the alias file
 cat > ~/.my_aliases.sh <<'EOF'
 # === Custom Aliases ===
