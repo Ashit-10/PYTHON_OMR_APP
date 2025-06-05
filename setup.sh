@@ -1,6 +1,6 @@
 #!/bin/bash
 
-clear
+
 echo
 echo
 # Step 1: Create the alias file
