@@ -45,5 +45,5 @@ if $sourced; then
     exit
 else
     echo -e "\n\033[1;33m⚠️  Termux not closed automatically because this script was not sourced.\033[0m"
-    echo -e "\033[1;34m💡 Tip: Use \033[1;36msource omr_master_setup.sh\033[0m to enable auto-close.\n"
+    echo -e "\033[1;34m💡 Tip: Use \033[1;36msource setup.sh\033[0m to enable auto-close.\n"
 fi
