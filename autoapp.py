@@ -8,7 +8,7 @@ def evaluate(image_file, photo, out_put_path, answer_key_file, caption, has_dark
     with open(answer_key_file, 'r') as readd:
         answers = json.load(readd)
     if len(answers) < 51:
-        return s50.find_and_draw_squares(image_file, photo, out_put_path, 
+        return s50.find_and_draw_squares(image_file, out_put_path, 
                                   answer_key_file, caption, has_darkness, allow_partial_mark)
     else:
         print("Error in answer key")
