@@ -19,7 +19,7 @@ def evaluate(image_file, out_put_path, answer_key_file, caption, has_darkness, a
 
 # evaluate('images/n18.jpg', 'output/', "answer_key.txt", "", None, None)   
 moved = []
-for f in glob.glob('/sdcard/Download/*ans*_key*.txt'):
+for f in glob.glob('/sdcard/Download/*ans*_key*.txt*'):
     try:
         shutil.move(f, f'./{os.path.basename(f)}')
         moved.append(os.path.basename(f))
