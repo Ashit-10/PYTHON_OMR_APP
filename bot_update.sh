@@ -39,3 +39,39 @@ fi
 
 # Final message in magenta (pinkish)
 echo -e "${MAGENTA}🎉 Update complete! Your project is now up to date.${NC}"
+
+
+
+
+alias send='python3 upload.py'
+alias update='bash bot_update.sh'
+alias settings='bash settings.sh'
+alias autoscan='python3 web.py'
+alias omr='python3 app.py'
+
+
+echo
+echo
+#!/bin/bash
+
+echo -e "\033[1;34m================ ALIAS COMMANDS =================\033[0m"
+echo -e "\033[1;32msend      \033[0m → 📤 Send zipped files to Telegram"
+echo -e "\033[1;32mupdate    \033[0m → 🔄 Update bot scripts"
+echo -e "\033[1;32msettings  \033[0m → ⚙️  Open settings menu"
+echo -e "\033[1;32mautoscan  \033[0m → 📷 Start auto scanning server"
+echo -e "\033[1;32momr       \033[0m → 📝 Run OMR scanner app"
+echo -e "\033[1;34m================================================\033[0m"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
