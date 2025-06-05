@@ -23,17 +23,11 @@ pause() {
 
 while true; do
   clear
-  echo -e "${CYAN}      ____   __  __  ____${NC}"
-  echo -e "${CYAN}     / __ \\ |  \\/  |/ __ \\${NC}"
-  echo -e "${CYAN}    | |  | || |\\/| | |  | |${NC}"
-  echo -e "${CYAN}    | |__| || |  | | |__| |${NC}"
-  echo -e "${CYAN}     \\____/ |_|  |_|\\____/${NC}"
+  echo -e "${CYAN}"
+  echo "     O   M   R"
   echo
-  echo -e "${CYAN}          ____  ____   _   _  _____ ____  _${NC}"
-  echo -e "${CYAN}         / ___||  _ \\ | \\ | || ____|  _ \\| |${NC}"
-  echo -e "${CYAN}         \\___ \\| | | ||  \\| | |  _| | |_) | |${NC}"
-  echo -e "${CYAN}          ___) | |_| || |\\  | | |___|  _ <|_|${NC}"
-  echo -e "${CYAN}         |____/|____/ |_| \\_| |_____|_| \\_(_)${NC}"
+  echo "   S   C   A   N   N   E   R"
+  echo -e "${NC}"
   echo
   echo -e "    ${YELLOW}1.${NC} Signature"
   echo -e "    ${YELLOW}2.${NC} Pixel value"
