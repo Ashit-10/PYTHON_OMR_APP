@@ -1,3 +1,36 @@
+#!/bin/sh
+
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+ANSWER_FILE="answer_key.txt"
+TEMP_FILE="/tmp/$ANSWER_FILE"
+
+echo -e "${YELLOW}📦 Preparing to update project...${NC}"
+
+# Backup the answer key
+if [ -f "$ANSWER_FILE" ]; then
+    cp "$ANSWER_FILE" "$TEMP_FILE"
+    echo -e "${YELLOW}📝 Backed up answer key...${NC}"
+else
+    echo -e "${YELLOW}⚠️ No answer key found to backup.${NC}"
+fi
+
+# Mark directory as safe for Git
 git config --global --add safe.directory "/storage/emulated/0/PYTHON_OMR_BOT"
+
+echo -e "${YELLOW}🔄 Fetching latest updates from GitHub...${NC}"
 git fetch --all
+
+echo -e "${YELLOW}🧹 Resetting to latest version...${NC}"
 git reset --hard origin/main
+
+# Restore the answer key
+if [ -f "$TEMP_FILE" ]; then
+    mv "$TEMP_FILE" "$ANSWER_FILE"
+    echo -e "${GREEN}✅ Answer key restored successfully!${NC}"
+fi
+
+echo -e "${GREEN}🎉 Update complete! Your project is now up to date.${NC}"
