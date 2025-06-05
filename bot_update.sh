@@ -43,26 +43,6 @@ echo -e "${MAGENTA}🎉 Update complete! Your project is now up to date.${NC}"
 
 
 
-alias send='python3 upload.py'
-alias update='bash bot_update.sh'
-alias settings='bash settings.sh'
-alias autoscan='python3 web.py'
-alias omr='python3 app.py'
-
-
-echo
-echo
-
-
-bash setup.sh
-
-
-
-
-
-
-
-
 
 
 
