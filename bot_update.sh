@@ -52,7 +52,7 @@ alias omr='python3 app.py'
 
 echo
 echo
-#!/bin/bash
+
 
 echo -e "\033[1;34m================ ALIAS COMMANDS =================\033[0m"
 echo -e "\033[1;32msend      \033[0m → 📤 Send zipped files to Telegram"
