@@ -180,7 +180,7 @@ def find_extremes(coords):
     return smallest_x, largest_x, smallest_y, largest_y
 
 
-def find_and_draw_squares(image_path,p, output_path, answer_key_file, cap_given, has_shadow, allow_parcial_marking, new_cods_=[]):
+def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, has_shadow, allow_parcial_marking, new_cods_=[]):
     roll_pixel = 200 # 180
     white_pixel_value = 220 # 170
     m_area = 150
