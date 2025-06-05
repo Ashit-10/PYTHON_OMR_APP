@@ -24,9 +24,9 @@ pause() {
 while true; do
   clear
   echo -e "${CYAN}"
-  echo "     O   M   R"
+  echo "               O   M   R"
   echo
-  echo "   S   C   A   N   N   E   R"
+  echo "       S   C   A   N   N   E   R"
   echo -e "${NC}"
   echo
   echo -e "    ${YELLOW}1.${NC} Signature"
