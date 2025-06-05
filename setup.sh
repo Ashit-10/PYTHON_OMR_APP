@@ -1,6 +1,8 @@
 #!/bin/bash
 
 clear
+echo
+echo
 # Step 1: Create the alias file
 cat > ~/.my_aliases.sh <<'EOF'
 # === Custom Aliases ===
@@ -22,9 +24,10 @@ fi
 # Step 3: Reload current shell to activate aliases
 source ~/.my_aliases.sh
 
-echo -e "\n\033[1;34m📌 Available Commands Now:\033[0m"
-echo -e "\033[1;32m  omrsend      \033[0m - Send omr.zip to Telegram"
-echo -e "\033[1;32m  omrupdate    \033[0m - Run bot_update.sh"
-echo -e "\033[1;32m  omrsettings  \033[0m - Run settings.sh"
-echo -e "\033[1;32m  autoscan  \033[0m - Run web.py"
-echo -e "\033[1;32m  omr       \033[0m - Run app.py"
+echo -e "\033[1;34m================ ALIAS COMMANDS =================\033[0m"
+echo -e "\033[1;32m  send      \033[0m → 📤 Send zipped files to Telegram"
+echo -e "\033[1;32m  update    \033[0m → 🔄 Update bot scripts"
+echo -e "\033[1;32m  settings  \033[0m → ⚙️  Open settings menu"
+echo -e "\033[1;32m  autoscan  \033[0m → 📷 Start auto scanning server"
+echo -e "\033[1;32m  omr       \033[0m → 📝 Run OMR scanner app"
+echo -e "\033[1;34m================================================\033[0m"
