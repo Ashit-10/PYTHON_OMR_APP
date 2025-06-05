@@ -37,8 +37,7 @@ pkg rei opencv-python
 pkg install python -y
 pkg install git -y
 pkg install build-essential
-pip istall pytz
-
+pkg install zip -y
 termux-setup-storage
 ```
 git clone repo , cd to PYTHON_OMR_BOT, and run python app.py
