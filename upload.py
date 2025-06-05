@@ -48,6 +48,7 @@ def send_zip():
 
         if response.status_code == 200:
             print(f"\n\n\033[1;32m✅ File sent successfully!\033[0m")
+            os.system(f"rm {ZIP_NAME}")
         else:
             print(f"\n\n\033[1;31m❌ Failed to send file. Status code: {response.status_code}\033[0m")
             print(response.text)
