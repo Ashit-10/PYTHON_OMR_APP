@@ -55,11 +55,11 @@ echo
 
 
 echo -e "\033[1;34m================ ALIAS COMMANDS =================\033[0m"
-echo -e "\033[1;32msend      \033[0m → 📤 Send zipped files to Telegram"
-echo -e "\033[1;32mupdate    \033[0m → 🔄 Update bot scripts"
-echo -e "\033[1;32msettings  \033[0m → ⚙️  Open settings menu"
-echo -e "\033[1;32mautoscan  \033[0m → 📷 Start auto scanning server"
-echo -e "\033[1;32momr       \033[0m → 📝 Run OMR scanner app"
+echo -e "\033[1;32m  send      \033[0m → 📤 Send zipped files to Telegram"
+echo -e "\033[1;32m  update    \033[0m → 🔄 Update bot scripts"
+echo -e "\033[1;32m  settings  \033[0m → ⚙️  Open settings menu"
+echo -e "\033[1;32m  autoscan  \033[0m → 📷 Start auto scanning server"
+echo -e "\033[1;32m  omr       \033[0m → 📝 Run OMR scanner app"
 echo -e "\033[1;34m================================================\033[0m"
 
 
