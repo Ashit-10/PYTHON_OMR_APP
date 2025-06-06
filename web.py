@@ -31,6 +31,9 @@ current_filename = ""
 latest_output_filename = ""
 error_occurred = False
 
+def open_chrome():
+    os.system("am start -n com.android.chrome/com.google.android.apps.chrome.Main -a android.intent.action.VIEW -d http://127.0.0.1:5000")
+
 def move_and_process(file_path):
     global processing, current_filename, latest_output_filename, error_occurred
     processing = True
@@ -384,4 +387,5 @@ def get_output(filename):
 
 if __name__ == '__main__':
     threading.Thread(target=watch_folder, daemon=True).start()
+    threading.Timer(1.5, open_chrome).start()
     app.run(host='0.0.0.0', port=5000)
