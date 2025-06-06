@@ -23,7 +23,7 @@ else
 fi
 
 # Mark directory as safe for Git
-git config --global --add safe.directory "/storage/emulated/0/PYTHON_OMR_BOT"
+git config --global --add safe.directory "/storage/emulated/0/PYTHON_OMR_APP"
 
 echo -e "${YELLOW}🔄 Fetching latest updates from GitHub...${NC}"
 git fetch --all
