@@ -3,7 +3,10 @@ import numpy as np
 import json
 import datetime
 import os
+import configparser
 
+config = configparser.ConfigParser()
+config.read('config.cfg')
 
 roll_first_column = [[250, 20], [250, 52], [250, 86], [250, 118], [250, 152], [250, 185],[250, 219], [250, 251],[250, 285],[250, 317]]
 roll_second_column = [[287, 20], [287, 52], [287, 86], [287, 119], [287, 152], [287, 185], [287, 219], [287, 251],[287, 285],[287, 317] ]
@@ -12,7 +15,7 @@ location_file = "omr_50_locations.txt"
 
 def add_sign(base_image, dst_pts, rect, x, y, r = 0):
     try:
-        sign_file = "sign.png"
+        sign_file = config.get('settings', 'signature')
         signature_image = cv2.imread(sign_file, cv2.IMREAD_UNCHANGED)
 
         # Resize the signature image to width 100 while maintaining the aspect ratio
@@ -182,7 +185,7 @@ def find_extremes(coords):
 
 def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, has_shadow, allow_parcial_marking, new_cods_=[]):
     roll_pixel = 220
-    white_pixel_value = 230 # 170
+    white_pixel_value = int(config.get('settings', 'pixel_value')) #230 # 170
     m_area = 150
     shadow_pixel_value = 280
 

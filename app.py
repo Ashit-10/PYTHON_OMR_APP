@@ -31,8 +31,8 @@ if len(if_in_output) > 0:
     print(f"{len(if_in_output)} photos found in output folder. Delete all ? [y/n]")
     y_or_n = input()
     if y_or_n.lower() == "y":
-        os.system("rm output/*")
-        os.system("rm duplicates/*")
+        os.system("rm -f output/*")
+        os.system("rm -f duplicates/*")
         print("Deleted all photos in output folder .")
     else:
         print("Proceeding without deleting ...")
