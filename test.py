@@ -257,23 +257,26 @@ captureBtn.onclick = () => {
   video.style.display = "none";
   overlay.style.display = "none";
 
-  // Draw full frame
-  const vWidth = video.videoWidth;
-  const vHeight = video.videoHeight;
-  canvas.width = vWidth;
-  canvas.height = vHeight;
+  // We know our wrap is 180x480 (from CSS), so we scale relative to video resolution
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+
+  const wrap = document.getElementById("wrap");
+  const vwRatio = 180 / wrap.offsetWidth;
+  const vhRatio = 480 / wrap.offsetHeight;
+
+  const cropW = Math.round(vw * vwRatio);
+  const cropH = Math.round(vh * vhRatio);
+  const cropX = Math.round((vw - cropW) / 2);
+  const cropY = Math.round((vh - cropH) / 2);
+
+  // Draw the full video frame to a canvas
+  canvas.width = vw;
+  canvas.height = vh;
   const ctx = canvas.getContext("2d");
-  ctx.drawImage(video, 0, 0, vWidth, vHeight);
+  ctx.drawImage(video, 0, 0, vw, vh);
 
-  // Calculate visible crop area (180x480 box)
-  const videoBox = video.getBoundingClientRect();
-  const wrapBox = document.getElementById("wrap").getBoundingClientRect();
-
-  const cropX = ((wrapBox.left - videoBox.left) / videoBox.width) * vWidth;
-  const cropY = ((wrapBox.top - videoBox.top) / videoBox.height) * vHeight;
-  const cropW = (wrapBox.width / videoBox.width) * vWidth;
-  const cropH = (wrapBox.height / videoBox.height) * vHeight;
-
+  // Crop to visible area (centered 180x480)
   const croppedCanvas = document.createElement("canvas");
   croppedCanvas.width = cropW;
   croppedCanvas.height = cropH;
@@ -282,12 +285,12 @@ captureBtn.onclick = () => {
 
   const imageDataURL = croppedCanvas.toDataURL("image/jpeg");
 
-  // Show captured image immediately while processing
+  // Show cropped preview image
   const preview = document.createElement("img");
   preview.id = "fullImageView";
   preview.src = imageDataURL;
 
-  // Loading text
+  // Loading overlay
   const loading = document.createElement("div");
   loading.id = "loadingOverlay";
   loading.textContent = "🔄 Processing the file…";
@@ -310,7 +313,7 @@ captureBtn.onclick = () => {
   document.body.innerHTML = "";
   document.body.appendChild(loading);
 
-  // Send to server
+  // Upload to server
   croppedCanvas.toBlob(blob => {
     const formData = new FormData();
     formData.append("image", blob, "capture.jpg");
@@ -325,6 +328,7 @@ captureBtn.onclick = () => {
                 clearInterval(interval);
                 loading.remove();
                 if (data.filename) {
+                  const resultImg = document.createElement("img");
                   resultImg.src = "/temp_output/" + data.filename + "?t=" + Date.now();
                   resultImg.id = "fullImageView";
                   document.body.innerHTML = "";
@@ -361,6 +365,7 @@ captureBtn.onclick = () => {
       });
   }, "image/jpeg");
 };
+
 
   flashBtn.onclick = toggleFlash;
   refreshBtn.onclick = () => location.reload();
