@@ -15,7 +15,7 @@
 <h2>How to use ?</h2>
 
 ```
-git clone https://github.com/Ashit-10/PYTHON_OMR_BOT.git
+git clone https://github.com/Ashit-10/PYTHON_OMR_APP
 cd PYTHON_OMR_BOT
 pip3 -r requirements.txt
 python3 app.py
@@ -40,7 +40,7 @@ pkg install build-essential
 pkg install zip -y
 termux-setup-storage
 
-git clone https://github.com/Ashit-10/PYTHON_OMR_BOT
+git clone https://github.com/Ashit-10/PYTHON_OMR_APP
 
 cd PYTHON_OMR_BOT
 pip3 -r requirements.txt
