@@ -168,10 +168,11 @@ def index():
     }
 
     #processingImage {
-      max-height: 65vh;
+      max-height: 70vh;
       width: auto;
       object-fit: contain;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
+      margin-top: -10px;
     }
   </style>
 </head>
