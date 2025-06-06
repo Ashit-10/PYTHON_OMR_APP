@@ -167,24 +167,10 @@ def index():
       margin-top: 20px;
     }
 
-    #processingOverlay {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: black;
-      color: white;
-      font-size: 22px;
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-    }
-
-    #capturedDisplay {
+    #processingImage {
       max-height: 80vh;
       width: auto;
+      object-fit: contain;
       margin-bottom: 20px;
     }
   </style>
@@ -212,108 +198,166 @@ def index():
 
   <div id="errorMessage"></div>
 
-  <div id="processingOverlay">
-    <img id="capturedDisplay" />
-    🔄 Processing the file…
-  </div>
-
   <script>
-  let stream = null;
-  let torchOn = false;
+    let stream = null;
+    let torchOn = false;
 
-  const video = document.getElementById("video");
-  const canvas = document.getElementById("canvas");
-  const resultImg = document.getElementById("resultImg");
-  const flashBtn = document.getElementById("flashBtn");
-  const captureBtn = document.getElementById("captureBtn");
-  const nextBtn = document.getElementById("nextBtn");
-  const refreshBtn = document.getElementById("refreshBtn");
-  const overlay = document.getElementById("overlay");
-  const errorMessage = document.getElementById("errorMessage");
-  const processingOverlay = document.getElementById("processingOverlay");
-  const capturedDisplay = document.getElementById("capturedDisplay");
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const resultImg = document.getElementById("resultImg");
+    const flashBtn = document.getElementById("flashBtn");
+    const captureBtn = document.getElementById("captureBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const overlay = document.getElementById("overlay");
+    const errorMessage = document.getElementById("errorMessage");
 
-  async function startCamera() {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } }
-      });
-      video.srcObject = stream;
-      video.play();
-    } catch (e) {
-      alert("Camera access denied.");
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } }
+        });
+        video.srcObject = stream;
+        video.play();
+      } catch (e) {
+        alert("Camera access denied.");
+      }
     }
-  }
 
-  async function toggleFlash() {
-    try {
-      if (!stream) return;
-      const track = stream.getVideoTracks()[0];
-      await track.applyConstraints({
-        advanced: [{ torch: !torchOn }]
-      });
-      torchOn = !torchOn;
-      flashBtn.textContent = torchOn ? "Flash Off" : "🔦 Flash";
-    } catch (e) {
-      alert("Flash not supported.");
+    async function toggleFlash() {
+      try {
+        if (!stream) return;
+        const track = stream.getVideoTracks()[0];
+        await track.applyConstraints({
+          advanced: [{ torch: !torchOn }]
+        });
+        torchOn = !torchOn;
+        flashBtn.textContent = torchOn ? "Flash Off" : "🔦 Flash";
+      } catch (e) {
+        alert("Flash not supported.");
+      }
     }
-  }
 
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      if (stream) {
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && stream) {
         stream.getTracks().forEach(track => track.stop());
         stream = null;
       }
+    });
+
+    function showControls(mode) {
+      flashBtn.style.display = (mode === "initial") ? "inline-block" : "none";
+      captureBtn.style.display = (mode === "initial") ? "inline-block" : "none";
+      refreshBtn.style.display = (mode === "initial" || mode === "processing") ? "inline-block" : "none";
+      nextBtn.style.display = (mode === "result" || mode === "error") ? "inline-block" : "none";
     }
-  });
 
-  function showControls(mode) {
-    // Modes: "initial", "processing", "result", "error"
-    flashBtn.style.display = (mode === "initial") ? "inline-block" : "none";
-    captureBtn.style.display = (mode === "initial") ? "inline-block" : "none";
-    refreshBtn.style.display = (mode === "initial" || mode === "processing") ? "inline-block" : "none";
-    nextBtn.style.display = (mode === "result" || mode === "error") ? "inline-block" : "none";
-  }
+    captureBtn.onclick = () => {
+      errorMessage.textContent = "";
+      showControls("processing");
 
-  captureBtn.onclick = () => {
-    errorMessage.textContent = "";
-    showControls("processing");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageDataURL = canvas.toDataURL("image/jpeg");
 
-    stream.getTracks().forEach(t => t.stop());
-    video.style.display = "none";
-    overlay.style.display = "none";
+      stream.getTracks().forEach(t => t.stop());
+      video.style.display = "none";
+      overlay.style.display = "none";
 
-    const imageDataURL = canvas.toDataURL("image/jpeg");
-    capturedDisplay.src = imageDataURL;
-    processingOverlay.style.display = "flex";
+      const loading = document.createElement("div");
+      loading.id = "loadingOverlay";
+      Object.assign(loading.style, {
+        position: 'fixed',
+        top: 0, left: 0,
+        width: '100vw',
+        height: '100vh',
+        background: 'black',
+        color: 'white',
+        fontSize: '22px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 9999,
+        textAlign: 'center'
+      });
 
-    // simulate processing delay
-    setTimeout(() => {
-      processingOverlay.style.display = "none";
-      resultImg.src = imageDataURL;
-      resultImg.id = "fullImageView";
-      document.body.innerHTML = "";
-      document.body.appendChild(resultImg);
-      document.body.appendChild(nextBtn);
-      showControls("result");
-    }, 2000); // 2s fake delay for testing
-  };
+      const capturedImg = document.createElement("img");
+      capturedImg.id = "processingImage";
+      capturedImg.src = imageDataURL;
 
-  flashBtn.onclick = toggleFlash;
-  refreshBtn.onclick = () => location.reload();
-  nextBtn.onclick = () => location.reload();
+      const processingText = document.createElement("div");
+      processingText.textContent = "🔄 Processing the file…";
 
-  startCamera();
-  showControls("initial");
+      loading.appendChild(capturedImg);
+      loading.appendChild(processingText);
+      document.body.appendChild(loading);
+
+      canvas.toBlob(blob => {
+        const formData = new FormData();
+        formData.append("image", blob, "capture.jpg");
+
+        fetch("/upload", { method: "POST", body: formData })
+          .then(() => {
+            const interval = setInterval(() => {
+              fetch("/status")
+                .then(res => res.json())
+                .then(data => {
+                  if (!data.processing) {
+                    clearInterval(interval);
+                    loading.remove();
+                    if (data.filename) {
+                      resultImg.src = "/temp_output/" + data.filename + "?t=" + Date.now();
+                      resultImg.id = "fullImageView";
+                      document.body.innerHTML = "";
+                      document.body.appendChild(resultImg);
+                      document.body.appendChild(nextBtn);
+                      showControls("result");
+                    } else {
+                      errorMessage.textContent = "❌ Failed to process the image.";
+                      document.body.innerHTML = "";
+                      document.body.appendChild(errorMessage);
+                      document.body.appendChild(nextBtn);
+                      showControls("error");
+                    }
+                  }
+                })
+                .catch(err => {
+                  clearInterval(interval);
+                  loading.remove();
+                  errorMessage.textContent = "❌ Error during processing.";
+                  document.body.innerHTML = "";
+                  document.body.appendChild(errorMessage);
+                  document.body.appendChild(nextBtn);
+                  showControls("error");
+                });
+            }, 1000);
+          })
+          .catch(err => {
+            loading.remove();
+            errorMessage.textContent = "❌ Upload error.";
+            document.body.innerHTML = "";
+            document.body.appendChild(errorMessage);
+            document.body.appendChild(nextBtn);
+            showControls("error");
+          });
+      }, "image/jpeg");
+    };
+
+    flashBtn.onclick = toggleFlash;
+    refreshBtn.onclick = () => location.reload();
+    nextBtn.onclick = () => location.reload();
+
+    startCamera();
+    showControls("initial");
   </script>
 
 </body>
 </html>
+
 
 
 ''')
