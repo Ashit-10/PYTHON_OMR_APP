@@ -181,8 +181,8 @@ def find_extremes(coords):
 
 
 def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, has_shadow, allow_parcial_marking, new_cods_=[]):
-    roll_pixel = 280 # 180
-    white_pixel_value = 420 #220 # 170
+    roll_pixel = 230 # 180
+    white_pixel_value = 270 # 170
     m_area = 150
     shadow_pixel_value = 280
 
