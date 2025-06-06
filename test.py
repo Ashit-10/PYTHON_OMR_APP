@@ -166,6 +166,27 @@ def index():
       font-size: 18px;
       margin-top: 20px;
     }
+
+    #processingOverlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: black;
+      color: white;
+      font-size: 22px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+
+    #capturedDisplay {
+      max-height: 80vh;
+      width: auto;
+      margin-bottom: 20px;
+    }
   </style>
 </head>
 <body>
@@ -191,6 +212,11 @@ def index():
 
   <div id="errorMessage"></div>
 
+  <div id="processingOverlay">
+    <img id="capturedDisplay" />
+    🔄 Processing the file…
+  </div>
+
   <script>
   let stream = null;
   let torchOn = false;
@@ -204,6 +230,8 @@ def index():
   const refreshBtn = document.getElementById("refreshBtn");
   const overlay = document.getElementById("overlay");
   const errorMessage = document.getElementById("errorMessage");
+  const processingOverlay = document.getElementById("processingOverlay");
+  const capturedDisplay = document.getElementById("capturedDisplay");
 
   async function startCamera() {
     try {
@@ -230,14 +258,15 @@ def index():
       alert("Flash not supported.");
     }
   }
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      stream = null;
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+      }
     }
-  }
-});
+  });
 
   function showControls(mode) {
     // Modes: "initial", "processing", "result", "error"
@@ -247,125 +276,33 @@ document.addEventListener("visibilitychange", () => {
     nextBtn.style.display = (mode === "result" || mode === "error") ? "inline-block" : "none";
   }
 
+  captureBtn.onclick = () => {
+    errorMessage.textContent = "";
+    showControls("processing");
 
-captureBtn.onclick = () => {
-  errorMessage.textContent = "";
-  showControls("processing");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
 
-  // Stop camera
-  stream.getTracks().forEach(t => t.stop());
-  video.style.display = "none";
-  overlay.style.display = "none";
+    stream.getTracks().forEach(t => t.stop());
+    video.style.display = "none";
+    overlay.style.display = "none";
 
-  // We know our wrap is 180x480 (from CSS), so we scale relative to video resolution
-  const vw = video.videoWidth;
-  const vh = video.videoHeight;
+    const imageDataURL = canvas.toDataURL("image/jpeg");
+    capturedDisplay.src = imageDataURL;
+    processingOverlay.style.display = "flex";
 
-  const wrap = document.getElementById("wrap");
-  const vwRatio = 180 / wrap.offsetWidth;
-  const vhRatio = 480 / wrap.offsetHeight;
-
-  const cropW = Math.round(vw * vwRatio);
-  const cropH = Math.round(vh * vhRatio);
-  const cropX = Math.round((vw - cropW) / 2);
-  const cropY = Math.round((vh - cropH) / 2);
-
-  // Draw the full video frame to a canvas
-  canvas.width = vw;
-  canvas.height = vh;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(video, 0, 0, vw, vh);
-
-  // Crop to visible area (centered 180x480)
-  const croppedCanvas = document.createElement("canvas");
-  croppedCanvas.width = cropW;
-  croppedCanvas.height = cropH;
-  const croppedCtx = croppedCanvas.getContext("2d");
-  croppedCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-
-  const imageDataURL = croppedCanvas.toDataURL("image/jpeg");
-
-  // Show cropped preview image
-  const preview = document.createElement("img");
-  preview.id = "fullImageView";
-  preview.src = imageDataURL;
-
-  // Loading overlay
-  const loading = document.createElement("div");
-  loading.id = "loadingOverlay";
-  loading.textContent = "🔄 Processing the file…";
-  Object.assign(loading.style, {
-    position: 'fixed',
-    top: 0, left: 0,
-    width: '100vw',
-    height: '100vh',
-    background: 'black',
-    color: 'white',
-    fontSize: '22px',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 9999,
-    flexDirection: 'column'
-  });
-
-  loading.appendChild(preview);
-  document.body.innerHTML = "";
-  document.body.appendChild(loading);
-
-  // Upload to server
-  croppedCanvas.toBlob(blob => {
-    const formData = new FormData();
-    formData.append("image", blob, "capture.jpg");
-
-    fetch("/upload", { method: "POST", body: formData })
-      .then(() => {
-        const interval = setInterval(() => {
-          fetch("/status")
-            .then(res => res.json())
-            .then(data => {
-              if (!data.processing) {
-                clearInterval(interval);
-                loading.remove();
-                if (data.filename) {
-                  const resultImg = document.createElement("img");
-                  resultImg.src = "/temp_output/" + data.filename + "?t=" + Date.now();
-                  resultImg.id = "fullImageView";
-                  document.body.innerHTML = "";
-                  document.body.appendChild(resultImg);
-                  document.body.appendChild(nextBtn);
-                  showControls("result");
-                } else {
-                  errorMessage.textContent = "❌ Failed to process the image.";
-                  document.body.innerHTML = "";
-                  document.body.appendChild(errorMessage);
-                  document.body.appendChild(nextBtn);
-                  showControls("error");
-                }
-              }
-            })
-            .catch(() => {
-              clearInterval(interval);
-              loading.remove();
-              errorMessage.textContent = "❌ Error during processing.";
-              document.body.innerHTML = "";
-              document.body.appendChild(errorMessage);
-              document.body.appendChild(nextBtn);
-              showControls("error");
-            });
-        }, 1000);
-      })
-      .catch(() => {
-        loading.remove();
-        errorMessage.textContent = "❌ Upload error.";
-        document.body.innerHTML = "";
-        document.body.appendChild(errorMessage);
-        document.body.appendChild(nextBtn);
-        showControls("error");
-      });
-  }, "image/jpeg");
-};
-
+    // simulate processing delay
+    setTimeout(() => {
+      processingOverlay.style.display = "none";
+      resultImg.src = imageDataURL;
+      resultImg.id = "fullImageView";
+      document.body.innerHTML = "";
+      document.body.appendChild(resultImg);
+      document.body.appendChild(nextBtn);
+      showControls("result");
+    }, 2000); // 2s fake delay for testing
+  };
 
   flashBtn.onclick = toggleFlash;
   refreshBtn.onclick = () => location.reload();
@@ -373,7 +310,7 @@ captureBtn.onclick = () => {
 
   startCamera();
   showControls("initial");
-</script>
+  </script>
 
 </body>
 </html>
