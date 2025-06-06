@@ -387,5 +387,5 @@ def get_output(filename):
 
 if __name__ == '__main__':
     threading.Thread(target=watch_folder, daemon=True).start()
-    threading.Timer(1.5, open_chrome).start()
+    threading.Timer(0.5, open_chrome).start()
     app.run(host='0.0.0.0', port=5000)
