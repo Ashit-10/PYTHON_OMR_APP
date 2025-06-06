@@ -56,7 +56,7 @@ for photo in photos:
         eval_data = evaluate(f"{ppath}/{photo}", "output/", "answer_key.txt", cap, None, None)
         if eval_data[4] in rolls:
             dup_rolls.append(photo)
-            os.system(f"cp {ppath}/{photo} duplicates/")
+            os.system(f"cp '{ppath}/{photo}' duplicates/")
         else:
             rolls.append(eval_data[4])
     
