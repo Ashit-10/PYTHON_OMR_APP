@@ -594,7 +594,7 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
     end_y = 130
     c_date = datetime.datetime.now()
     exam_date = c_date.strftime("%d/%m/%Y")
-    safe_coods = write_text(original_with_contours, roll_dst_pts, roll_rect, end_x + 4, end_y, exam_date, '', 0.4, 2)
+    safe_coods = write_text(original_with_contours, roll_dst_pts, roll_rect, end_x + 4, end_y, exam_date, '', 0.4, 1)
 
     add_sign(original_with_contours, [], [], safe_coods[0] + 4, safe_coods[1] - 15)
     # add_sign(original_with_contours, roll_dst_pts, roll_rect, end_x, end_y - 15)
