@@ -18,6 +18,7 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
   echo -e "\033[1;32momrsettings\033[0m → ⚙️  Open settings menu"
   echo -e "\033[1;32mautoscan\033[0m    → 📷 Start auto scanning server"
   echo -e "\033[1;32momredit\033[0m     → ✏️  Edit OMR answer key interactively"
+  echo -e "\033[1;32momrtools\033[0m     → ❤️ Get and Run all commands here"
   echo -e "\033[1;34mUsage:\033[0m omr [--help | -h]"
   exit 0
 fi
@@ -44,7 +45,9 @@ alias omrupdate='bash bot_update.sh'      # 🔄 Update bot scripts
 alias omrsettings='bash settings.sh'      # ⚙️  Open settings menu
 alias autoscan='python3 web.py'           # 📷 Start auto scanning server
 alias omredit='bash answer_key_edit.sh'   # ✏️  Edit OMR answer key interactively
+alias omrtool='bash ~/omrtool.sh'         # 📋 Launch universal OMR command tool
 EOF
+
 
 # Step 4: Source the alias file
 if ! grep -q "source ~/.my_aliases.sh" ~/.bashrc; then
