@@ -50,9 +50,13 @@ while true; do
             while true; do
                 read -p "    Enter question number to view (${YELLOW}q to back${RESET}): " qnum
                 [[ "$qnum" == "q" || "$qnum" == "Q" ]] && break
+                if ! [[ "$qnum" =~ ^[0-9]+$ ]]; then
+                    echo -e "    ${RED}❌ Invalid input. Use a number like 1, 2, 3...${RESET}"
+                    continue
+                fi
                 if jq -e ".[\"$qnum\"]" "$FILE" > /dev/null; then
-                    ans=$(jq -c ".[\"$qnum\"]" "$FILE")
-                    echo -e "    ${GREEN}Q$qnum → ${YELLOW}$ans${RESET}"
+                    ans=$(jq -r ".[\"$qnum\"] | @csv" "$FILE" | sed 's/","/, /g; s/^"//; s/"$//')
+                    echo -e "    ${GREEN}Q$qnum → ${YELLOW}[$ans]${RESET}"
                 else
                     echo -e "    ${RED}⚠️ Q$qnum not found in the file.${RESET}"
                 fi
@@ -62,6 +66,10 @@ while true; do
             while true; do
                 read -p "    Enter question number to edit (${YELLOW}q to back${RESET}): " qnum
                 [[ "$qnum" == "q" || "$qnum" == "Q" ]] && break
+                if ! [[ "$qnum" =~ ^[0-9]+$ ]]; then
+                    echo -e "    ${RED}❌ Question number must be a number (e.g. 1, 2, 3...)${RESET}"
+                    continue
+                fi
 
                 read -p "    Enter new option(s) (A–D, comma separated): " input
                 clean_input=$(echo "$input" | tr '[:lower:]' '[:upper:]' | sed 's/ //g')
