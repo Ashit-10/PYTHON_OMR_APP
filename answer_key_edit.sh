@@ -1,91 +1,105 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# Set color codes
-GREEN="\033[1;32m"
+# ========= COLORS ===========
 RED="\033[1;31m"
+GREEN="\033[1;32m"
 YELLOW="\033[1;33m"
 BLUE="\033[1;34m"
+CYAN="\033[1;36m"
+MAGENTA="\033[1;35m"
+BOLD="\033[1m"
 RESET="\033[0m"
 
+# ========= FILE ============
 FILE="answer_key.txt"
 
-# Ensure file exists
+# ========= JQ CHECK =========
+if ! command -v jq > /dev/null; then
+    echo -e "    ${YELLOW}Installing jq...${RESET}"
+    pkg install -y jq
+    if [ $? -ne 0 ]; then
+        echo -e "    ${RED}❌ Failed to install jq.${RESET}"
+        exit 1
+    fi
+fi
+
+# ========= FILE CHECK ========
 if [ ! -f "$FILE" ]; then
     echo -e "    ${RED}❌ File $FILE not found!${RESET}"
     exit 1
 fi
 
-# Create backup
+# Backup original
 cp "$FILE" "${FILE}.bak"
 
-# Menu loop
+# ========= MAIN MENU =========
 while true; do
     clear
-    echo -e "    ${BLUE}📘 OMR Answer Key Editor${RESET}"
-    echo "    ---------------------------"
-    echo "    1. View Answer for a Question"
-    echo "    2. Edit Answer for a Question"
-    echo "    3. View All Questions & Answers"
-    echo "    4. Restore from Backup"
-    echo "    q. Quit"
-    echo "    ---------------------------"
-    read -p "    Choose an option (1-4 or q): " choice
+    echo -e "    ${BLUE}${BOLD}📘 OMR Answer Key Editor${RESET}"
+    echo -e "    ${MAGENTA}───────────────────────────────────────${RESET}"
+    echo -e "    ${CYAN}1.${RESET} View Answer for a Question"
+    echo -e "    ${CYAN}2.${RESET} Edit Answer for a Question"
+    echo -e "    ${CYAN}3.${RESET} View All Questions & Answers"
+    echo -e "    ${CYAN}4.${RESET} Restore from Backup"
+    echo -e "    ${CYAN}q.${RESET} Quit"
+    echo -e "    ${MAGENTA}───────────────────────────────────────${RESET}"
+    read -p "    Choose an option (1–4 or q): " choice
 
     case "$choice" in
         1)
-            read -p "    Enter question number: " qnum
-            if jq -e ".[\"$qnum\"]" "$FILE" > /dev/null; then
-                value=$(jq -c ".[\"$qnum\"]" "$FILE")
-                echo -e "    ${GREEN}Question $qnum → $value${RESET}"
-            else
-                echo -e "    ${YELLOW}⚠️ Question $qnum not found.${RESET}"
-            fi
-            read -p "    Press enter to continue..."
+            while true; do
+                read -p "    Enter question number to view (${YELLOW}q to back${RESET}): " qnum
+                [[ "$qnum" == "q" || "$qnum" == "Q" ]] && break
+                if jq -e ".[\"$qnum\"]" "$FILE" > /dev/null; then
+                    ans=$(jq -c ".[\"$qnum\"]" "$FILE")
+                    echo -e "    ${GREEN}Q$qnum → ${YELLOW}$ans${RESET}"
+                else
+                    echo -e "    ${RED}⚠️ Q$qnum not found in the file.${RESET}"
+                fi
+            done
             ;;
         2)
-            read -p "    Enter question number to edit: " qnum
-            read -p "    Enter new option(s) (A-D, comma separated): " input
-            clean_input=$(echo "$input" | tr '[:lower:]' '[:upper:]' | sed 's/ //g')
+            while true; do
+                read -p "    Enter question number to edit (${YELLOW}q to back${RESET}): " qnum
+                [[ "$qnum" == "q" || "$qnum" == "Q" ]] && break
 
-            # Validate
-            if ! echo "$clean_input" | grep -Eq '^([A-D](,[A-D]){0,3})$'; then
-                echo -e "    ${RED}❌ Invalid input! Use only A, B, C, D (comma separated).${RESET}"
-                read -p "    Press enter to continue..."
-                continue
-            fi
+                read -p "    Enter new option(s) (A–D, comma separated): " input
+                clean_input=$(echo "$input" | tr '[:lower:]' '[:upper:]' | sed 's/ //g')
 
-            # Convert to JSON array
-            formatted=$(echo "$clean_input" | awk -F, '{
-                printf "[";
-                for(i=1; i<=NF; i++) {
-                    printf "\"%s\"", $i;
-                    if (i < NF) printf ",";
-                }
-                print "]";
-            }')
+                if ! echo "$clean_input" | grep -Eq '^([A-D](,[A-D]){0,3})$'; then
+                    echo -e "    ${RED}❌ Invalid! Use only A,B,C,D (comma separated).${RESET}"
+                    continue
+                fi
 
-            # Update using jq
-            tmpfile=$(mktemp)
-            jq ".\"$qnum\" = $formatted" "$FILE" > "$tmpfile" && mv "$tmpfile" "$FILE"
+                formatted=$(echo "$clean_input" | awk -F, '{
+                    printf "[";
+                    for(i=1; i<=NF; i++) {
+                        printf "\"%s\"", $i;
+                        if (i < NF) printf ",";
+                    }
+                    print "]";
+                }')
 
-            echo -e "    ${GREEN}✅ Question $qnum updated to $formatted${RESET}"
-            read -p "    Press enter to continue..."
+                tmpfile=$(mktemp)
+                jq ".\"$qnum\" = $formatted" "$FILE" > "$tmpfile" && mv "$tmpfile" "$FILE"
+                echo -e "    ${GREEN}✅ Q$qnum updated to ${YELLOW}$formatted${RESET}"
+            done
             ;;
         3)
-            echo -e "    ${YELLOW}Showing all question numbers and answers:${RESET}"
-            jq -r 'to_entries[] | "    Q\(.key): \(.value)"' "$FILE" | less
+            echo -e "    ${BLUE}📜 Showing all questions (press q to quit view)...${RESET}"
+            jq -r 'to_entries[] | "    \033[1;36mQ\(.key):\033[0m \033[1;33m\(.value)\033[0m"' "$FILE" | less -R
             ;;
         4)
             cp "${FILE}.bak" "$FILE"
-            echo -e "    ${YELLOW}🔁 Restored from backup file.${RESET}"
-            read -p "    Press enter to continue..."
+            echo -e "    ${YELLOW}🔁 Restored from backup.${RESET}"
+            sleep 1
             ;;
         q|Q)
-            echo -e "    ${BLUE}👋 Exiting...${RESET}"
+            echo -e "    ${CYAN}👋 Exiting. See you again!${RESET}"
             exit 0
             ;;
         *)
-            echo -e "    ${RED}⚠️ Invalid choice! Try again.${RESET}"
+            echo -e "    ${RED}⚠️ Invalid option. Try again.${RESET}"
             sleep 1
             ;;
     esac
