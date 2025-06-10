@@ -44,17 +44,17 @@ while true; do
     case "$choice" in
         1)
             while true; do
-                read -p "    🔎 Enter question number to view (${YELLOW}q to back${RESET}): " qnum
+                read -p "    🔍 Enter question number (${YELLOW}q to back${RESET}): " qnum
                 [[ "$qnum" =~ ^[Qq]$ ]] && break
                 if ! [[ "$qnum" =~ ^[0-9]+$ ]]; then
-                    echo -e "    ${RED}❌ Invalid input. Use numbers like 1, 2, 3...${RESET}"
+                    echo -e "    ${RED}❌ Invalid input. Use numbers only.${RESET}"
                     continue
                 fi
                 if jq -e ".[\"$qnum\"]" "$FILE" >/dev/null; then
                     ans=$(jq -r ".[\"$qnum\"] | join(\", \")" "$FILE")
-                    echo -e "    ${GREEN}Q$qnum → ${YELLOW}[$ans]${RESET}"
+                    echo -e "    ${GREEN}$qnum:${YELLOW} [$ans]${RESET}"
                 else
-                    echo -e "    ${RED}⚠️ Q$qnum not found.${RESET}"
+                    echo -e "    ${RED}⚠️ $qnum not found.${RESET}"
                 fi
             done
             ;;
@@ -63,23 +63,23 @@ while true; do
                 read -p "    ✏️ Enter question number to edit (${YELLOW}q to back${RESET}): " qnum
                 [[ "$qnum" =~ ^[Qq]$ ]] && break
                 if ! [[ "$qnum" =~ ^[0-9]+$ ]]; then
-                    echo -e "    ${RED}❌ Question number must be an integer.${RESET}"
+                    echo -e "    ${RED}❌ Must be a number.${RESET}"
                     continue
                 fi
 
-                # Show current answer if exists
+                # Show current answer
                 if jq -e ".[\"$qnum\"]" "$FILE" >/dev/null; then
                     current=$(jq -r ".[\"$qnum\"] | join(\", \")" "$FILE")
                     echo -e "    🔎 Current: ${YELLOW}[$current]${RESET}"
                 else
-                    echo -e "    ${RED}⚠️ Q$qnum not found. Adding new.${RESET}"
+                    echo -e "    ${RED}⚠️ $qnum not found. Adding new.${RESET}"
                 fi
 
-                read -p "    ➕ Enter new option(s) (A–D, comma separated): " input
+                read -p "    ➕ Enter new option(s) (A–D, comma-separated): " input
                 clean_input=$(echo "$input" | tr '[:lower:]' '[:upper:]' | sed 's/ //g')
 
                 if ! echo "$clean_input" | grep -Eq '^([A-D](,[A-D]){0,3})$'; then
-                    echo -e "    ${RED}❌ Invalid input. Use A,B,C,D only (max 4).${RESET}"
+                    echo -e "    ${RED}❌ Use A,B,C,D only (up to 4, comma-separated).${RESET}"
                     continue
                 fi
 
@@ -95,12 +95,18 @@ while true; do
                 tmpfile=$(mktemp)
                 jq ".\"$qnum\" = $formatted" "$FILE" > "$tmpfile" && mv "$tmpfile" "$FILE"
                 updated=$(jq -r ".[\"$qnum\"] | join(\", \")" "$FILE")
-                echo -e "    ${GREEN}✅ Q$qnum updated to → ${YELLOW}[$updated]${RESET}"
+                echo -e "    ${GREEN}✅ $qnum updated to → ${YELLOW}[$updated]${RESET}"
             done
             ;;
         3)
-            echo -e "    ${CYAN}📜 Showing all questions... (press ${YELLOW}q${CYAN} to exit)${RESET}"
-            jq -r 'to_entries[] | "    \033[1;36mQ\(.key):\033[0m \033[1;33m\(.value | join(\", \"))\033[0m"' "$FILE" | less -R
+            echo -e "    ${CYAN}📋 Showing all answers in 4 columns:${RESET}"
+            jq -r 'to_entries[] | "\(.key): \(.value | join(","))"' "$FILE" |
+            awk '{
+                printf "%-18s", $0
+                if (++count % 4 == 0) printf "\n"
+            } END { if (count % 4 != 0) print "" }'
+            echo -e "\n    ${MAGENTA}── End of List ──${RESET}"
+            read -p "    Press Enter to go back..." _
             ;;
         4)
             cp "${FILE}.bak" "$FILE"
