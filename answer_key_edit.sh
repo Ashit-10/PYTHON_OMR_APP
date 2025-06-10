@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# ========= COLORS ===========
+# ====== Colors ======
 RED='\033[1;31m'
 GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
@@ -10,30 +10,30 @@ CYAN='\033[1;36m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-# ========= FILE ============
+# ====== File ======
 FILE="answer_key.txt"
+[ ! -f "$FILE" ] && echo "{}" > "$FILE"
+cp "$FILE" "${FILE}.bak"
 
-# ========= CHECK jq =========
+# ====== Check jq ======
 if ! command -v jq >/dev/null 2>&1; then
     echo -e "${YELLOW}Installing jq...${RESET}"
     pkg install -y jq || { echo -e "${RED}Failed to install jq.${RESET}"; exit 1; }
 fi
 
-# ========= BACKUP ==========
-[ ! -f "$FILE" ] && echo "{}" > "$FILE"
-cp "$FILE" "${FILE}.bak"
-
-# ========= MAIN ===========
+# ====== Main Loop ======
 while true; do
     clear
+    MAX_Q=$(jq 'keys | map(tonumber) | max // 0' "$FILE")  # Auto-detect max question number
+
     echo -e "    ${BLUE}${BOLD}📘 OMR Answer Key Editor${RESET}"
-    echo -e "    ${MAGENTA}──────────────────────────────────────────${RESET}"
+    echo -e "    ${MAGENTA}─────────────────────────────────────────────${RESET}"
     echo -e "    ${CYAN}1.${RESET} View Answer for a Question"
     echo -e "    ${CYAN}2.${RESET} Edit Answer for a Question"
     echo -e "    ${CYAN}3.${RESET} View All Questions & Answers"
     echo -e "    ${CYAN}4.${RESET} Restore from Backup"
     echo -e "    ${CYAN}q.${RESET} Quit"
-    echo -e "    ${MAGENTA}──────────────────────────────────────────${RESET}"
+    echo -e "    ${MAGENTA}─────────────────────────────────────────────${RESET}"
     echo -ne "    ${BOLD}Choose an option (1–4 or q): ${RESET}"
     read choice
 
@@ -47,11 +47,15 @@ while true; do
                     echo -e "    ${RED}❌ Invalid input. Use numbers only.${RESET}"
                     continue
                 fi
+                if (( qnum > MAX_Q )); then
+                    echo -e "    ${RED}❌ Question $qnum not available. Maximum is $MAX_Q.${RESET}"
+                    continue
+                fi
                 if jq -e ".[\"$qnum\"]" "$FILE" >/dev/null; then
                     ans=$(jq -r ".[\"$qnum\"] | join(\", \")" "$FILE")
                     echo -e "    ${GREEN}$qnum:${YELLOW} [$ans]${RESET}"
                 else
-                    echo -e "    ${RED}⚠️ $qnum not found.${RESET}"
+                    echo -e "    ${RED}⚠️ $qnum not answered yet.${RESET}"
                 fi
             done
             ;;
@@ -64,12 +68,15 @@ while true; do
                     echo -e "    ${RED}❌ Must be a number.${RESET}"
                     continue
                 fi
-
+                if (( qnum > MAX_Q )); then
+                    echo -e "    ${RED}❌ Question $qnum not available. Maximum is $MAX_Q.${RESET}"
+                    continue
+                fi
                 if jq -e ".[\"$qnum\"]" "$FILE" >/dev/null; then
                     current=$(jq -r ".[\"$qnum\"] | join(\", \")" "$FILE")
                     echo -e "    🔎 Current: ${YELLOW}[$current]${RESET}"
                 else
-                    echo -e "    ${RED}⚠️ $qnum not found. Adding new.${RESET}"
+                    echo -e "    ${RED}⚠️ $qnum not answered yet.${RESET}"
                 fi
 
                 echo -ne "    ➕ Enter new option(s) (A–D, comma-separated): "
@@ -97,10 +104,10 @@ while true; do
             done
             ;;
         3)
-            echo -e "    ${CYAN}📋 Showing all answers in 3 columns:${RESET}"
-            jq -r 'to_entries[] | "\(.key): \(.value | join(","))"' "$FILE" |
+            echo -e "    ${CYAN}📋 Showing all answered questions in 3 columns:${RESET}"
+            jq -r 'to_entries[] | select(.value | length > 0) | "\(.key): \(.value | join(","))"' "$FILE" |
             awk '{
-                printf "%-25s", $0
+                printf "%-16s", $0
                 if (++count % 3 == 0) printf "\n"
             } END { if (count % 3 != 0) print "" }'
             echo -e "\n    ${MAGENTA}── End of List ──${RESET}"
