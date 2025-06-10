@@ -12,6 +12,7 @@ alias omrupdate='bash bot_update.sh'      # 🔄 Update bot scripts
 alias omrsettings='bash settings.sh'      # ⚙️  Open settings menu
 alias autoscan='python3 web.py'           # 📷 Start auto scanning server
 alias omr='python3 app.py'                # 📝 Run OMR scanner app
+alias omredit='bash answer_key_edit.sh'   # ✏️  Edit OMR answer key interactively
 EOF
 
 # Step 2: Ensure aliases file is sourced in .bashrc
@@ -32,6 +33,7 @@ echo -e "\033[1;32m  omrupdate    \033[0m → 🔄 Update bot scripts"
 echo -e "\033[1;32m  omrsettings  \033[0m → ⚙️  Open settings menu"
 echo -e "\033[1;32m  autoscan     \033[0m → 📷 Start auto scanning server"
 echo -e "\033[1;32m  omr          \033[0m → 📝 Run OMR scanner app"
+echo -e "\033[1;32m  omredit      \033[0m → ✏️  Edit OMR answer key interactively"
 echo -e "\033[1;34m================================================\033[0m"
 
 # Step 5: Check if script was sourced
