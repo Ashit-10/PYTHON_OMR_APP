@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# ========== COLORS ==========
+# ========= COLORS ===========
 RED='\033[1;31m'
 GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
@@ -10,25 +10,20 @@ CYAN='\033[1;36m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-# ========== FILE =============
+# ========= FILE ============
 FILE="answer_key.txt"
 
-# ========== CHECK JQ =========
-if ! command -v jq >/dev/null; then
+# ========= CHECK jq =========
+if ! command -v jq >/dev/null 2>&1; then
     echo -e "${YELLOW}Installing jq...${RESET}"
-    pkg install -y jq
-    [[ $? -ne 0 ]] && echo -e "${RED}❌ Failed to install jq.${RESET}" && exit 1
+    pkg install -y jq || { echo -e "${RED}Failed to install jq.${RESET}"; exit 1; }
 fi
 
-# ========== FILE CHECK ========
-if [ ! -f "$FILE" ]; then
-    echo -e "${RED}❌ File $FILE not found!${RESET}"
-    exit 1
-fi
-
+# ========= BACKUP ==========
+[ ! -f "$FILE" ] && echo "{}" > "$FILE"
 cp "$FILE" "${FILE}.bak"
 
-# ========== MAIN MENU =========
+# ========= MAIN ===========
 while true; do
     clear
     echo -e "    ${BLUE}${BOLD}📘 OMR Answer Key Editor${RESET}"
@@ -39,12 +34,14 @@ while true; do
     echo -e "    ${CYAN}4.${RESET} Restore from Backup"
     echo -e "    ${CYAN}q.${RESET} Quit"
     echo -e "    ${MAGENTA}──────────────────────────────────────────${RESET}"
-    read -p "    ${BOLD}Choose an option (1–4 or q): ${RESET}" choice
+    echo -ne "    ${BOLD}Choose an option (1–4 or q): ${RESET}"
+    read choice
 
     case "$choice" in
         1)
             while true; do
-                read -p "    🔍 Enter question number (${YELLOW}q to back${RESET}): " qnum
+                echo -ne "    Enter question number (${YELLOW}q to back${RESET}): "
+                read qnum
                 [[ "$qnum" =~ ^[Qq]$ ]] && break
                 if ! [[ "$qnum" =~ ^[0-9]+$ ]]; then
                     echo -e "    ${RED}❌ Invalid input. Use numbers only.${RESET}"
@@ -60,14 +57,14 @@ while true; do
             ;;
         2)
             while true; do
-                read -p "    ✏️ Enter question number to edit (${YELLOW}q to back${RESET}): " qnum
+                echo -ne "    Enter question number to edit (${YELLOW}q to back${RESET}): "
+                read qnum
                 [[ "$qnum" =~ ^[Qq]$ ]] && break
                 if ! [[ "$qnum" =~ ^[0-9]+$ ]]; then
                     echo -e "    ${RED}❌ Must be a number.${RESET}"
                     continue
                 fi
 
-                # Show current answer
                 if jq -e ".[\"$qnum\"]" "$FILE" >/dev/null; then
                     current=$(jq -r ".[\"$qnum\"] | join(\", \")" "$FILE")
                     echo -e "    🔎 Current: ${YELLOW}[$current]${RESET}"
@@ -75,7 +72,8 @@ while true; do
                     echo -e "    ${RED}⚠️ $qnum not found. Adding new.${RESET}"
                 fi
 
-                read -p "    ➕ Enter new option(s) (A–D, comma-separated): " input
+                echo -ne "    ➕ Enter new option(s) (A–D, comma-separated): "
+                read input
                 clean_input=$(echo "$input" | tr '[:lower:]' '[:upper:]' | sed 's/ //g')
 
                 if ! echo "$clean_input" | grep -Eq '^([A-D](,[A-D]){0,3})$'; then
@@ -99,14 +97,15 @@ while true; do
             done
             ;;
         3)
-            echo -e "    ${CYAN}📋 Showing all answers in 4 columns:${RESET}"
+            echo -e "    ${CYAN}📋 Showing all answers in 3 columns:${RESET}"
             jq -r 'to_entries[] | "\(.key): \(.value | join(","))"' "$FILE" |
             awk '{
-                printf "%-18s", $0
-                if (++count % 4 == 0) printf "\n"
-            } END { if (count % 4 != 0) print "" }'
+                printf "%-25s", $0
+                if (++count % 3 == 0) printf "\n"
+            } END { if (count % 3 != 0) print "" }'
             echo -e "\n    ${MAGENTA}── End of List ──${RESET}"
-            read -p "    Press Enter to go back..." _
+            echo -ne "    Press Enter to go back..."
+            read
             ;;
         4)
             cp "${FILE}.bak" "$FILE"
