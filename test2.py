@@ -226,7 +226,7 @@ def index():
 
     #toast {
       position: fixed;
-      bottom: 20px;
+      bottom: 60px;
       right: 20px;
       background: white;
       color: black;
@@ -326,8 +326,12 @@ def index():
                 if (!data.processing) {
                   clearInterval(interval);
                   if (data.filename) {
-                    const correct = data.correct ?? "?";
-                    showToast(`✅ Correct: ${correct}`);
+                    if (typeof data.correct === "number") {
+  showToast(`✅ Correct: ${data.correct}`);
+} else {
+  showToast("✅ Processed");
+}
+
                     callback && callback(data.filename);
                   } else {
                     showToast("❌ Failed to process");
