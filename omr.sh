@@ -77,13 +77,8 @@ while true; do
         6) python3 web.py ;;
         7) bash answer_key_edit.sh ;;
         8) omr --help ;;
-        9)
-            echo -e "${CYAN}📤 Uploading to Telegram...${RESET}"
-            python3 upload.py
-            echo -e "${YELLOW}👋 Exiting after upload...${RESET}"
-            kill $IDLE_PID
-            exit 0
-            ;;
+        9) python3 upload.py ;;
+            
         [Qq])
             echo -e "${YELLOW}👋 Exiting...${RESET}"
             kill $IDLE_PID
