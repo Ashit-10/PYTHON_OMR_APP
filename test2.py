@@ -82,49 +82,84 @@ def index():
 <!DOCTYPE html>
 <html>
 <head>
+  <title>OMR Scanner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OMR Sheet Evaluator</title>
   <style>
-    body, html {
+    html, body {
       margin: 0; padding: 0;
-      background-color: black; color: white;
+      background: black; color: white;
       font-family: sans-serif;
-      height: 100%;
-      overflow: hidden;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
+      height: 100vh; overflow: hidden;
     }
+
     #wrap {
-      position: relative; width: 180px; height: 480px;
-      border: 4px solid white; box-sizing: content-box;
+      position: relative;
+      width: 180px; height: 480px;
+      border: 4px solid white;
     }
+
     video, canvas, #resultImg {
       width: 180px; height: 480px;
-      object-fit: cover; display: block;
+      object-fit: cover;
     }
-    .overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; }
+
+    #canvas, #resultImg {
+      display: none; position: absolute;
+      top: 0; left: 0;
+    }
+
+    .overlay {
+      position: absolute; inset: 0;
+      pointer-events: none;
+    }
+
     .qr-box {
-      border: 2px solid lime; width: 30px; height: 30px; position: absolute;
+      border: 2px solid lime;
+      width: 30px; height: 30px;
+      position: absolute;
     }
+
     .qr-tl { top: 10px; left: 10px; }
     .qr-tr { top: 10px; right: 10px; }
     .qr-bl { bottom: 10px; left: 10px; }
     .qr-br { bottom: 10px; right: 10px; }
+
     .controls {
       margin-top: 10px;
-      display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+      display: flex; gap: 10px; flex-wrap: wrap;
+      justify-content: center;
     }
+
     button {
       font-size: 16px; padding: 10px 15px;
       border: none; border-radius: 5px;
-      background: white; color: black; cursor: pointer;
+      background: white; color: black;
+      cursor: pointer;
     }
-    #canvas, #resultImg { display: none; position: absolute; top: 0; left: 0; }
+
     .toast {
-      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-      background: #333; color: white; padding: 10px 20px;
-      border-radius: 5px; font-size: 16px;
-      z-index: 9999; opacity: 0.9;
+      position: fixed;
+      bottom: 20px; left: 50%;
+      transform: translateX(-50%);
+      background: #333; color: white;
+      padding: 10px 20px;
+      border-radius: 5px;
+      z-index: 9999;
+      font-size: 16px;
+    }
+
+    #processingView img {
+      max-height: 80vh; max-width: 100%;
+      display: block;
+      margin: 0 auto;
+    }
+
+    #processingView {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; padding: 20px;
     }
   </style>
 </head>
@@ -133,7 +168,8 @@ def index():
 <div id="wrap">
   <video id="video" autoplay playsinline muted></video>
   <canvas id="canvas"></canvas>
-  <div class="overlay" id="overlay">
+  <img id="resultImg" />
+  <div class="overlay">
     <div class="qr-box qr-tl"></div>
     <div class="qr-box qr-tr"></div>
     <div class="qr-box qr-bl"></div>
@@ -154,10 +190,9 @@ def index():
 <script>
 let stream = null;
 let torchOn = false;
-let lastResetTime = Date.now();
-
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
+const resultImg = document.getElementById("resultImg");
 const flashBtn = document.getElementById("flashBtn");
 const captureBtn = document.getElementById("captureBtn");
 const refreshBtn = document.getElementById("refreshBtn");
@@ -173,11 +208,18 @@ function showToast(msg) {
 
 async function startCamera() {
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
     video.srcObject = stream;
     video.play();
   } catch (e) {
     alert("Camera access denied.");
+  }
+}
+
+function stopStream() {
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
   }
 }
 
@@ -192,99 +234,91 @@ function toggleFlash() {
     .catch(() => alert("Flash not supported."));
 }
 
-function autoResetCamera() {
-  setInterval(() => {
-    const now = Date.now();
-    if (now - lastResetTime > 120000) {
-      showToast("⚠️ Resetting camera and flash for safety...");
-      stopStream();
-      setTimeout(() => {
-        startCamera();
-        if (torchOn) toggleFlash(); // restore if flash was on
-      }, 5000);
-      lastResetTime = now;
-    }
-  }, 5000);
-}
-
-function stopStream() {
-  if (stream) {
-    stream.getTracks().forEach(t => t.stop());
-    stream = null;
-  }
-}
-
-function sendForProcessing(blob) {
-  const formData = new FormData();
-  formData.append("image", blob, "capture.jpg");
-  showToast("Processing...");
-  fetch("/upload", { method: "POST", body: formData })
-    .then(() => {
-      setTimeout(() => {
-        fetch("/status")
-          .then(res => res.json())
-          .then(data => {
-            if (data.filename) {
-              const correct = data.filename.split("_")[1]?.split(".")[0] || "N/A";
-              showToast(`✅ Processed | Correct: ${correct}`);
-            } else {
-              showToast("❌ Processing failed");
-            }
-          });
-      }, 1000);
-    })
-    .catch(() => showToast("❌ Upload error"));
-}
-
 captureBtn.onclick = () => {
-  const tempCanvas = document.createElement("canvas");
-  tempCanvas.width = video.videoWidth;
-  tempCanvas.height = video.videoHeight;
-  const ctx = tempCanvas.getContext("2d");
-  ctx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
-
-  tempCanvas.toBlob(blob => {
-    const downloadLink = document.createElement("a");
-    downloadLink.href = URL.createObjectURL(blob);
-    downloadLink.download = "OMR_" + Date.now() + ".jpg";
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
+  canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+  canvas.toBlob(blob => {
+    const formData = new FormData();
+    formData.append("image", blob, "capture.jpg");
 
     if (toggle.checked) {
-      // Instant mode
-      const formData = new FormData();
-      formData.append("image", blob, "capture.jpg");
-      showToast("Processing...");
+      // ✅ Background mode (toasts only)
+      showToast("📸 Captured & Processing...");
       fetch("/upload", { method: "POST", body: formData })
         .then(() => {
-          setTimeout(() => {
+          const interval = setInterval(() => {
             fetch("/status")
               .then(res => res.json())
               .then(data => {
-                if (data.filename) {
-                  const correct = data.filename.split("_")[1]?.split(".")[0] || "N/A";
-                  showToast(`✅ Processed | Correct: ${correct}`);
-                } else {
-                  showToast("❌ Processing failed");
+                if (!data.processing) {
+                  clearInterval(interval);
+                  if (data.filename) {
+                    const correct = data.filename.split("_")[1]?.split(".")[0];
+                    showToast("✅ Processed successfully\nCorrect: " + (correct || "?"));
+                  } else {
+                    showToast("❌ Failed to process.");
+                  }
                 }
               });
-        }, 1000);
-      });
+          }, 1000);
+        });
     } else {
-      sendForProcessing(blob);
+      // 📷 Visual mode (original)
+      const imageDataURL = canvas.toDataURL("image/jpeg");
+      const loading = document.createElement("div");
+      loading.id = "processingView";
+
+      const capturedImg = document.createElement("img");
+      capturedImg.src = imageDataURL;
+
+      const processingText = document.createElement("div");
+      processingText.textContent = "🔄 Processing the file…";
+
+      loading.appendChild(capturedImg);
+      loading.appendChild(processingText);
+      document.body.innerHTML = "";
+      document.body.appendChild(loading);
+
+      fetch("/upload", { method: "POST", body: formData })
+        .then(() => {
+          const interval = setInterval(() => {
+            fetch("/status")
+              .then(res => res.json())
+              .then(data => {
+                if (!data.processing) {
+                  clearInterval(interval);
+                  loading.remove();
+                  const nextBtn = document.createElement("button");
+                  nextBtn.textContent = "Next";
+                  nextBtn.onclick = () => location.reload();
+                  if (data.filename) {
+                    const outputImg = document.createElement("img");
+                    outputImg.src = "/temp_output/" + data.filename + "?t=" + Date.now();
+                    document.body.innerHTML = "";
+                    document.body.appendChild(outputImg);
+                    document.body.appendChild(nextBtn);
+                  } else {
+                    const err = document.createElement("div");
+                    err.textContent = "❌ Failed to process.";
+                    document.body.innerHTML = "";
+                    document.body.appendChild(err);
+                    document.body.appendChild(nextBtn);
+                  }
+                }
+              });
+          }, 1000);
+        });
     }
   }, "image/jpeg");
 };
 
-flashBtn.onclick = toggleFlash;
 refreshBtn.onclick = () => location.reload();
+flashBtn.onclick = toggleFlash;
 
 startCamera();
-autoResetCamera();
 </script>
 </body>
 </html>
+
 
 
 ''')
