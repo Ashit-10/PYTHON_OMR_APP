@@ -107,13 +107,12 @@ def index():
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OMR Sheet Evaluator</title>
   <style>
-    body, html {
+    html, body {
       margin: 0;
       padding: 0;
-      background-color: black;
+      background: black;
       color: white;
       font-family: sans-serif;
-      height: 100%;
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -127,7 +126,6 @@ def index():
       height: 480px;
       border: 4px solid white;
       box-sizing: content-box;
-      flex-shrink: 0;
     }
 
     video {
@@ -173,6 +171,23 @@ def index():
       cursor: pointer;
     }
 
+    #instantBtn {
+      position: absolute;
+      left: calc(50% + 100px);
+      top: 0;
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: 2px solid white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    #instantBtn.on {
+      background: lime;
+      color: black;
+    }
+
     #toast {
       position: fixed;
       top: 40px;
@@ -186,29 +201,6 @@ def index():
       display: none;
       z-index: 9999;
       box-shadow: 0 0 10px #fff;
-    }
-
-    #toggleWrapper {
-      position: absolute;
-      left: calc(50% + 100px);
-      top: 0;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    #instantToggle {
-      width: 24px;
-      height: 24px;
-      accent-color: lime;
-    }
-
-    #toggleLabel {
-      font-size: 18px;
-      background: #222;
-      padding: 6px 10px;
-      border-radius: 6px;
-      border: 2px solid lime;
     }
   </style>
 </head>
@@ -224,10 +216,7 @@ def index():
     </div>
   </div>
 
-  <div id="toggleWrapper">
-    <label id="toggleLabel" for="instantToggle">Instant</label>
-    <input type="checkbox" id="instantToggle" checked>
-  </div>
+  <button id="instantBtn">Instant</button>
 
   <div class="controls">
     <button id="flashBtn">🔦 Flash</button>
@@ -238,19 +227,29 @@ def index():
   <div id="toast"></div>
 
   <script>
-    let stream = null;
-    let torchOn = false;
     const video = document.getElementById("video");
     const flashBtn = document.getElementById("flashBtn");
     const captureBtn = document.getElementById("captureBtn");
     const refreshBtn = document.getElementById("refreshBtn");
-    const instantToggle = document.getElementById("instantToggle");
+    const instantBtn = document.getElementById("instantBtn");
     const toast = document.getElementById("toast");
 
-    function showToast(message) {
-      toast.textContent = message;
+    let stream = null;
+    let torchOn = false;
+
+    function showToast(msg) {
+      toast.textContent = msg;
       toast.style.display = "block";
       setTimeout(() => toast.style.display = "none", 2500);
+    }
+
+    function setInstantMode(mode) {
+      localStorage.setItem("instant", mode ? "1" : "0");
+      instantBtn.classList.toggle("on", mode);
+    }
+
+    function getInstantMode() {
+      return localStorage.getItem("instant") === "1";
     }
 
     async function startCamera() {
@@ -267,7 +266,6 @@ def index():
 
     async function toggleFlash() {
       try {
-        if (!stream) return;
         const track = stream.getVideoTracks()[0];
         await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
         torchOn = !torchOn;
@@ -280,6 +278,7 @@ def index():
     function sendToServer(blob, callback) {
       const formData = new FormData();
       formData.append("image", blob, "capture.jpg");
+
       fetch("/upload", { method: "POST", body: formData })
         .then(() => {
           showToast("🔄 Processing...");
@@ -290,60 +289,32 @@ def index():
                 if (!data.processing) {
                   clearInterval(interval);
                   if (data.filename) {
-                    const correct = data.filename.split("_")[1]?.split(".")[0];
-                    showToast(`✅ Processed! Correct: ${correct || "?"}`);
                     callback && callback(data.filename);
                   } else {
                     showToast("❌ Failed to process");
                   }
                 }
-              }).catch(() => {
+              })
+              .catch(() => {
                 clearInterval(interval);
-                showToast("❌ Error during status check");
+                showToast("❌ Error checking status");
               });
           }, 1000);
-        }).catch(() => showToast("❌ Upload failed"));
+        })
+        .catch(() => showToast("❌ Upload failed"));
     }
 
     captureBtn.onclick = () => {
-      const mode = instantToggle.checked ? "instant" : "result";
+      const showOutput = getInstantMode();
       const canvas = document.createElement("canvas");
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0);
 
       canvas.toBlob(blob => {
-        if (mode === "instant") {
-          sendToServer(blob);
-        } else {
-          // Stop stream
-          stream.getTracks().forEach(track => track.stop());
-
-          // Show loading with preview image
-          const loading = document.createElement("div");
-          Object.assign(loading.style, {
-            position: 'fixed', top: 0, left: 0,
-            width: '100vw', height: '100vh',
-            background: 'black', color: 'white',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            fontSize: '20px', zIndex: 10000
-          });
-
-          const img = document.createElement("img");
-          img.src = URL.createObjectURL(blob);
-          img.style.maxHeight = "70vh";
-          img.onload = () => URL.revokeObjectURL(img.src);
-          loading.appendChild(img);
-
-          const processingText = document.createElement("div");
-          processingText.textContent = "🔄 Processing the file…";
-          loading.appendChild(processingText);
-          document.body.innerHTML = "";
-          document.body.appendChild(loading);
-
-          sendToServer(blob, (filename) => {
+        sendToServer(blob, filename => {
+          if (showOutput) {
             const resultImg = document.createElement("img");
             resultImg.src = "/temp_output/" + filename + "?t=" + Date.now();
             resultImg.style.width = "100vw";
@@ -355,26 +326,31 @@ def index():
               document.body.appendChild(refreshBtn);
             };
             resultImg.onerror = () => {
-              document.body.innerHTML = "❌ Could not load result image.";
+              document.body.innerHTML = "❌ Could not load output image.";
               document.body.appendChild(refreshBtn);
             };
-          });
-        }
+          } else {
+            const correct = filename.split("_")[1]?.split(".")[0];
+            showToast(`✅ Processed! Correct: ${correct || "?"}`);
+          }
+        });
       }, "image/jpeg");
+    };
+
+    instantBtn.onclick = () => {
+      const current = getInstantMode();
+      setInstantMode(!current);
     };
 
     flashBtn.onclick = toggleFlash;
     refreshBtn.onclick = () => location.reload();
 
+    // Initialize
+    if (getInstantMode()) instantBtn.classList.add("on");
     startCamera();
   </script>
 </body>
 </html>
-
-
-
-
-
 
 ''')
 
