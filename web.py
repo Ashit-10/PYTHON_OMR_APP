@@ -136,18 +136,19 @@ def index():
     }
 
     #wrap {
-      position: relative;
-      width: 180px;
-      height: 480px;
-      border: 4px solid white;
-      flex-shrink: 0;
-    }
+  position: relative;
+  height: 80vh;                /* Uses 80% of screen height */
+  aspect-ratio: 3 / 8;         /* Maintains 3:8 ratio */
+  border: 4px solid white;
+  flex-shrink: 0;
+}
 
-    video {
-      width: 180px;
-      height: 480px;
-      object-fit: cover;
-    }
+video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 
     .overlay {
       position: absolute;
