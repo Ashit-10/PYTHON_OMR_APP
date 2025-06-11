@@ -107,7 +107,7 @@ def index():
       box-sizing: content-box;
     }
 
-    video, canvas, #resultImg {
+    video {
       width: 180px;
       height: 480px;
       object-fit: cover;
@@ -135,14 +135,14 @@ def index():
     .controls {
       margin-top: 10px;
       display: flex;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
       justify-content: center;
     }
 
     button {
-      font-size: 16px;
-      padding: 10px 15px;
+      font-size: 14px;
+      padding: 8px 12px;
       border: none;
       border-radius: 5px;
       background: white;
@@ -150,41 +150,16 @@ def index():
       cursor: pointer;
     }
 
-    #canvas {
-      display: none;
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
-
-    #errorMessage {
-      color: red;
-      font-size: 18px;
-      margin-top: 20px;
-    }
-
     #toast {
       position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: #333;
+      bottom: 10%;
+      background: #222;
       color: white;
-      padding: 10px 15px;
-      border-radius: 6px;
-      z-index: 9999;
-      font-size: 15px;
-      opacity: 0.95;
-    }
-
-    #cameraRestNotice {
-      position: fixed;
-      top: 20px;
-      background: orange;
-      color: black;
-      padding: 10px 20px;
+      padding: 12px 20px;
       border-radius: 5px;
-      font-weight: bold;
       font-size: 16px;
+      opacity: 0;
+      transition: opacity 0.3s;
       z-index: 9999;
     }
   </style>
@@ -193,8 +168,7 @@ def index():
 
   <div id="wrap">
     <video id="video" autoplay playsinline muted></video>
-    <canvas id="canvas"></canvas>
-    <div class="overlay" id="overlay">
+    <div class="overlay">
       <div class="qr-box qr-tl"></div>
       <div class="qr-box qr-tr"></div>
       <div class="qr-box qr-bl"></div>
@@ -204,20 +178,27 @@ def index():
 
   <div class="controls">
     <button id="flashBtn">🔦 Flash</button>
-    <button id="bgProcessBtn">⬇️ Download + Process</button>
+    <button id="captureBtn">📸 Capture</button>
+    <button id="downloadBtn">📥 Download + Process</button>
+    <button id="refreshBtn">🔄 Refresh</button>
+    <button id="nextBtn" style="display:none;">🔁 Next</button>
   </div>
 
-  <div id="errorMessage"></div>
+  <div id="toast"></div>
 
   <script>
     let stream = null;
     let torchOn = false;
+    const toastQueue = [];
+    let toastActive = false;
 
     const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
     const flashBtn = document.getElementById("flashBtn");
-    const bgProcessBtn = document.getElementById("bgProcessBtn");
-    const errorMessage = document.getElementById("errorMessage");
+    const captureBtn = document.getElementById("captureBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const toast = document.getElementById("toast");
 
     async function startCamera() {
       try {
@@ -225,8 +206,7 @@ def index():
           video: { facingMode: { ideal: "environment" } }
         });
         video.srcObject = stream;
-        video.play();
-      } catch (e) {
+      } catch {
         alert("Camera access denied.");
       }
     }
@@ -238,97 +218,105 @@ def index():
         await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
         torchOn = !torchOn;
         flashBtn.textContent = torchOn ? "Flash Off" : "🔦 Flash";
-      } catch (e) {
+      } catch {
         alert("Flash not supported.");
       }
     }
 
     function showToast(msg) {
-      const toast = document.createElement("div");
-      toast.id = "toast";
+      toastQueue.push(msg);
+      processToastQueue();
+    }
+
+    function processToastQueue() {
+      if (toastActive || toastQueue.length === 0) return;
+
+      toastActive = true;
+      const msg = toastQueue.shift();
       toast.textContent = msg;
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 3000);
+      toast.style.opacity = 1;
+
+      setTimeout(() => {
+        toast.style.opacity = 0;
+        toastActive = false;
+        setTimeout(processToastQueue, 300); // Wait for fade-out
+      }, 2500);
     }
 
-    function showRestNotice() {
-      const notice = document.createElement("div");
-      notice.id = "cameraRestNotice";
-      notice.textContent = "⚠️ Camera resting briefly to protect device...";
-      document.body.appendChild(notice);
-      setTimeout(() => notice.remove(), 5000);
-    }
-
-    bgProcessBtn.onclick = () => {
-      errorMessage.textContent = "";
-
+    function captureAndSend(isDownloadOnly = false) {
+      const canvas = document.createElement("canvas");
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
       canvas.toBlob(blob => {
-        const url = URL.createObjectURL(blob);
-
-        // Download the image
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `OMR_${Date.now()}.jpg`;
-        a.click();
-
-        // Send for processing
         const formData = new FormData();
-        formData.append("image", blob, "capture.jpg");
+        formData.append("image", blob, `OMR_${Date.now()}.jpg`);
+        showToast("🔄 Processing...");
 
-        fetch("/upload", {
-          method: "POST",
-          body: formData
-        }).then(() => {
-          // Start polling for processing status
-          const poll = setInterval(() => {
-            fetch("/status")
-              .then(res => res.json())
-              .then(data => {
-                if (!data.processing) {
-                  clearInterval(poll);
-                  if (data.filename) {
-                    showToast("✅ OMR Processed");
-                  } else {
-                    showToast("❌ Processing Failed");
-                  }
-                }
-              })
-              .catch(() => {
-                clearInterval(poll);
-                showToast("❌ Error checking status");
-              });
-          }, 3000);
-        }).catch(() => {
-          showToast("❌ Upload error");
-        });
+        fetch("/upload", { method: "POST", body: formData })
+          .then(() => {
+            checkStatus();
+          })
+          .catch(() => showToast("❌ Upload failed"));
       }, "image/jpeg");
+    }
+
+    function checkStatus() {
+      fetch("/status")
+        .then(res => res.json())
+        .then(data => {
+          if (!data.processing) {
+            if (data.filename) {
+              showToast("✅ Processed successfully");
+            } else {
+              showToast("❌ Processing failed");
+            }
+          } else {
+            setTimeout(checkStatus, 1000);
+          }
+        });
+    }
+
+    function autoResetCameraFlash() {
+      setInterval(() => {
+        showToast("⚠️ Pausing camera & flash for safety");
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+          stream = null;
+          torchOn = false;
+        }
+        setTimeout(startCamera, 5000); // Restart after 5 seconds
+      }, 120000); // Every 2 minutes
+    }
+
+    captureBtn.onclick = () => {
+      captureAndSend();
     };
 
-    // Auto camera & flash reset every 2 minutes
-    setInterval(() => {
-      if (stream) {
-        const wasTorch = torchOn;
-        stream.getTracks().forEach(t => t.stop());
-        stream = null;
-        showRestNotice();
-        setTimeout(async () => {
-          await startCamera();
-          if (wasTorch) toggleFlash();
-        }, 5000);
-      }
-    }, 120000); // Every 2 mins
+    downloadBtn.onclick = () => {
+      captureAndSend(true);
+    };
 
     flashBtn.onclick = toggleFlash;
-    startCamera();
-  </script>
+    refreshBtn.onclick = () => location.reload();
+    nextBtn.onclick = () => location.reload();
 
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+        torchOn = false;
+      }
+    });
+
+    startCamera();
+    autoResetCameraFlash();
+  </script>
 </body>
 </html>
+
 
 ''')
 
