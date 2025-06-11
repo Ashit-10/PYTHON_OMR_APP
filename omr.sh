@@ -26,8 +26,8 @@ while true; do
     read -p "Enter your choice: " choice
 
     case "$choice" in
-        1) omrupdate ;;
-        2) omrsettings ;;
+        1) bash bot_update.sh ;;
+        2) bash settings.sh ;;
         3)
             echo -e "${YELLOW}⚠️  Are you sure you want to delete all files in input/ and output/? (y/n)${RESET}"
             read -p "> " confirm
@@ -43,9 +43,9 @@ while true; do
             echo -e "${CYAN}🌐 Opening: $url${RESET}"
             termux-open-url "$url"
             ;;
-        5) omr ;;
-        6) autoscan ;;
-        7) omredit ;;
+        5) python3 app.py ;;
+        6) python3 web.py ;;
+        7) bash answer_key_edit.sh ;;
         8) omr --help ;;
         [Qq]) echo -e "${YELLOW}👋 Exiting...${RESET}"; break ;;
         *) echo -e "${YELLOW}⚠️  Invalid option. Try again.${RESET}"; sleep 1 ;;
