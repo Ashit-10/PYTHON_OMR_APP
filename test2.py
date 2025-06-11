@@ -127,6 +127,7 @@ def index():
       height: 480px;
       border: 4px solid white;
       box-sizing: content-box;
+      flex-shrink: 0;
     }
 
     video {
@@ -172,54 +173,60 @@ def index():
       cursor: pointer;
     }
 
-    #toggleContainer {
-      position: absolute;
-      top: 10px;
-      right: -160px; /* Moved outside to the right of wrap */
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      color: white;
-    }
-
-    #instantToggle {
-      width: 20px;
-      height: 20px;
-    }
-
     #toast {
-      position: absolute;
-      top: 50px;
-      left: 210px; /* to the right of the stream box */
+      position: fixed;
+      top: 40px;
+      right: 10px;
       background: white;
       color: black;
-      padding: 16px 30px;
+      padding: 14px 22px;
       border-radius: 8px;
       font-size: 18px;
       font-weight: bold;
       display: none;
       z-index: 9999;
-      max-width: 240px;
+      box-shadow: 0 0 10px #fff;
+    }
+
+    #toggleWrapper {
+      position: absolute;
+      left: calc(50% + 100px);
+      top: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #instantToggle {
+      width: 24px;
+      height: 24px;
+      accent-color: lime;
+    }
+
+    #toggleLabel {
+      font-size: 18px;
+      background: #222;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 2px solid lime;
     }
   </style>
 </head>
 <body>
 
-  <div style="display: flex; align-items: start; gap: 20px;">
-    <div id="wrap">
-      <video id="video" autoplay playsinline muted></video>
-      <div class="overlay">
-        <div class="qr-box qr-tl"></div>
-        <div class="qr-box qr-tr"></div>
-        <div class="qr-box qr-bl"></div>
-        <div class="qr-box qr-br"></div>
-      </div>
+  <div id="wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <div class="overlay">
+      <div class="qr-box qr-tl"></div>
+      <div class="qr-box qr-tr"></div>
+      <div class="qr-box qr-bl"></div>
+      <div class="qr-box qr-br"></div>
     </div>
+  </div>
 
-    <div id="toggleContainer">
-      <label for="instantToggle">Instant</label>
-      <input type="checkbox" id="instantToggle" checked>
-    </div>
+  <div id="toggleWrapper">
+    <label id="toggleLabel" for="instantToggle">Instant</label>
+    <input type="checkbox" id="instantToggle" checked>
   </div>
 
   <div class="controls">
@@ -243,7 +250,7 @@ def index():
     function showToast(message) {
       toast.textContent = message;
       toast.style.display = "block";
-      setTimeout(() => toast.style.display = "none", 3000);
+      setTimeout(() => toast.style.display = "none", 2500);
     }
 
     async function startCamera() {
@@ -310,7 +317,10 @@ def index():
         if (mode === "instant") {
           sendToServer(blob);
         } else {
+          // Stop stream
           stream.getTracks().forEach(track => track.stop());
+
+          // Show loading with preview image
           const loading = document.createElement("div");
           Object.assign(loading.style, {
             position: 'fixed', top: 0, left: 0,
@@ -324,6 +334,7 @@ def index():
           const img = document.createElement("img");
           img.src = URL.createObjectURL(blob);
           img.style.maxHeight = "70vh";
+          img.onload = () => URL.revokeObjectURL(img.src);
           loading.appendChild(img);
 
           const processingText = document.createElement("div");
@@ -338,12 +349,15 @@ def index():
             resultImg.style.width = "100vw";
             resultImg.style.height = "100vh";
             resultImg.style.objectFit = "contain";
-
-            setTimeout(() => {
+            resultImg.onload = () => {
               document.body.innerHTML = "";
               document.body.appendChild(resultImg);
               document.body.appendChild(refreshBtn);
-            }, 1000);
+            };
+            resultImg.onerror = () => {
+              document.body.innerHTML = "❌ Could not load result image.";
+              document.body.appendChild(refreshBtn);
+            };
           });
         }
       }, "image/jpeg");
@@ -356,6 +370,7 @@ def index():
   </script>
 </body>
 </html>
+
 
 
 
