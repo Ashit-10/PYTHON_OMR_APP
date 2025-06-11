@@ -8,7 +8,7 @@ import sys
 import threading
 import glob
 from flask import Flask, send_from_directory, render_template_string, jsonify, request
-
+from datetime import datetime
 import logging
 
 class FilterRequests(logging.Filter):
@@ -34,18 +34,26 @@ error_occurred = False
 def open_chrome():
     os.system("am start -n com.android.chrome/com.google.android.apps.chrome.Main -a android.intent.action.VIEW -d http://127.0.0.1:5000")
 
+
+
 def move_and_process(file_path):
     global processing, current_filename, latest_output_filename, error_occurred
     processing = True
     error_occurred = False
+
     os.makedirs(input_folder, exist_ok=True)
     os.makedirs(output_folder, exist_ok=True)
+
+    # Clear previous inputs and outputs
     shutil.rmtree(input_folder)
     shutil.rmtree(output_folder)
     os.makedirs(input_folder)
     os.makedirs(output_folder)
+
+    # Move the input file
     shutil.move(file_path, os.path.join(input_folder, os.path.basename(file_path)))
 
+    # Run processing script
     process = subprocess.Popen(["python3", "autoapp.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
 
@@ -55,15 +63,35 @@ def move_and_process(file_path):
         print(stderr.decode(), file=sys.stderr)
         error_occurred = True
 
+    # Fetch processed file
     files = [f for f in os.listdir(output_folder) if f.endswith(extensions)]
     if files:
         latest_output_filename = files[-1]
-        shutil.copy(os.path.join(output_folder, latest_output_filename),
-                    os.path.join("output", latest_output_filename))
+        src_path = os.path.join(output_folder, latest_output_filename)
+
+        # Rename if needed: dup1_, dup2_ etc.
+        base_name = os.path.basename(latest_output_filename)
+        dest_path = os.path.join("output", base_name)
+
+        if os.path.exists(dest_path):
+            count = 1
+            while True:
+                new_name = f"dup{count}_{base_name}"
+                dest_path = os.path.join("output", new_name)
+                if not os.path.exists(dest_path):
+                    break
+                count += 1
+            latest_output_filename = new_name
+        else:
+            latest_output_filename = base_name
+
+        shutil.copy(src_path, os.path.join("output", latest_output_filename))
     else:
         latest_output_filename = ""
 
     processing = False
+
+
 
 def watch_folder():
     seen = set()
@@ -79,16 +107,16 @@ def watch_folder():
 @app.route('/')
 def index():
     return render_template_string('''
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OMR Sheet Evaluator</title>
   <style>
     body, html {
-      margin: 0;
-      padding: 0;
-      background-color: black;
+      margin: 0; padding: 0;
+      background: black;
       color: white;
       font-family: sans-serif;
       height: 100%;
@@ -101,17 +129,15 @@ def index():
 
     #wrap {
       position: relative;
-      width: 180px;
-      height: 480px;
+      width: 180px; height: 480px;
       border: 4px solid white;
       box-sizing: content-box;
+      flex-shrink: 0;
     }
 
-    video, canvas, #resultImg {
-      width: 180px;
-      height: 480px;
+    video {
+      width: 180px; height: 480px;
       object-fit: cover;
-      display: block;
     }
 
     .overlay {
@@ -122,15 +148,57 @@ def index():
 
     .qr-box {
       border: 2px solid lime;
-      width: 30px;
-      height: 30px;
+      width: 30px; height: 30px;
       position: absolute;
     }
-
     .qr-tl { top: 10px; left: 10px; }
     .qr-tr { top: 10px; right: 10px; }
     .qr-bl { bottom: 10px; left: 10px; }
     .qr-br { bottom: 10px; right: 10px; }
+
+    #toggleContainer {
+      position: absolute;
+      top: 50px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    #instantToggle {
+      appearance: none;
+      width: 50px; height: 30px;
+      background: #555;
+      border-radius: 10px;
+      position: relative;
+      outline: none;
+      cursor: pointer;
+    }
+
+    #instantToggle::before {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px; height: 14px;
+      background: white;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+
+    #instantToggle:checked {
+      background: limegreen;
+    }
+
+    #instantToggle:checked::before {
+      transform: translateX(12px);
+    }
+
+    #toggleLabel {
+      font-size: 20px;
+      color: white;
+    }
 
     .controls {
       margin-top: 10px;
@@ -150,32 +218,18 @@ def index():
       cursor: pointer;
     }
 
-    #canvas, #resultImg {
+    #toast {
+      position: fixed;
+      bottom: 260px;
+      right: 15px;
+      background: white;
+      color: black;
+      padding: 12px 20px;
+      border-radius: 5px;
+      font-weight: bold;
       display: none;
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
-
-    #fullImageView {
-      width: 100vw;
-      height: 100vh;
-      object-fit: contain;
-      background: black;
-    }
-
-    #errorMessage {
-      color: red;
-      font-size: 18px;
-      margin-top: 20px;
-    }
-
-    #processingImage {
-      max-height: 70vh;
-      width: auto;
-      object-fit: contain;
-      margin-bottom: 10px;
-      margin-top: -10px;
+      z-index: 9999;
+      font-size: 16px;
     }
   </style>
 </head>
@@ -183,9 +237,7 @@ def index():
 
   <div id="wrap">
     <video id="video" autoplay playsinline muted></video>
-    <canvas id="canvas"></canvas>
-    <img id="resultImg" />
-    <div class="overlay" id="overlay">
+    <div class="overlay">
       <div class="qr-box qr-tl"></div>
       <div class="qr-box qr-tr"></div>
       <div class="qr-box qr-bl"></div>
@@ -193,178 +245,164 @@ def index():
     </div>
   </div>
 
+  <div id="toggleContainer">
+    <input type="checkbox" id="instantToggle">
+    <div id="toggleLabel">Instant</div>
+  </div>
+
   <div class="controls">
     <button id="flashBtn">🔦 Flash</button>
     <button id="captureBtn">📸 Capture</button>
-    <button id="nextBtn" style="display:none;">🔁 Next</button>
-    <button id="refreshBtn" style="display:none;">🔄 Refresh</button>
+    <button id="refreshBtn">🔄 Refresh</button>
   </div>
 
-  <div id="errorMessage"></div>
+  <div id="toast"></div>
 
   <script>
-    let stream = null;
-    let torchOn = false;
+    let stream, torchOn = false;
+    const video = document.getElementById('video');
+    const flashBtn = document.getElementById('flashBtn');
+    const captureBtn = document.getElementById('captureBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const instantToggle = document.getElementById('instantToggle');
+    const toast = document.getElementById('toast');
 
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const resultImg = document.getElementById("resultImg");
-    const flashBtn = document.getElementById("flashBtn");
-    const captureBtn = document.getElementById("captureBtn");
-    const nextBtn = document.getElementById("nextBtn");
-    const refreshBtn = document.getElementById("refreshBtn");
-    const overlay = document.getElementById("overlay");
-    const errorMessage = document.getElementById("errorMessage");
+    instantToggle.checked = localStorage.getItem('instantMode') === 'true';
+    instantToggle.onchange = () => {
+      localStorage.setItem('instantMode', instantToggle.checked);
+    };
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 2500);
+    }
 
     async function startCamera() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } }
+          video: { facingMode: { ideal: 'environment' } }
         });
         video.srcObject = stream;
         video.play();
       } catch (e) {
-        alert("Camera access denied.");
+        alert('Camera access denied.');
       }
     }
 
     async function toggleFlash() {
+      if (!stream) return;
       try {
-        if (!stream) return;
         const track = stream.getVideoTracks()[0];
-        await track.applyConstraints({
-          advanced: [{ torch: !torchOn }]
-        });
+        await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
         torchOn = !torchOn;
-        flashBtn.textContent = torchOn ? "Flash Off" : "🔦 Flash";
-      } catch (e) {
-        alert("Flash not supported.");
+        flashBtn.textContent = torchOn ? 'Flash Off' : '🔦 Flash';
+      } catch {
+        alert('Flash not supported.');
       }
     }
 
-    document.addEventListener("visibilitychange", () => {
-      if (document.hidden && stream) {
-        stream.getTracks().forEach(track => track.stop());
-        stream = null;
-      }
-    });
+    function extractCorrect(filename) {
+  const parts = filename.split("_");
+  const lastPart = parts[parts.length - 1]; // "64.jpg"
+  return lastPart.split(".")[0];            // "64"
+}
 
-    function showControls(mode) {
-      flashBtn.style.display = (mode === "initial") ? "inline-block" : "none";
-      captureBtn.style.display = (mode === "initial") ? "inline-block" : "none";
-      refreshBtn.style.display = (mode === "initial" || mode === "processing") ? "inline-block" : "none";
-      nextBtn.style.display = (mode === "result" || mode === "error") ? "inline-block" : "none";
-    }
 
     captureBtn.onclick = () => {
-      errorMessage.textContent = "";
-      showControls("processing");
+      const isInstant = instantToggle.checked;
+      const c = document.createElement('canvas');
+      c.width = video.videoWidth;
+      c.height = video.videoHeight;
+      c.getContext('2d').drawImage(video, 0, 0);
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      const imageDataURL = canvas.toDataURL("image/jpeg");
-
-      stream.getTracks().forEach(t => t.stop());
-      video.style.display = "none";
-      overlay.style.display = "none";
-
-      const loading = document.createElement("div");
-      loading.id = "loadingOverlay";
-      Object.assign(loading.style, {
-        position: 'fixed',
-        top: 0, left: 0,
-        width: '100vw',
-        height: '100vh',
-        background: 'black',
-        color: 'white',
-        fontSize: '22px',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 9999,
-        textAlign: 'center'
-      });
-
-      const capturedImg = document.createElement("img");
-      capturedImg.id = "processingImage";
-      capturedImg.src = imageDataURL;
-
-      const processingText = document.createElement("div");
-      processingText.textContent = "🔄 Processing the file…";
-
-      loading.appendChild(capturedImg);
-      loading.appendChild(processingText);
-      document.body.appendChild(loading);
-
-      canvas.toBlob(blob => {
+      c.toBlob(blob => {
         const formData = new FormData();
-        formData.append("image", blob, "capture.jpg");
+        formData.append('image', blob, 'capture.jpg');
 
-        fetch("/upload", { method: "POST", body: formData })
-          .then(() => {
-            const interval = setInterval(() => {
-              fetch("/status")
-                .then(res => res.json())
-                .then(data => {
+        if (!isInstant) {
+          showToast('🔄 Processing...');
+          fetch('/upload', { method: 'POST', body: formData })
+            .then(() => {
+              const poll = setInterval(() => {
+                fetch('/status').then(r => r.json()).then(data => {
                   if (!data.processing) {
-                    clearInterval(interval);
-                    loading.remove();
+                    clearInterval(poll);
                     if (data.filename) {
-                      resultImg.src = "/temp_output/" + data.filename + "?t=" + Date.now();
-                      resultImg.id = "fullImageView";
-                      document.body.innerHTML = "";
-                      document.body.appendChild(resultImg);
-                      document.body.appendChild(nextBtn);
-                      showControls("result");
+                      const corr = extractCorrect(data.filename);
+                      showToast(`✅ Correct: ${corr}`);
                     } else {
-                      errorMessage.textContent = "❌ Failed to process the image.";
-                      document.body.innerHTML = "";
-                      document.body.appendChild(errorMessage);
-                      document.body.appendChild(nextBtn);
-                      showControls("error");
+                      showToast('❌ Process failed');
                     }
                   }
-                })
-                .catch(err => {
-                  clearInterval(interval);
-                  loading.remove();
-                  errorMessage.textContent = "❌ Error during processing.";
-                  document.body.innerHTML = "";
-                  document.body.appendChild(errorMessage);
-                  document.body.appendChild(nextBtn);
-                  showControls("error");
+                }).catch(() => {
+                  clearInterval(poll);
+                  showToast('❌ Error');
                 });
-            }, 1000);
-          })
-          .catch(err => {
-            loading.remove();
-            errorMessage.textContent = "❌ Upload error.";
-            document.body.innerHTML = "";
-            document.body.appendChild(errorMessage);
-            document.body.appendChild(nextBtn);
-            showControls("error");
+              }, 1000);
+            }).catch(() => {
+              showToast('❌ Upload failed');
+            });
+
+        } else {
+          stream.getTracks().forEach(t => t.stop());
+          const loading = document.createElement('div');
+          Object.assign(loading.style, {
+            position: 'fixed', top: 0, left: 0,
+            width: '100vw', height: '100vh',
+            background: 'black', color: 'white',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            fontSize: '20px', zIndex: 9999
           });
-      }, "image/jpeg");
+
+          const img = document.createElement('img');
+          img.src = URL.createObjectURL(blob);
+          img.style.maxHeight = '70vh';
+          loading.appendChild(img);
+
+          const procTxt = document.createElement('div');
+          procTxt.textContent = '🔄 Processing the file…';
+          loading.appendChild(procTxt);
+
+          document.body.innerHTML = '';
+          document.body.appendChild(loading);
+
+          fetch('/upload', { method: 'POST', body: formData }).then(() => {
+            const poll2 = setInterval(() => {
+              fetch('/status').then(r => r.json()).then(data => {
+                if (!data.processing) {
+                  clearInterval(poll2);
+                  if (data.filename) {
+                    const result = document.createElement('img');
+                    result.src = '/temp_output/' + data.filename + '?t=' + Date.now();
+                    result.style.cssText = 'width:100vw;height:100vh;object-fit:contain;background:black';
+
+                    refreshBtn.textContent = 'Next';
+                    setTimeout(() => {
+                      document.body.innerHTML = '';
+                      document.body.appendChild(result);
+                      document.body.appendChild(refreshBtn);
+                    }, 500);
+                  }
+                }
+              });
+            }, 1000);
+          });
+        }
+      }, 'image/jpeg');
     };
 
-    flashBtn.onclick = toggleFlash;
     refreshBtn.onclick = () => location.reload();
-    nextBtn.onclick = () => location.reload();
-
+    flashBtn.onclick = toggleFlash;
     startCamera();
-    showControls("initial");
   </script>
-
 </body>
 </html>
 
 
-
 ''')
+
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -383,7 +421,7 @@ def status():
 
 @app.route('/temp_output/<path:filename>')
 def get_output(filename):
-    return send_from_directory(output_folder, filename)
+    return send_from_directory("output", filename)
 
 if __name__ == '__main__':
     threading.Thread(target=watch_folder, daemon=True).start()
