@@ -17,7 +17,7 @@ while true; do
     echo -e "  ${GREEN}3.${RESET} 🧹 Clear input/output folders"
     echo -e "  ${GREEN}4.${RESET} 📄 Write answer keys (open in Chrome)"
     echo -e "  ${GREEN}5.${RESET} 📝 Run OMR Scanner (omr)"
-    echo -e "  ${GREEN}6.${RESET} 📷 Start auto scanning (autoscan)"
+    echo -e "  ${GREEN}6.${RESET} 📷 Instant auto scanning (autoscan)"
     echo -e "  ${GREEN}7.${RESET} ✏️  Edit OMR answer key (omredit)"
     echo -e "  ${GREEN}8.${RESET} 📖 Help (omr --help)"
     echo -e "  ${YELLOW}q.${RESET} ❌ Quit"
