@@ -303,9 +303,11 @@ def index():
     }
 
     function extractCorrect(filename) {
-      const m = filename.match(/_(\d+)\.jpg$/);
-      return m ? m[1] : '?';
-    }
+  const parts = filename.split("_");
+  const lastPart = parts[parts.length - 1]; // "64.jpg"
+  return lastPart.split(".")[0];            // "64"
+}
+
 
     captureBtn.onclick = () => {
       const isInstant = instantToggle.checked;
