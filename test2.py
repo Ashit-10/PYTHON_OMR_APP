@@ -86,79 +86,46 @@ def index():
   <title>OMR Sheet Evaluator</title>
   <style>
     body, html {
-      margin: 0;
-      padding: 0;
-      background-color: black;
-      color: white;
-      font-family: sans-serif;
-      height: 100%;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      margin: 0; padding: 0; background-color: black; color: white;
+      font-family: sans-serif; height: 100%; overflow: hidden;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
-
     #wrap {
-      position: relative;
-      width: 180px;
-      height: 480px;
-      border: 4px solid white;
-      box-sizing: content-box;
+      position: relative; width: 180px; height: 480px;
+      border: 4px solid white; box-sizing: content-box;
     }
-
-    video {
-      width: 180px;
-      height: 480px;
-      object-fit: cover;
-      display: block;
+    video, canvas, #resultImg {
+      width: 180px; height: 480px; object-fit: cover; display: block;
     }
-
-    .overlay {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      pointer-events: none;
-    }
-
-    .qr-box {
-      border: 2px solid lime;
-      width: 30px;
-      height: 30px;
-      position: absolute;
-    }
-
+    .overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; }
+    .qr-box { border: 2px solid lime; width: 30px; height: 30px; position: absolute; }
     .qr-tl { top: 10px; left: 10px; }
     .qr-tr { top: 10px; right: 10px; }
     .qr-bl { bottom: 10px; left: 10px; }
     .qr-br { bottom: 10px; right: 10px; }
-
     .controls {
-      margin-top: 10px;
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      justify-content: center;
+      margin-top: 10px; display: flex; gap: 10px;
+      flex-wrap: wrap; justify-content: center;
     }
-
     button {
-      font-size: 14px;
-      padding: 8px 12px;
-      border: none;
-      border-radius: 5px;
-      background: white;
-      color: black;
+      font-size: 16px; padding: 10px 15px; border: none;
+      border-radius: 5px; background: white; color: black;
       cursor: pointer;
     }
-
+    #canvas, #resultImg {
+      display: none; position: absolute; top: 0; left: 0;
+    }
+    #fullImageView {
+      width: 100vw; height: 100vh; object-fit: contain; background: black;
+    }
+    #errorMessage { color: red; font-size: 18px; margin-top: 20px; }
+    /* Toast styling */
     #toast {
-      position: fixed;
-      bottom: 10%;
-      background: #222;
-      color: white;
-      padding: 12px 20px;
-      border-radius: 5px;
-      font-size: 16px;
-      opacity: 0;
+      position: fixed; bottom: 10%; left: 50%;
+      transform: translateX(-50%);
+      background: #222; color: white;
+      padding: 12px 20px; border-radius: 5px;
+      font-size: 16px; opacity: 0;
       transition: opacity 0.3s;
       z-index: 9999;
     }
@@ -168,7 +135,9 @@ def index():
 
   <div id="wrap">
     <video id="video" autoplay playsinline muted></video>
-    <div class="overlay">
+    <canvas id="canvas"></canvas>
+    <img id="resultImg" />
+    <div class="overlay" id="overlay">
       <div class="qr-box qr-tl"></div>
       <div class="qr-box qr-tr"></div>
       <div class="qr-box qr-bl"></div>
@@ -179,38 +148,59 @@ def index():
   <div class="controls">
     <button id="flashBtn">🔦 Flash</button>
     <button id="captureBtn">📸 Capture</button>
-    <button id="downloadBtn">📥 Download + Process</button>
-    <button id="refreshBtn">🔄 Refresh</button>
+    <button id="bgProcessBtn">📥 Download + Process</button>
     <button id="nextBtn" style="display:none;">🔁 Next</button>
+    <button id="refreshBtn" style="display:none;">🔄 Refresh</button>
   </div>
 
+  <div id="errorMessage"></div>
   <div id="toast"></div>
 
   <script>
-    let stream = null;
-    let torchOn = false;
-    const toastQueue = [];
-    let toastActive = false;
-
+    let stream = null, torchOn = false;
     const video = document.getElementById("video");
     const flashBtn = document.getElementById("flashBtn");
     const captureBtn = document.getElementById("captureBtn");
-    const downloadBtn = document.getElementById("downloadBtn");
-    const refreshBtn = document.getElementById("refreshBtn");
+    const bgProcessBtn = document.getElementById("bgProcessBtn");
     const nextBtn = document.getElementById("nextBtn");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const overlay = document.getElementById("overlay");
+    const errorMessage = document.getElementById("errorMessage");
     const toast = document.getElementById("toast");
 
+    // Toast queue setup
+    let toastQueue = [], toastActive = false;
+    function showToast(msg) {
+      toastQueue.push(msg);
+      processToastQueue();
+    }
+    function processToastQueue() {
+      if (toastActive || toastQueue.length === 0) return;
+      toastActive = true;
+      const msg = toastQueue.shift();
+      toast.textContent = msg;
+      toast.style.opacity = 1;
+      setTimeout(() => {
+        toast.style.opacity = 0;
+        toastActive = false;
+        setTimeout(processToastQueue, 300);
+      }, 3000);
+    }
+
+    // Camera setup
     async function startCamera() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: "environment" } }
         });
         video.srcObject = stream;
+        video.play();
       } catch {
         alert("Camera access denied.");
       }
     }
 
+    // Flash toggle
     async function toggleFlash() {
       try {
         if (!stream) return;
@@ -223,99 +213,166 @@ def index():
       }
     }
 
-    function showToast(msg) {
-      toastQueue.push(msg);
-      processToastQueue();
-    }
-
-    function processToastQueue() {
-      if (toastActive || toastQueue.length === 0) return;
-
-      toastActive = true;
-      const msg = toastQueue.shift();
-      toast.textContent = msg;
-      toast.style.opacity = 1;
-
-      setTimeout(() => {
-        toast.style.opacity = 0;
-        toastActive = false;
-        setTimeout(processToastQueue, 300); // Wait for fade-out
-      }, 2500);
-    }
-
-    function captureAndSend(isDownloadOnly = false) {
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      canvas.toBlob(blob => {
+    // Original capture button (unchanged)
+    captureBtn.onclick = () => {
+      errorMessage.textContent = "";
+      showControls("processing");
+      const canvas2 = document.createElement("canvas");
+      canvas2.width = video.videoWidth;
+      canvas2.height = video.videoHeight;
+      const ctx = canvas2.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas2.width, canvas2.height);
+      const imageDataURL = canvas2.toDataURL("image/jpeg");
+      stream.getTracks().forEach(t => t.stop());
+      video.style.display = "none";
+      overlay.style.display = "none";
+      const loading = document.createElement("div");
+      loading.id = "loadingOverlay";
+      Object.assign(loading.style, {
+        position: 'fixed', top: 0, left: 0,
+        width: '100vw', height: '100vh',
+        background: 'black', color: 'white',
+        fontSize: '22px', display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 9999, textAlign: 'center'
+      });
+      const capturedImg = document.createElement("img");
+      capturedImg.id = "processingImage";
+      capturedImg.src = imageDataURL;
+      const processingText = document.createElement("div");
+      processingText.textContent = "🔄 Processing the file…";
+      loading.appendChild(capturedImg);
+      loading.appendChild(processingText);
+      document.body.appendChild(loading);
+      canvas2.toBlob(blob => {
         const formData = new FormData();
-        formData.append("image", blob, `OMR_${Date.now()}.jpg`);
-        showToast("🔄 Processing...");
-
+        formData.append("image", blob, "capture.jpg");
         fetch("/upload", { method: "POST", body: formData })
           .then(() => {
-            checkStatus();
+            const interval = setInterval(() => {
+              fetch("/status")
+                .then(res => res.json())
+                .then(data => {
+                  if (!data.processing) {
+                    clearInterval(interval);
+                    loading.remove();
+                    if (data.filename) {
+                      resultImg.src = "/temp_output/" + data.filename + "?t=" + Date.now();
+                      resultImg.id = "fullImageView";
+                      document.body.innerHTML = "";
+                      document.body.appendChild(resultImg);
+                      document.body.appendChild(nextBtn);
+                      showControls("result");
+                    } else {
+                      errorMessage.textContent = "❌ Failed to process the image.";
+                      document.body.innerHTML = "";
+                      document.body.appendChild(errorMessage);
+                      document.body.appendChild(nextBtn);
+                      showControls("error");
+                    }
+                  }
+                })
+                .catch(err => {
+                  clearInterval(interval);
+                  loading.remove();
+                  errorMessage.textContent = "❌ Error during processing.";
+                  document.body.innerHTML = "";
+                  document.body.appendChild(errorMessage);
+                  document.body.appendChild(nextBtn);
+                  showControls("error");
+                });
+            }, 1000);
+          })
+          .catch(err => {
+            loading.remove();
+            errorMessage.textContent = "❌ Upload error.";
+            document.body.innerHTML = "";
+            document.body.appendChild(errorMessage);
+            document.body.appendChild(nextBtn);
+            showControls("error");
+          });
+      }, "image/jpeg");
+    };
+
+    // Background download + process button
+    bgProcessBtn.onclick = () => {
+      const tempCanvas = document.createElement("canvas");
+      tempCanvas.width = video.videoWidth;
+      tempCanvas.height = video.videoHeight;
+      tempCanvas.getContext("2d")
+                .drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+
+      tempCanvas.toBlob(blob => {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "OMR_" + Date.now() + ".jpg";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showToast("🔄 Processing...");
+        const fd = new FormData();
+        fd.append("image", blob, "capture.jpg");
+
+        fetch("/upload", { method: "POST", body: fd })
+          .then(() => {
+            const poll = setInterval(() => {
+              fetch("/status")
+                .then(r => r.json())
+                .then(data => {
+                  if (!data.processing) {
+                    clearInterval(poll);
+                    if (data.filename !== null) {
+                      showToast(`✅ Processed • Correct: ${data.correct || 'N/A'}`);
+                    } else {
+                      showToast("❌ Processing failed");
+                    }
+                  }
+                })
+                .catch(() => {
+                  clearInterval(poll);
+                  showToast("❌ Error checking status");
+                });
+            }, 1000);
           })
           .catch(() => showToast("❌ Upload failed"));
       }, "image/jpeg");
-    }
-
-    function checkStatus() {
-      fetch("/status")
-        .then(res => res.json())
-        .then(data => {
-          if (!data.processing) {
-            if (data.filename) {
-              showToast("✅ Processed successfully");
-            } else {
-              showToast("❌ Processing failed");
-            }
-          } else {
-            setTimeout(checkStatus, 1000);
-          }
-        });
-    }
-
-    function autoResetCameraFlash() {
-      setInterval(() => {
-        showToast("⚠️ Pausing camera & flash for safety");
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
-          stream = null;
-          torchOn = false;
-        }
-        setTimeout(startCamera, 5000); // Restart after 5 seconds
-      }, 120000); // Every 2 minutes
-    }
-
-    captureBtn.onclick = () => {
-      captureAndSend();
     };
 
-    downloadBtn.onclick = () => {
-      captureAndSend(true);
-    };
+    // Auto camera reset every 2 minutes
+    setInterval(() => {
+      showToast("⚠️ Cooling camera...");
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+        torchOn = false;
+      }
+      setTimeout(() => {
+        startCamera();
+        showControls("initial");
+      }, 5000);
+    }, 120000);
 
+    // Button handlers
     flashBtn.onclick = toggleFlash;
     refreshBtn.onclick = () => location.reload();
     nextBtn.onclick = () => location.reload();
-
     document.addEventListener("visibilitychange", () => {
       if (document.hidden && stream) {
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach(t => t.stop());
         stream = null;
-        torchOn = false;
       }
     });
 
     startCamera();
-    autoResetCameraFlash();
+    showControls("initial");
   </script>
+
 </body>
 </html>
+
 
 
 ''')
