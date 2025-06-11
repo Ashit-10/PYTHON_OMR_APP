@@ -158,8 +158,8 @@ def index():
 
     #toggleContainer {
       position: absolute;
-      top: 10px;
-      left: 195px;
+      top: 50px;
+      right: 20px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -168,7 +168,7 @@ def index():
 
     #instantToggle {
       appearance: none;
-      width: 30px; height: 18px;
+      width: 50px; height: 30px;
       background: #555;
       border-radius: 10px;
       position: relative;
@@ -196,7 +196,7 @@ def index():
     }
 
     #toggleLabel {
-      font-size: 12px;
+      font-size: 20px;
       color: white;
     }
 
@@ -220,8 +220,8 @@ def index():
 
     #toast {
       position: fixed;
-      bottom: 60px;
-      right: 20px;
+      bottom: 160px;
+      right: 15px;
       background: white;
       color: black;
       padding: 12px 20px;
@@ -253,7 +253,7 @@ def index():
   <div class="controls">
     <button id="flashBtn">🔦 Flash</button>
     <button id="captureBtn">📸 Capture</button>
-    <button id="refreshBtn">🔄 Next</button>
+    <button id="refreshBtn">🔄 Refresh</button>
   </div>
 
   <div id="toast"></div>
