@@ -92,8 +92,16 @@ def move_and_process(file_path):
     processing = False
 
 
-
 def watch_folder():
+    moved = []
+    for f in glob.glob('/sdcard/Download/*ans*_key*.txt*'):
+        try:
+            shutil.move(f, f'./{os.path.basename(f)}')
+            moved.append(os.path.basename(f))
+            print("Moved answer key:", moved)
+        except: 
+            pass
+        
     seen = set()
     while True:
         files = [f for f in os.listdir(download_folder) if f.startswith("OMR_") and f.endswith(extensions)]
@@ -108,11 +116,11 @@ def watch_folder():
 def index():
     return render_template_string('''
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OMR Sheet Evaluator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OMR Sheet Scanner</title>
   <style>
     body, html {
       margin: 0; padding: 0;
@@ -129,14 +137,15 @@ def index():
 
     #wrap {
       position: relative;
-      width: 180px; height: 480px;
+      width: 180px;
+      height: 480px;
       border: 4px solid white;
-      box-sizing: content-box;
       flex-shrink: 0;
     }
 
     video {
-      width: 180px; height: 480px;
+      width: 180px;
+      height: 480px;
       object-fit: cover;
     }
 
@@ -151,6 +160,7 @@ def index():
       width: 30px; height: 30px;
       position: absolute;
     }
+
     .qr-tl { top: 10px; left: 10px; }
     .qr-tr { top: 10px; right: 10px; }
     .qr-bl { bottom: 10px; left: 10px; }
@@ -163,24 +173,24 @@ def index():
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 2px;
+      gap: 5px;
     }
 
     #instantToggle {
       appearance: none;
-      width: 50px; height: 30px;
+      width: 40px;
+      height: 20px;
       background: #555;
       border-radius: 10px;
       position: relative;
-      outline: none;
       cursor: pointer;
     }
 
     #instantToggle::before {
       content: '';
       position: absolute;
-      top: 2px;
-      left: 2px;
+      top: 3px;
+      left: 3px;
       width: 14px; height: 14px;
       background: white;
       border-radius: 50%;
@@ -192,11 +202,11 @@ def index():
     }
 
     #instantToggle:checked::before {
-      transform: translateX(12px);
+      transform: translateX(20px);
     }
 
     #toggleLabel {
-      font-size: 20px;
+      font-size: 14px;
       color: white;
     }
 
@@ -268,6 +278,18 @@ def index():
     const toast = document.getElementById('toast');
 
     instantToggle.checked = localStorage.getItem('instantMode') === 'true';
+
+    if (!sessionStorage.getItem('initialShown')) {
+      alert(`📸 Instant ON:
+The processed OMR sheet will appear directly on screen.
+
+📥 Instant OFF:
+Just click Capture – it will process in background and show result here.
+
+💡 Recommended: Use Instant OFF for better performance and speed.`);
+      sessionStorage.setItem('initialShown', 'true');
+    }
+
     instantToggle.onchange = () => {
       localStorage.setItem('instantMode', instantToggle.checked);
     };
@@ -275,7 +297,7 @@ def index():
     function showToast(msg) {
       toast.textContent = msg;
       toast.style.display = 'block';
-      setTimeout(() => { toast.style.display = 'none'; }, 2500);
+      setTimeout(() => toast.style.display = 'none', 2500);
     }
 
     async function startCamera() {
@@ -303,11 +325,9 @@ def index():
     }
 
     function extractCorrect(filename) {
-  const parts = filename.split("_");
-  const lastPart = parts[parts.length - 1]; // "64.jpg"
-  return lastPart.split(".")[0];            // "64"
-}
-
+      const parts = filename.split("_");
+      return parts[parts.length - 1].split(".")[0];
+    }
 
     captureBtn.onclick = () => {
       const isInstant = instantToggle.checked;
@@ -322,28 +342,26 @@ def index():
 
         if (!isInstant) {
           showToast('🔄 Processing...');
-          fetch('/upload', { method: 'POST', body: formData })
-            .then(() => {
-              const poll = setInterval(() => {
-                fetch('/status').then(r => r.json()).then(data => {
-                  if (!data.processing) {
-                    clearInterval(poll);
-                    if (data.filename) {
-                      const corr = extractCorrect(data.filename);
-                      showToast(`✅ Correct: ${corr}`);
-                    } else {
-                      showToast('❌ Process failed');
-                    }
-                  }
-                }).catch(() => {
+          fetch('/upload', { method: 'POST', body: formData }).then(() => {
+            const poll = setInterval(() => {
+              fetch('/status').then(r => r.json()).then(data => {
+                if (!data.processing) {
                   clearInterval(poll);
-                  showToast('❌ Error');
-                });
-              }, 1000);
-            }).catch(() => {
-              showToast('❌ Upload failed');
-            });
-
+                  if (data.filename) {
+                    const corr = extractCorrect(data.filename);
+                    showToast(`✅ Correct: ${corr}`);
+                  } else {
+                    showToast('❌ Process failed');
+                  }
+                }
+              }).catch(() => {
+                clearInterval(poll);
+                showToast('❌ Error');
+              });
+            }, 1000);
+          }).catch(() => {
+            showToast('❌ Upload failed');
+          });
         } else {
           stream.getTracks().forEach(t => t.stop());
           const loading = document.createElement('div');
@@ -399,6 +417,7 @@ def index():
   </script>
 </body>
 </html>
+
 
 
 ''')
