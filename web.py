@@ -32,7 +32,7 @@ latest_output_filename = ""
 error_occurred = False
 
 def open_chrome():
-    os.system("am start -n com.android.chrome/com.google.android.apps.chrome.Main -a android.intent.action.VIEW -d http://127.0.0.1:5000")
+    os.system("am start -n com.android.chrome/com.google.android.apps.chrome.Main -a android.intent.action.VIEW -d https://127.0.0.1:7860")
 
 
 
@@ -136,19 +136,18 @@ def index():
     }
 
     #wrap {
-  position: relative;
-  height: 80vh;                /* Uses 80% of screen height */
-  aspect-ratio: 3 / 8;         /* Maintains 3:8 ratio */
-  border: 4px solid white;
-  flex-shrink: 0;
-}
+      position: relative;
+      height: 80vh;
+      aspect-ratio: 3/8;
+      border: 4px solid white;
+      flex-shrink: 0;
+    }
 
-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
 
     .overlay {
       position: absolute;
@@ -446,4 +445,5 @@ def get_output(filename):
 if __name__ == '__main__':
     threading.Thread(target=watch_folder, daemon=True).start()
     threading.Timer(0.5, open_chrome).start()
-    app.run(host='0.0.0.0', port=5000)
+   # app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=7860, ssl_context=('certs/cert.pem', 'certs/key.pem'), threaded=True)
