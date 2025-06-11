@@ -429,6 +429,39 @@ def status():
         "processing": processing,
         "filename": latest_output_filename
     })
+@app.route('/results')
+def results():
+    img_url = f"/temp_output/{latest_output_filename}?t={int(time.time())}"
+    return f"""
+    <html>
+    <head>
+        <title>Result</title>
+        <script>
+            let lastFilename = "{latest_output_filename}";
+            function checkUpdate() {{
+                fetch('/status')
+                .then(r => r.json())
+                .then(data => {{
+                    if (data.filename && data.filename !== lastFilename) {{
+                        lastFilename = data.filename;
+                        document.getElementById("result-img").src = "/temp_output/" + data.filename + "?t=" + Date.now();
+                        document.getElementById("ts").textContent = "Updated: " + new Date().toLocaleTimeString();
+                    }}
+                }});
+            }}
+            setInterval(checkUpdate, 3000);  // check every 3 seconds
+        </script>
+    </head>
+    <body style="margin:0;background:black;color:white;text-align:center;">
+        <div style="padding: 15px;">
+            <h3 id="ts">Updated: {datetime.now().strftime('%H:%M:%S')}</h3>
+            <img id="result-img" src="{img_url}" style="max-height:90vh;width:auto;margin-top:10px;" />
+            <br/><br/>
+            <button onclick="location.reload()" style="padding:10px 20px;font-size:16px;">🔄 Refresh</button>
+        </div>
+    </body>
+    </html>
+    """
 
 @app.route('/temp_output/<path:filename>')
 def get_output(filename):
