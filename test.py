@@ -365,7 +365,7 @@ def index():
         // 1. Download
         const downloadLink = document.createElement("a");
         downloadLink.href = URL.createObjectURL(blob);
-        downloadLink.download = "OMR_" + Date.now() + ".jpg";
+        downloadLink.download = "OMR_sheet" + Date.now() + ".jpg";
         document.body.appendChild(downloadLink);
         downloadLink.click();
         document.body.removeChild(downloadLink);
