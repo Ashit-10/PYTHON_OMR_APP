@@ -31,6 +31,9 @@ current_filename = ""
 latest_output_filename = ""
 error_occurred = False
 
+def open_chrome():
+    os.system("am start -n com.android.chrome/com.google.android.apps.chrome.Main -a android.intent.action.VIEW -d http://127.0.0.1:5000")
+
 def move_and_process(file_path):
     global processing, current_filename, latest_output_filename, error_occurred
     processing = True
@@ -76,7 +79,7 @@ def watch_folder():
 @app.route('/')
 def index():
     return render_template_string('''
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -168,10 +171,11 @@ def index():
     }
 
     #processingImage {
-      max-height: 80vh;
+      max-height: 70vh;
       width: auto;
       object-fit: contain;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
+      margin-top: -10px;
     }
   </style>
 </head>
@@ -192,6 +196,7 @@ def index():
   <div class="controls">
     <button id="flashBtn">🔦 Flash</button>
     <button id="captureBtn">📸 Capture</button>
+    <button id="bgProcessBtn">📥 Download + Process</button>
     <button id="nextBtn" style="display:none;">🔁 Next</button>
     <button id="refreshBtn" style="display:none;">🔄 Refresh</button>
   </div>
@@ -207,6 +212,7 @@ def index():
     const resultImg = document.getElementById("resultImg");
     const flashBtn = document.getElementById("flashBtn");
     const captureBtn = document.getElementById("captureBtn");
+    const bgProcessBtn = document.getElementById("bgProcessBtn");
     const nextBtn = document.getElementById("nextBtn");
     const refreshBtn = document.getElementById("refreshBtn");
     const overlay = document.getElementById("overlay");
@@ -248,6 +254,7 @@ def index():
     function showControls(mode) {
       flashBtn.style.display = (mode === "initial") ? "inline-block" : "none";
       captureBtn.style.display = (mode === "initial") ? "inline-block" : "none";
+      bgProcessBtn.style.display = (mode === "initial") ? "inline-block" : "none";
       refreshBtn.style.display = (mode === "initial" || mode === "processing") ? "inline-block" : "none";
       nextBtn.style.display = (mode === "result" || mode === "error") ? "inline-block" : "none";
     }
@@ -347,6 +354,37 @@ def index():
       }, "image/jpeg");
     };
 
+    bgProcessBtn.onclick = () => {
+      const tempCanvas = document.createElement("canvas");
+      tempCanvas.width = video.videoWidth;
+      tempCanvas.height = video.videoHeight;
+      const ctx = tempCanvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+
+      tempCanvas.toBlob(blob => {
+        // 1. Download
+        const downloadLink = document.createElement("a");
+        downloadLink.href = URL.createObjectURL(blob);
+        downloadLink.download = "OMR_" + Date.now() + ".jpg";
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+
+        // 2. Send for processing
+        const formData = new FormData();
+        formData.append("image", blob, "capture.jpg");
+
+        fetch("/upload", {
+          method: "POST",
+          body: formData
+        }).then(() => {
+          console.log("Image sent for background processing");
+        }).catch(err => {
+          console.error("Upload failed", err);
+        });
+      }, "image/jpeg");
+    };
+
     flashBtn.onclick = toggleFlash;
     refreshBtn.onclick = () => location.reload();
     nextBtn.onclick = () => location.reload();
@@ -357,10 +395,8 @@ def index():
 
 </body>
 </html>
-
-
-
 ''')
+
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -383,4 +419,5 @@ def get_output(filename):
 
 if __name__ == '__main__':
     threading.Thread(target=watch_folder, daemon=True).start()
+    threading.Timer(0.5, open_chrome).start()
     app.run(host='0.0.0.0', port=5000)
