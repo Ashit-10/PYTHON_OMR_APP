@@ -69,22 +69,28 @@ def move_and_process(file_path):
         latest_output_filename = files[-1]
         src_path = os.path.join(output_folder, latest_output_filename)
 
-        # Ensure unique filename in "output" folder
-        base_name, ext = os.path.splitext(latest_output_filename)
-        dest_path = os.path.join("output", latest_output_filename)
-        count = 1
-        while os.path.exists(dest_path):
-            timestamp = datetime.now().strftime("dup_%H_%M_%S")
-            new_name = f"{timestamp}{ext}"
-            dest_path = os.path.join("output", new_name)
-            count += 1
+        # Rename if needed: dup1_, dup2_ etc.
+        base_name = os.path.basename(latest_output_filename)
+        dest_path = os.path.join("output", base_name)
 
-        shutil.copy(src_path, dest_path)
-        latest_output_filename = os.path.basename(dest_path)  # Update the variable with the renamed one if needed
+        if os.path.exists(dest_path):
+            count = 1
+            while True:
+                new_name = f"dup{count}_{base_name}"
+                dest_path = os.path.join("output", new_name)
+                if not os.path.exists(dest_path):
+                    break
+                count += 1
+            latest_output_filename = new_name
+        else:
+            latest_output_filename = base_name
+
+        shutil.copy(src_path, os.path.join("output", latest_output_filename))
     else:
         latest_output_filename = ""
 
     processing = False
+
 
 
 def watch_folder():
