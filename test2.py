@@ -86,49 +86,93 @@ def index():
   <title>OMR Sheet Evaluator</title>
   <style>
     body, html {
-      margin: 0; padding: 0; background-color: black; color: white;
-      font-family: sans-serif; height: 100%; overflow: hidden;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      margin: 0;
+      padding: 0;
+      background-color: black;
+      color: white;
+      font-family: sans-serif;
+      height: 100%;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
     }
     #wrap {
-      position: relative; width: 180px; height: 480px;
-      border: 4px solid white; box-sizing: content-box;
+      position: relative;
+      width: 180px;
+      height: 480px;
+      border: 4px solid white;
+      box-sizing: content-box;
     }
     video, canvas, #resultImg {
-      width: 180px; height: 480px; object-fit: cover; display: block;
+      width: 180px;
+      height: 480px;
+      object-fit: cover;
+      display: block;
     }
-    .overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; }
-    .qr-box { border: 2px solid lime; width: 30px; height: 30px; position: absolute; }
+    .overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+    }
+    .qr-box {
+      border: 2px solid lime;
+      width: 30px;
+      height: 30px;
+      position: absolute;
+    }
     .qr-tl { top: 10px; left: 10px; }
     .qr-tr { top: 10px; right: 10px; }
     .qr-bl { bottom: 10px; left: 10px; }
     .qr-br { bottom: 10px; right: 10px; }
+
     .controls {
-      margin-top: 10px; display: flex; gap: 10px;
-      flex-wrap: wrap; justify-content: center;
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
     }
     button {
-      font-size: 16px; padding: 10px 15px; border: none;
-      border-radius: 5px; background: white; color: black;
+      font-size: 16px;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 5px;
+      background: white;
+      color: black;
       cursor: pointer;
     }
     #canvas, #resultImg {
-      display: none; position: absolute; top: 0; left: 0;
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
     }
-    #fullImageView {
-      width: 100vw; height: 100vh; object-fit: contain; background: black;
+
+    #processingImage {
+      max-height: 70vh;
+      width: auto;
+      object-fit: contain;
+      margin-bottom: 10px;
+      margin-top: -10px;
     }
-    #errorMessage { color: red; font-size: 18px; margin-top: 20px; }
-    /* Toast styling */
-    #toast {
-      position: fixed; bottom: 10%; left: 50%;
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
       transform: translateX(-50%);
-      background: #222; color: white;
-      padding: 12px 20px; border-radius: 5px;
-      font-size: 16px; opacity: 0;
-      transition: opacity 0.3s;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 5px;
+      font-size: 16px;
       z-index: 9999;
+      animation: fadein 0.3s, fadeout 0.3s 2.5s;
     }
+    @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeout { from { opacity: 1; } to { opacity: 0; } }
   </style>
 </head>
 <body>
@@ -153,41 +197,19 @@ def index():
     <button id="refreshBtn" style="display:none;">🔄 Refresh</button>
   </div>
 
-  <div id="errorMessage"></div>
-  <div id="toast"></div>
-
   <script>
-    let stream = null, torchOn = false;
+    let stream = null;
+    let torchOn = false;
+
     const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const resultImg = document.getElementById("resultImg");
     const flashBtn = document.getElementById("flashBtn");
     const captureBtn = document.getElementById("captureBtn");
     const bgProcessBtn = document.getElementById("bgProcessBtn");
     const nextBtn = document.getElementById("nextBtn");
     const refreshBtn = document.getElementById("refreshBtn");
-    const overlay = document.getElementById("overlay");
-    const errorMessage = document.getElementById("errorMessage");
-    const toast = document.getElementById("toast");
 
-    // Toast queue setup
-    let toastQueue = [], toastActive = false;
-    function showToast(msg) {
-      toastQueue.push(msg);
-      processToastQueue();
-    }
-    function processToastQueue() {
-      if (toastActive || toastQueue.length === 0) return;
-      toastActive = true;
-      const msg = toastQueue.shift();
-      toast.textContent = msg;
-      toast.style.opacity = 1;
-      setTimeout(() => {
-        toast.style.opacity = 0;
-        toastActive = false;
-        setTimeout(processToastQueue, 300);
-      }, 3000);
-    }
-
-    // Camera setup
     async function startCamera() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -195,183 +217,166 @@ def index():
         });
         video.srcObject = stream;
         video.play();
-      } catch {
+        autoResetLoop();
+      } catch (e) {
         alert("Camera access denied.");
       }
     }
 
-    // Flash toggle
-    async function toggleFlash() {
+    async function toggleFlash(forceOff = false) {
       try {
         if (!stream) return;
         const track = stream.getVideoTracks()[0];
-        await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
-        torchOn = !torchOn;
+        await track.applyConstraints({
+          advanced: [{ torch: forceOff ? false : !torchOn }]
+        });
+        torchOn = forceOff ? false : !torchOn;
         flashBtn.textContent = torchOn ? "Flash Off" : "🔦 Flash";
-      } catch {
+      } catch (e) {
         alert("Flash not supported.");
       }
     }
 
-    // Original capture button (unchanged)
+    function autoResetLoop() {
+      setInterval(async () => {
+        showToast("⚠️ Auto turning off camera + flash briefly...");
+        video.srcObject.getTracks().forEach(t => t.stop());
+        await new Promise(res => setTimeout(res, 5000));
+        startCamera();
+        if (torchOn) toggleFlash(); // Turn on again if needed
+      }, 120000);
+    }
+
+    function showToast(message) {
+      const toast = document.createElement("div");
+      toast.className = "toast";
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    bgProcessBtn.onclick = () => {
+      const tempCanvas = document.createElement("canvas");
+      tempCanvas.width = video.videoWidth;
+      tempCanvas.height = video.videoHeight;
+      const ctx = tempCanvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+
+      tempCanvas.toBlob(blob => {
+        // Download image
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "OMR_" + Date.now() + ".jpg";
+        link.click();
+
+        // Upload for processing
+        const formData = new FormData();
+        formData.append("image", blob, "capture.jpg");
+        fetch("/upload", { method: "POST", body: formData })
+          .then(() => {
+            let retries = 0;
+            const interval = setInterval(() => {
+              fetch("/status").then(res => res.json()).then(data => {
+                if (!data.processing) {
+                  clearInterval(interval);
+                  if (data.filename) {
+                    const match = data.filename.match(/_(\d+)\.jpg$/);
+                    const correct = match ? match[1] : 'N/A';
+                    showToast(`✅ Processed successfully • Correct: ${correct}`);
+                  } else {
+                    showToast("❌ Processing failed");
+                  }
+                }
+              });
+              if (++retries > 10) clearInterval(interval);
+            }, 1500);
+          }).catch(() => {
+            showToast("❌ Upload failed");
+          });
+      }, "image/jpeg");
+    };
+
     captureBtn.onclick = () => {
-      errorMessage.textContent = "";
-      showControls("processing");
-      const canvas2 = document.createElement("canvas");
-      canvas2.width = video.videoWidth;
-      canvas2.height = video.videoHeight;
-      const ctx = canvas2.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas2.width, canvas2.height);
-      const imageDataURL = canvas2.toDataURL("image/jpeg");
-      stream.getTracks().forEach(t => t.stop());
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageDataURL = canvas.toDataURL("image/jpeg");
+
       video.style.display = "none";
-      overlay.style.display = "none";
+      document.getElementById("overlay").style.display = "none";
+
       const loading = document.createElement("div");
-      loading.id = "loadingOverlay";
       Object.assign(loading.style, {
-        position: 'fixed', top: 0, left: 0,
+        position: 'fixed',
+        top: 0, left: 0,
         width: '100vw', height: '100vh',
-        background: 'black', color: 'white',
-        fontSize: '22px', display: 'flex',
+        background: 'black',
+        color: 'white',
+        fontSize: '22px',
+        display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        zIndex: 9999, textAlign: 'center'
+        zIndex: 9999
       });
-      const capturedImg = document.createElement("img");
-      capturedImg.id = "processingImage";
-      capturedImg.src = imageDataURL;
-      const processingText = document.createElement("div");
-      processingText.textContent = "🔄 Processing the file…";
-      loading.appendChild(capturedImg);
-      loading.appendChild(processingText);
+
+      const img = document.createElement("img");
+      img.src = imageDataURL;
+      img.style.maxHeight = "70vh";
+      img.style.marginBottom = "10px";
+
+      const text = document.createElement("div");
+      text.textContent = "🔄 Processing the file…";
+
+      loading.appendChild(img);
+      loading.appendChild(text);
       document.body.appendChild(loading);
-      canvas2.toBlob(blob => {
+
+      canvas.toBlob(blob => {
         const formData = new FormData();
         formData.append("image", blob, "capture.jpg");
         fetch("/upload", { method: "POST", body: formData })
           .then(() => {
             const interval = setInterval(() => {
-              fetch("/status")
-                .then(res => res.json())
-                .then(data => {
-                  if (!data.processing) {
-                    clearInterval(interval);
-                    loading.remove();
-                    if (data.filename) {
-                      resultImg.src = "/temp_output/" + data.filename + "?t=" + Date.now();
-                      resultImg.id = "fullImageView";
-                      document.body.innerHTML = "";
-                      document.body.appendChild(resultImg);
-                      document.body.appendChild(nextBtn);
-                      showControls("result");
-                    } else {
-                      errorMessage.textContent = "❌ Failed to process the image.";
-                      document.body.innerHTML = "";
-                      document.body.appendChild(errorMessage);
-                      document.body.appendChild(nextBtn);
-                      showControls("error");
-                    }
-                  }
-                })
-                .catch(err => {
+              fetch("/status").then(res => res.json()).then(data => {
+                if (!data.processing) {
                   clearInterval(interval);
                   loading.remove();
-                  errorMessage.textContent = "❌ Error during processing.";
-                  document.body.innerHTML = "";
-                  document.body.appendChild(errorMessage);
-                  document.body.appendChild(nextBtn);
-                  showControls("error");
-                });
+                  if (data.filename) {
+                    resultImg.src = "/temp_output/" + data.filename + "?t=" + Date.now();
+                    resultImg.id = "fullImageView";
+                    document.body.innerHTML = "";
+                    document.body.appendChild(resultImg);
+                    document.body.appendChild(nextBtn);
+                    document.body.appendChild(refreshBtn);
+                  } else {
+                    document.body.innerHTML = "❌ Failed to process the image.<br>";
+                    document.body.appendChild(nextBtn);
+                    document.body.appendChild(refreshBtn);
+                  }
+                }
+              });
             }, 1000);
-          })
-          .catch(err => {
+          }).catch(() => {
             loading.remove();
-            errorMessage.textContent = "❌ Upload error.";
-            document.body.innerHTML = "";
-            document.body.appendChild(errorMessage);
+            document.body.innerHTML = "❌ Upload error<br>";
             document.body.appendChild(nextBtn);
-            showControls("error");
+            document.body.appendChild(refreshBtn);
           });
       }, "image/jpeg");
     };
 
-    // Background download + process button
-    bgProcessBtn.onclick = () => {
-      const tempCanvas = document.createElement("canvas");
-      tempCanvas.width = video.videoWidth;
-      tempCanvas.height = video.videoHeight;
-      tempCanvas.getContext("2d")
-                .drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
-
-      tempCanvas.toBlob(blob => {
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "OMR_" + Date.now() + ".jpg";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        showToast("🔄 Processing...");
-        const fd = new FormData();
-        fd.append("image", blob, "capture.jpg");
-
-        fetch("/upload", { method: "POST", body: fd })
-          .then(() => {
-            const poll = setInterval(() => {
-              fetch("/status")
-                .then(r => r.json())
-                .then(data => {
-                  if (!data.processing) {
-                    clearInterval(poll);
-                    if (data.filename !== null) {
-                      showToast(`✅ Processed • Correct: ${data.correct || 'N/A'}`);
-                    } else {
-                      showToast("❌ Processing failed");
-                    }
-                  }
-                })
-                .catch(() => {
-                  clearInterval(poll);
-                  showToast("❌ Error checking status");
-                });
-            }, 1000);
-          })
-          .catch(() => showToast("❌ Upload failed"));
-      }, "image/jpeg");
-    };
-
-    // Auto camera reset every 2 minutes
-    setInterval(() => {
-      showToast("⚠️ Cooling camera...");
-      if (stream) {
-        stream.getTracks().forEach(t => t.stop());
-        stream = null;
-        torchOn = false;
-      }
-      setTimeout(() => {
-        startCamera();
-        showControls("initial");
-      }, 5000);
-    }, 120000);
-
-    // Button handlers
     flashBtn.onclick = toggleFlash;
     refreshBtn.onclick = () => location.reload();
     nextBtn.onclick = () => location.reload();
-    document.addEventListener("visibilitychange", () => {
-      if (document.hidden && stream) {
-        stream.getTracks().forEach(t => t.stop());
-        stream = null;
-      }
-    });
 
     startCamera();
-    showControls("initial");
   </script>
 
 </body>
 </html>
+
 
 
 
