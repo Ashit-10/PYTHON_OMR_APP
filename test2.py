@@ -34,18 +34,26 @@ error_occurred = False
 def open_chrome():
     os.system("am start -n com.android.chrome/com.google.android.apps.chrome.Main -a android.intent.action.VIEW -d http://127.0.0.1:5000")
 
+
+
 def move_and_process(file_path):
     global processing, current_filename, latest_output_filename, error_occurred
     processing = True
     error_occurred = False
+
     os.makedirs(input_folder, exist_ok=True)
     os.makedirs(output_folder, exist_ok=True)
+
+    # Clear previous inputs and outputs
     shutil.rmtree(input_folder)
     shutil.rmtree(output_folder)
     os.makedirs(input_folder)
     os.makedirs(output_folder)
+
+    # Move the input file
     shutil.move(file_path, os.path.join(input_folder, os.path.basename(file_path)))
 
+    # Run processing script
     process = subprocess.Popen(["python3", "autoapp.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
 
@@ -55,15 +63,29 @@ def move_and_process(file_path):
         print(stderr.decode(), file=sys.stderr)
         error_occurred = True
 
+    # Fetch processed file
     files = [f for f in os.listdir(output_folder) if f.endswith(extensions)]
     if files:
         latest_output_filename = files[-1]
-        shutil.copy(os.path.join(output_folder, latest_output_filename),
-                    os.path.join("output", latest_output_filename))
+        src_path = os.path.join(output_folder, latest_output_filename)
+
+        # Ensure unique filename in "output" folder
+        base_name, ext = os.path.splitext(latest_output_filename)
+        dest_path = os.path.join("output", latest_output_filename)
+        count = 1
+        while os.path.exists(dest_path):
+            timestamp = datetime.now().strftime("dup_%H_%M_%S")
+            new_name = f"{timestamp}{ext}"
+            dest_path = os.path.join("output", new_name)
+            count += 1
+
+        shutil.copy(src_path, dest_path)
+        latest_output_filename = os.path.basename(dest_path)  # Update the variable with the renamed one if needed
     else:
         latest_output_filename = ""
 
     processing = False
+
 
 def watch_folder():
     seen = set()
@@ -153,10 +175,11 @@ def index():
     #toggleContainer {
       position: absolute;
       top: 10px;
-      right: 10px;
+      right: -160px; /* Moved outside to the right of wrap */
       display: flex;
       align-items: center;
       gap: 5px;
+      color: white;
     }
 
     #instantToggle {
@@ -165,30 +188,34 @@ def index():
     }
 
     #toast {
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
+      position: absolute;
+      top: 50px;
+      left: 210px; /* to the right of the stream box */
       background: white;
       color: black;
-      padding: 10px 20px;
-      border-radius: 5px;
+      padding: 16px 30px;
+      border-radius: 8px;
+      font-size: 18px;
       font-weight: bold;
       display: none;
       z-index: 9999;
+      max-width: 240px;
     }
   </style>
 </head>
 <body>
 
-  <div id="wrap">
-    <video id="video" autoplay playsinline muted></video>
-    <div class="overlay">
-      <div class="qr-box qr-tl"></div>
-      <div class="qr-box qr-tr"></div>
-      <div class="qr-box qr-bl"></div>
-      <div class="qr-box qr-br"></div>
+  <div style="display: flex; align-items: start; gap: 20px;">
+    <div id="wrap">
+      <video id="video" autoplay playsinline muted></video>
+      <div class="overlay">
+        <div class="qr-box qr-tl"></div>
+        <div class="qr-box qr-tr"></div>
+        <div class="qr-box qr-bl"></div>
+        <div class="qr-box qr-br"></div>
+      </div>
     </div>
+
     <div id="toggleContainer">
       <label for="instantToggle">Instant</label>
       <input type="checkbox" id="instantToggle" checked>
@@ -198,7 +225,6 @@ def index():
   <div class="controls">
     <button id="flashBtn">🔦 Flash</button>
     <button id="captureBtn">📸 Capture</button>
-    <button id="bgProcessBtn">📥 Download + Process</button>
     <button id="refreshBtn">🔄 Refresh</button>
   </div>
 
@@ -210,7 +236,6 @@ def index():
     const video = document.getElementById("video");
     const flashBtn = document.getElementById("flashBtn");
     const captureBtn = document.getElementById("captureBtn");
-    const bgProcessBtn = document.getElementById("bgProcessBtn");
     const refreshBtn = document.getElementById("refreshBtn");
     const instantToggle = document.getElementById("instantToggle");
     const toast = document.getElementById("toast");
@@ -218,7 +243,7 @@ def index():
     function showToast(message) {
       toast.textContent = message;
       toast.style.display = "block";
-      setTimeout(() => toast.style.display = "none", 2500);
+      setTimeout(() => toast.style.display = "none", 3000);
     }
 
     async function startCamera() {
@@ -283,10 +308,8 @@ def index():
 
       canvas.toBlob(blob => {
         if (mode === "instant") {
-          // Just process and toast, stream continues
           sendToServer(blob);
         } else {
-          // Stop stream, show result view
           stream.getTracks().forEach(track => track.stop());
           const loading = document.createElement("div");
           Object.assign(loading.style, {
@@ -326,22 +349,6 @@ def index():
       }, "image/jpeg");
     };
 
-    bgProcessBtn.onclick = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      canvas.toBlob(blob => {
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "OMR_" + Date.now() + ".jpg";
-        link.click();
-        sendToServer(blob);
-      }, "image/jpeg");
-    };
-
     flashBtn.onclick = toggleFlash;
     refreshBtn.onclick = () => location.reload();
 
@@ -349,6 +356,7 @@ def index():
   </script>
 </body>
 </html>
+
 
 
 
