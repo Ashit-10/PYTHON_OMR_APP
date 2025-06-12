@@ -124,9 +124,18 @@
       z-index: 9999;
       font-size: 16px;
     }
+
+    #exitBtn {
+      position: absolute;
+      top: 20px;
+      left: 10px;
+      z-index: 9999;
+    }
   </style>
 </head>
 <body>
+
+  <button id="exitBtn">Exit</button>
 
   <div id="wrap">
     <video id="video" autoplay playsinline muted></video>
@@ -297,6 +306,13 @@ Just click Capture – it will process in background and show result here.
     refreshBtn.onclick = () => location.reload();
     flashBtn.onclick = toggleFlash;
     startCamera();
+
+    document.getElementById('exitBtn').onclick = function () {
+      try {
+        if (stream) stream.getTracks().forEach(t => t.stop());
+      } catch (e) {}
+      window.close(); // Only works if page opened via window.open or target=_blank
+    };
   </script>
 </body>
 </html>
