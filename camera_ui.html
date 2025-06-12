@@ -219,16 +219,31 @@ Just click Capture – it will process in background and show result here.
     }
 
     async function toggleFlash() {
-      if (!stream) return;
-      try {
-        const track = stream.getVideoTracks()[0];
-        await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
-        torchOn = !torchOn;
-        flashBtn.textContent = torchOn ? 'Flash Off' : '🔦 Flash';
-      } catch {
-        alert('Flash not supported.');
-      }
+  if (!stream) return;
+  try {
+    const track = stream.getVideoTracks()[0];
+    const capabilities = track.getCapabilities();
+    if (!capabilities.torch) {
+      alert('❌ Flash not supported.');
+      return;
     }
+
+    // Toggle state
+    torchOn = !torchOn;
+
+    await track.applyConstraints({
+      advanced: [{ torch: torchOn }]
+    });
+
+    flashBtn.textContent = torchOn ? 'Flash Off' : '🔦 Flash';
+  } catch (err) {
+    console.error('Flash toggle failed:', err);
+    alert('⚠️ Flash control failed.');
+    torchOn = false;
+    flashBtn.textContent = '🔦 Flash';
+  }
+}
+
 
     function extractCorrect(filename) {
       const parts = filename.split("_");
