@@ -127,14 +127,15 @@
 
     #exitBtn {
       position: absolute;
-      top: 50px;
+      top: 20px;
       left: 20px;
+      z-index: 9999;
     }
   </style>
 </head>
 <body>
 
-  <button id="exitBtn">❌ Exit</button>
+  <button id="exitBtn">⏹ Exit</button>
 
   <div id="wrap">
     <video id="video" autoplay playsinline muted></video>
@@ -167,7 +168,6 @@
     const refreshBtn = document.getElementById('refreshBtn');
     const instantToggle = document.getElementById('instantToggle');
     const toast = document.getElementById('toast');
-    const exitBtn = document.getElementById('exitBtn');
 
     instantToggle.checked = localStorage.getItem('instantMode') === 'true';
 
@@ -305,45 +305,14 @@ Just click Capture – it will process in background and show result here.
 
     refreshBtn.onclick = () => location.reload();
     flashBtn.onclick = toggleFlash;
-
-    exitBtn.onclick = async () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-
-      if (torchOn) {
-        try {
-          const track = stream.getVideoTracks()[0];
-          await track.applyConstraints({ advanced: [{ torch: false }] });
-        } catch (e) {
-          console.warn('Flash turn-off failed silently.');
-        }
-      }
-
-      history.pushState(null, null, ''); // trap back button
-      window.onpopstate = () => {
-        document.body.innerHTML = '';
-        document.body.style.background = 'white';
-        location.replace('about:blank');
-      };
-
-      document.body.innerHTML = '';
-      document.body.style.background = 'white';
-
-      setTimeout(() => {
-        location.replace('about:blank');
-      }, 100);
-    };
-
-    // Trap back button manually
-    history.pushState(null, null, document.URL);
-    window.addEventListener('popstate', function () {
-      document.body.innerHTML = '';
-      document.body.style.background = 'white';
-      location.replace('about:blank');
-    });
-
     startCamera();
+
+    document.getElementById('exitBtn').onclick = function () {
+      try {
+        if (stream) stream.getTracks().forEach(t => t.stop());
+      } catch (e) {}
+      window.close(); // Only works if page opened via window.open or target=_blank
+    };
   </script>
 </body>
 </html>
