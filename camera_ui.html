@@ -160,225 +160,207 @@
 
   <div id="toast"></div>
 
-  
-<script>
-  let stream, torchOn = false;
-  const video = document.getElementById('video');
-  const flashBtn = document.getElementById('flashBtn');
-  const captureBtn = document.getElementById('captureBtn');
-  const refreshBtn = document.getElementById('refreshBtn');
-  const instantToggle = document.getElementById('instantToggle');
-  const toast = document.getElementById('toast');
+  <script>
+    let stream, torchOn = false;
+    const video = document.getElementById('video');
+    const flashBtn = document.getElementById('flashBtn');
+    const captureBtn = document.getElementById('captureBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const instantToggle = document.getElementById('instantToggle');
+    const toast = document.getElementById('toast');
 
-  let cameraTimeout;
+    instantToggle.checked = localStorage.getItem('instantMode') === 'true';
 
-  instantToggle.checked = localStorage.getItem('instantMode') === 'true';
-
-  if (!sessionStorage.getItem('initialShown')) {
-    alert(`📸 Instant ON:
+    if (!sessionStorage.getItem('initialShown')) {
+      alert(`📸 Instant ON:
 The processed OMR sheet will appear directly on screen.
 
 📥 Instant OFF:
 Just click Capture – it will process in background and show result here.
 
 💡 Recommended: Use Instant OFF for better performance and speed.`);
-    sessionStorage.setItem('initialShown', 'true');
-  }
-
-  instantToggle.onchange = () => {
-    localStorage.setItem('instantMode', instantToggle.checked);
-  };
-
-  function showToast(msg) {
-    toast.textContent = msg;
-    toast.style.display = 'block';
-    setTimeout(() => toast.style.display = 'none', 2500);
-  }
-
-  async function startCamera() {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } }
-      });
-      video.srcObject = stream;
-      video.play();
-      startCameraTimer();
-    } catch (e) {
-      alert('Camera access denied.');
+      sessionStorage.setItem('initialShown', 'true');
     }
-  }
 
-  function stopCameraAndFlash() {
-    if (stream) {
-      stream.getTracks().forEach(t => t.stop());
-      stream = null;
+    instantToggle.onchange = () => {
+      localStorage.setItem('instantMode', instantToggle.checked);
+    };
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      setTimeout(() => toast.style.display = 'none', 2500);
     }
-    if (torchOn) {
-      torchOn = false;
-      flashBtn.textContent = '🔦 Flash';
+
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } }
+        });
+        video.srcObject = stream;
+        video.play();
+        cameraStartTime = Date.now();
+        startAutoCooldownCheck();
+      } catch (e) {
+        alert('Camera access denied.');
+      }
     }
-    clearTimeout(cameraTimeout);
-  }
 
-  function showCooldownOverlay() {
-    const overlay = document.createElement('div');
-    overlay.style.cssText = `
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: black;
-      color: white;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      z-index: 99999;
-    `;
-    const msg = document.createElement('div');
-    msg.innerText = "🛑 Taking rest for 10 seconds for cooling down camera…";
-    msg.style.marginBottom = "20px";
+    async function toggleFlash() {
+      if (!stream) return;
+      try {
+        const track = stream.getVideoTracks()[0];
+        await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
+        torchOn = !torchOn;
+        flashBtn.textContent = torchOn ? 'Flash Off' : '🔦 Flash';
+      } catch {
+        alert('Flash not supported.');
+      }
+    }
 
-    const counter = document.createElement('div');
-    counter.style.fontSize = "40px";
-    counter.textContent = "10";
+    function extractCorrect(filename) {
+      const parts = filename.split("_");
+      return parts[parts.length - 1].split(".")[0];
+    }
 
-    overlay.appendChild(msg);
-    overlay.appendChild(counter);
-    document.body.innerHTML = ''; // Clear everything
-    document.body.appendChild(overlay);
+    captureBtn.onclick = () => {
+      const isInstant = instantToggle.checked;
+      const c = document.createElement('canvas');
+      c.width = video.videoWidth;
+      c.height = video.videoHeight;
+      c.getContext('2d').drawImage(video, 0, 0);
 
-    let countdown = 10;
-    const interval = setInterval(() => {
-      countdown--;
-      counter.textContent = countdown;
-      if (countdown <= 0) {
-        clearInterval(interval);
-        overlay.remove();
+      c.toBlob(blob => {
+        const formData = new FormData();
+        formData.append('image', blob, 'capture.jpg');
+
+        if (!isInstant) {
+          showToast('🔄 Processing...');
+          fetch('/upload', { method: 'POST', body: formData }).then(() => {
+            const poll = setInterval(() => {
+              fetch('/status').then(r => r.json()).then(data => {
+                if (!data.processing) {
+                  clearInterval(poll);
+                  if (data.filename) {
+                    const corr = extractCorrect(data.filename);
+                    showToast(`✅ Correct: ${corr}`);
+                  } else {
+                    showToast('❌ Process failed');
+                  }
+                }
+              }).catch(() => {
+                clearInterval(poll);
+                showToast('❌ Error');
+              });
+            }, 1000);
+          }).catch(() => {
+            showToast('❌ Upload failed');
+          });
+        } else {
+          stream.getTracks().forEach(t => t.stop());
+          const loading = document.createElement('div');
+          Object.assign(loading.style, {
+            position: 'fixed', top: 0, left: 0,
+            width: '100vw', height: '100vh',
+            background: 'black', color: 'white',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            fontSize: '20px', zIndex: 9999
+          });
+
+          const img = document.createElement('img');
+          img.src = URL.createObjectURL(blob);
+          img.style.maxHeight = '70vh';
+          loading.appendChild(img);
+
+          const procTxt = document.createElement('div');
+          procTxt.textContent = '🔄 Processing the file…';
+          loading.appendChild(procTxt);
+
+          document.body.innerHTML = '';
+          document.body.appendChild(loading);
+
+          fetch('/upload', { method: 'POST', body: formData }).then(() => {
+            const poll2 = setInterval(() => {
+              fetch('/status').then(r => r.json()).then(data => {
+                if (!data.processing) {
+                  clearInterval(poll2);
+                  if (data.filename) {
+                    const result = document.createElement('img');
+                    result.src = '/temp_output/' + data.filename + '?t=' + Date.now();
+                    result.style.cssText = 'width:100vw;height:100vh;object-fit:contain;background:black';
+
+                    refreshBtn.textContent = 'Next';
+                    setTimeout(() => {
+                      document.body.innerHTML = '';
+                      document.body.appendChild(result);
+                      document.body.appendChild(refreshBtn);
+                    }, 500);
+                  }
+                }
+              });
+            }, 1000);
+          });
+        }
+      }, 'image/jpeg');
+    };
+
+    refreshBtn.onclick = () => location.reload();
+    flashBtn.onclick = toggleFlash;
+
+    document.getElementById('exitBtn').onclick = function () {
+      try {
+        if (stream) stream.getTracks().forEach(t => t.stop());
+      } catch (e) {}
+      window.close(); // Only works if page opened via window.open or target=_blank
+    };
+
+    // 🔥 Pause camera and flash on tab hide
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        stopCamera();
+      } else {
         startCamera();
       }
-    }, 1000);
-  }
+    });
 
-  function startCameraTimer() {
-    clearTimeout(cameraTimeout);
-    cameraTimeout = setTimeout(() => {
-      stopCameraAndFlash();
-      showCooldownOverlay();
-    }, 4 * 60 * 1000); // 4 minutes
-  }
-
-  async function toggleFlash() {
-    if (!stream) return;
-    try {
-      const track = stream.getVideoTracks()[0];
-      await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
-      torchOn = !torchOn;
-      flashBtn.textContent = torchOn ? 'Flash Off' : '🔦 Flash';
-    } catch {
-      alert('Flash not supported.');
-    }
-  }
-
-  function extractCorrect(filename) {
-    const parts = filename.split("_");
-    return parts[parts.length - 1].split(".")[0];
-  }
-
-  captureBtn.onclick = () => {
-    const isInstant = instantToggle.checked;
-    const c = document.createElement('canvas');
-    c.width = video.videoWidth;
-    c.height = video.videoHeight;
-    c.getContext('2d').drawImage(video, 0, 0);
-
-    c.toBlob(blob => {
-      const formData = new FormData();
-      formData.append('image', blob, 'capture.jpg');
-
-      if (!isInstant) {
-        showToast('🔄 Processing...');
-        fetch('/upload', { method: 'POST', body: formData }).then(() => {
-          const poll = setInterval(() => {
-            fetch('/status').then(r => r.json()).then(data => {
-              if (!data.processing) {
-                clearInterval(poll);
-                if (data.filename) {
-                  const corr = extractCorrect(data.filename);
-                  showToast(`✅ Correct: ${corr}`);
-                } else {
-                  showToast('❌ Process failed');
-                }
-              }
-            }).catch(() => {
-              clearInterval(poll);
-              showToast('❌ Error');
-            });
-          }, 1000);
-        }).catch(() => {
-          showToast('❌ Upload failed');
-        });
-      } else {
+    function stopCamera() {
+      if (stream) {
         stream.getTracks().forEach(t => t.stop());
-        const loading = document.createElement('div');
-        Object.assign(loading.style, {
-          position: 'fixed', top: 0, left: 0,
-          width: '100vw', height: '100vh',
-          background: 'black', color: 'white',
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          fontSize: '20px', zIndex: 9999
-        });
-
-        const img = document.createElement('img');
-        img.src = URL.createObjectURL(blob);
-        img.style.maxHeight = '70vh';
-        loading.appendChild(img);
-
-        const procTxt = document.createElement('div');
-        procTxt.textContent = '🔄 Processing the file…';
-        loading.appendChild(procTxt);
-
-        document.body.innerHTML = '';
-        document.body.appendChild(loading);
-
-        fetch('/upload', { method: 'POST', body: formData }).then(() => {
-          const poll2 = setInterval(() => {
-            fetch('/status').then(r => r.json()).then(data => {
-              if (!data.processing) {
-                clearInterval(poll2);
-                if (data.filename) {
-                  const result = document.createElement('img');
-                  result.src = '/temp_output/' + data.filename + '?t=' + Date.now();
-                  result.style.cssText = 'width:100vw;height:100vh;object-fit:contain;background:black';
-
-                  refreshBtn.textContent = 'Next';
-                  setTimeout(() => {
-                    document.body.innerHTML = '';
-                    document.body.appendChild(result);
-                    document.body.appendChild(refreshBtn);
-                  }, 500);
-                }
-              }
-            });
-          }, 1000);
-        });
+        stream = null;
+        if (torchOn) {
+          torchOn = false;
+          flashBtn.textContent = '🔦 Flash';
+        }
       }
-    }, 'image/jpeg');
-  };
+    }
 
-  refreshBtn.onclick = () => location.reload();
-  flashBtn.onclick = toggleFlash;
-  startCamera();
+    // 🕓 Auto cooldown if camera runs over 4 minutes
+    let cameraStartTime = Date.now();
+    function startAutoCooldownCheck() {
+      setInterval(() => {
+        if (stream && Date.now() - cameraStartTime > 240000) {
+          showCooldownWarning();
+          stopCamera();
+          let i = 10;
+          const countdown = setInterval(() => {
+            showToast(`🛑 Cooling camera: ${i--}s`);
+            if (i < 0) {
+              clearInterval(countdown);
+              startCamera();
+            }
+          }, 1000);
+        }
+      }, 30000); // check every 30 sec
+    }
 
-  document.getElementById('exitBtn').onclick = function () {
-    try {
-      if (stream) stream.getTracks().forEach(t => t.stop());
-    } catch (e) {}
-    window.close();
-  };
-</script>
+    function showCooldownWarning() {
+      toast.textContent = '🛑 Taking rest for 10 seconds for cooling down camera';
+      toast.style.display = 'block';
+    }
 
+    // 🔄 Start camera initially
+    startCamera();
+  </script>
 </body>
 </html>
