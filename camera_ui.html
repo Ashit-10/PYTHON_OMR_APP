@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OMR Sheet Scanner</title>
+  <style>
+    body, html {
+      margin: 0; padding: 0;
+      background: black;
+      color: white;
+      font-family: sans-serif;
+      height: 100%;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #wrap {
+      position: relative;
+      height: 80vh;
+      aspect-ratio: 3/8;
+      border: 4px solid white;
+      flex-shrink: 0;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+    }
+
+    .qr-box {
+      border: 2px solid lime;
+      width: 30px; height: 30px;
+      position: absolute;
+    }
+
+    .qr-tl { top: 10px; left: 10px; }
+    .qr-tr { top: 10px; right: 10px; }
+    .qr-bl { bottom: 10px; left: 10px; }
+    .qr-br { bottom: 10px; right: 10px; }
+
+    #toggleContainer {
+      position: absolute;
+      top: 50px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+    }
+
+    #instantToggle {
+      appearance: none;
+      width: 40px;
+      height: 20px;
+      background: #555;
+      border-radius: 10px;
+      position: relative;
+      cursor: pointer;
+    }
+
+    #instantToggle::before {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 14px; height: 14px;
+      background: white;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+
+    #instantToggle:checked {
+      background: limegreen;
+    }
+
+    #instantToggle:checked::before {
+      transform: translateX(20px);
+    }
+
+    #toggleLabel {
+      font-size: 14px;
+      color: white;
+    }
+
+    .controls {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      font-size: 16px;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 5px;
+      background: white;
+      color: black;
+      cursor: pointer;
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 260px;
+      right: 15px;
+      background: white;
+      color: black;
+      padding: 12px 20px;
+      border-radius: 5px;
+      font-weight: bold;
+      display: none;
+      z-index: 9999;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <div class="overlay">
+      <div class="qr-box qr-tl"></div>
+      <div class="qr-box qr-tr"></div>
+      <div class="qr-box qr-bl"></div>
+      <div class="qr-box qr-br"></div>
+    </div>
+  </div>
+
+  <div id="toggleContainer">
+    <input type="checkbox" id="instantToggle">
+    <div id="toggleLabel">Instant</div>
+  </div>
+
+  <div class="controls">
+    <button id="flashBtn">🔦 Flash</button>
+    <button id="captureBtn">📸 Capture</button>
+    <button id="refreshBtn">🔄 Refresh</button>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    let stream, torchOn = false;
+    const video = document.getElementById('video');
+    const flashBtn = document.getElementById('flashBtn');
+    const captureBtn = document.getElementById('captureBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const instantToggle = document.getElementById('instantToggle');
+    const toast = document.getElementById('toast');
+
+    instantToggle.checked = localStorage.getItem('instantMode') === 'true';
+
+    if (!sessionStorage.getItem('initialShown')) {
+      alert(`📸 Instant ON:
+The processed OMR sheet will appear directly on screen.
+
+📥 Instant OFF:
+Just click Capture – it will process in background and show result here.
+
+💡 Recommended: Use Instant OFF for better performance and speed.`);
+      sessionStorage.setItem('initialShown', 'true');
+    }
+
+    instantToggle.onchange = () => {
+      localStorage.setItem('instantMode', instantToggle.checked);
+    };
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      setTimeout(() => toast.style.display = 'none', 2500);
+    }
+
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } }
+        });
+        video.srcObject = stream;
+        video.play();
+      } catch (e) {
+        alert('Camera access denied.');
+      }
+    }
+
+    async function toggleFlash() {
+      if (!stream) return;
+      try {
+        const track = stream.getVideoTracks()[0];
+        await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
+        torchOn = !torchOn;
+        flashBtn.textContent = torchOn ? 'Flash Off' : '🔦 Flash';
+      } catch {
+        alert('Flash not supported.');
+      }
+    }
+
+    function extractCorrect(filename) {
+      const parts = filename.split("_");
+      return parts[parts.length - 1].split(".")[0];
+    }
+
+    captureBtn.onclick = () => {
+      const isInstant = instantToggle.checked;
+      const c = document.createElement('canvas');
+      c.width = video.videoWidth;
+      c.height = video.videoHeight;
+      c.getContext('2d').drawImage(video, 0, 0);
+
+      c.toBlob(blob => {
+        const formData = new FormData();
+        formData.append('image', blob, 'capture.jpg');
+
+        if (!isInstant) {
+          showToast('🔄 Processing...');
+          fetch('/upload', { method: 'POST', body: formData }).then(() => {
+            const poll = setInterval(() => {
+              fetch('/status').then(r => r.json()).then(data => {
+                if (!data.processing) {
+                  clearInterval(poll);
+                  if (data.filename) {
+                    const corr = extractCorrect(data.filename);
+                    showToast(`✅ Correct: ${corr}`);
+                  } else {
+                    showToast('❌ Process failed');
+                  }
+                }
+              }).catch(() => {
+                clearInterval(poll);
+                showToast('❌ Error');
+              });
+            }, 1000);
+          }).catch(() => {
+            showToast('❌ Upload failed');
+          });
+        } else {
+          stream.getTracks().forEach(t => t.stop());
+          const loading = document.createElement('div');
+          Object.assign(loading.style, {
+            position: 'fixed', top: 0, left: 0,
+            width: '100vw', height: '100vh',
+            background: 'black', color: 'white',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            fontSize: '20px', zIndex: 9999
+          });
+
+          const img = document.createElement('img');
+          img.src = URL.createObjectURL(blob);
+          img.style.maxHeight = '70vh';
+          loading.appendChild(img);
+
+          const procTxt = document.createElement('div');
+          procTxt.textContent = '🔄 Processing the file…';
+          loading.appendChild(procTxt);
+
+          document.body.innerHTML = '';
+          document.body.appendChild(loading);
+
+          fetch('/upload', { method: 'POST', body: formData }).then(() => {
+            const poll2 = setInterval(() => {
+              fetch('/status').then(r => r.json()).then(data => {
+                if (!data.processing) {
+                  clearInterval(poll2);
+                  if (data.filename) {
+                    const result = document.createElement('img');
+                    result.src = '/temp_output/' + data.filename + '?t=' + Date.now();
+                    result.style.cssText = 'width:100vw;height:100vh;object-fit:contain;background:black';
+
+                    refreshBtn.textContent = 'Next';
+                    setTimeout(() => {
+                      document.body.innerHTML = '';
+                      document.body.appendChild(result);
+                      document.body.appendChild(refreshBtn);
+                    }, 500);
+                  }
+                }
+              });
+            }, 1000);
+          });
+        }
+      }, 'image/jpeg');
+    };
+
+    refreshBtn.onclick = () => location.reload();
+    flashBtn.onclick = toggleFlash;
+    startCamera();
+  </script>
+</body>
+</html>

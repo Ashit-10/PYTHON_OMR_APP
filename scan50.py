@@ -184,7 +184,7 @@ def find_extremes(coords):
 
 
 def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, has_shadow, allow_parcial_marking, new_cods_=[]):
-    roll_pixel = 180
+    roll_pixel = 220
     white_pixel_value = int(config.get('settings', 'pixel_value')) #230 # 170
     m_area = 150
     shadow_pixel_value = 280
@@ -385,13 +385,17 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
                     small_square_r = warped_gray[y_start_r:y_end_r, x_start_r:x_end_r]
                     _, binary_square_r = cv2.threshold(small_square_r, 120, 255, cv2.THRESH_BINARY_INV)
                     white_pixel_count_r = cv2.countNonZero(binary_square_r)
+                    
                     if white_pixel_count_r > roll_pixel:   # white pixel for roll number
+                     #   print(white_pixel_count_r)
                         f_roll_num = roll_column.index(fi) + 1
                         if f_roll_num == 10:
                             f_roll_num = "0"
                         roll_number += str(f_roll_num)
                         roll_number_coods.append([xr, yr])
 
+
+            # top max 2 ta pixel ku naba #todo
             roll_number = roll_number.strip()
             if (len(str(roll_number)) > 2) or (not roll_number):
                 roll_number = "0"
@@ -428,7 +432,7 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
                 # print(f"Circle at ({x}, {y}): White pixel count = {white_pixel_count}")
                 un_opt = ""
                 if white_pixel_count > white_pixel_value:  # white pixel for options
-                    # print("For options", white_pixel_count)
+                    print("For options", white_pixel_count)
                     # cv2.imshow("ok", binary_square)
                     # cv2.waitKey(0)
                     if n == 0 or (n % 4) == 0:
