@@ -6,8 +6,8 @@ import sys
 
 # ========== USER SETTINGS ==========
 
-BOT_TOKEN = "2113644798:AAEuMDxeifbAtrzka5UsM4K4CHm4qqOBjUI"
-CHAT_ID = "1602293216" 
+BOT_TOKEN = "2113644798:AAEuMDxeka5UsM4K4CHm4qqOBjUI"
+CHAT_ID = "160229" 
 
 OUTPUT_DIR = 'output'
 ZIP_NAME = 'omr.zip'
