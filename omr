@@ -40,7 +40,7 @@ while true; do
             fi
             ;;
         4)
-            url="https://ashit.xyz/50?filename=answer_key.txt&data=save"
+            url="https://theomr.shop/50?filename=answer_key.txt&data=save"
             echo -e "${CYAN}🌐 Opening: $url${RESET}"
             termux-open-url "$url"
             echo -e "${YELLOW}👋 Exiting after opening browser...${RESET}"
