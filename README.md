@@ -42,7 +42,7 @@ termux-setup-storage
 
 git clone https://github.com/Ashit-10/PYTHON_OMR_APP
 
-cd PYTHON_OMR_BOT
+cd PYTHON_OMR_APP
 pip3 -r requirements.txt
 source setup.sh
 ```
