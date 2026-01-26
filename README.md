@@ -46,7 +46,7 @@ cd PYTHON_OMR_APP
 pip3 -r requirements.txt
 source setup.sh
 ```
-git clone repo , cd to PYTHON_OMR_BOT, and run python app.py
+git clone repo , cd to PYTHON_OMR_APP, and run python app.py
 <h2>Preview:</h2>
 
 https://github.com/user-attachments/assets/b6c944cc-7de9-45f9-826e-31e621016642
