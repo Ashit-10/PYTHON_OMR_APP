@@ -51,7 +51,7 @@ while true; do
         1) sig_file="ashit_sign.png" ;;
         2) sig_file="rupa_sign.png" ;;
         3) sig_file="madhu_sir_sign.png" ;;
-        4) sig_file="lakhia_bhai_sign.png" ;;
+        4) sig_file="lakhia_sign.png" ;;
         *)
           echo -e "${RED}    Invalid choice!${NC}"
           pause
