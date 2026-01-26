@@ -8,8 +8,8 @@ import configparser
 config = configparser.ConfigParser()
 config.read('config.cfg')
 
-roll_first_column = [[250, 20], [250, 52], [250, 86], [250, 118], [250, 152], [250, 185],[250, 219], [250, 251],[250, 285],[250, 317]]
-roll_second_column = [[287, 20], [287, 52], [287, 86], [287, 119], [287, 152], [287, 185], [287, 219], [287, 251],[287, 285],[287, 317] ]
+roll_first_column = [[260, 20], [260, 52], [260, 86], [260, 118], [260, 152], [260, 185],[260, 219], [260, 251],[260, 285],[260, 317]]
+roll_second_column = [[297, 20], [297, 52], [297, 86], [297, 119], [297, 152], [297, 185], [297, 219], [297, 251],[297, 285],[297, 317] ]
 location_file = "omr_50_locations.txt"
 
 
@@ -184,7 +184,7 @@ def find_extremes(coords):
 
 
 def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, has_shadow, allow_parcial_marking, new_cods_=[]):
-    roll_pixel = 220
+    roll_pixel = 210
     white_pixel_value = int(config.get('settings', 'pixel_value')) #230 # 170
     m_area = 150
     shadow_pixel_value = 280
