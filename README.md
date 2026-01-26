@@ -38,6 +38,7 @@ pkg install python -y
 pkg install git -y
 pkg install build-essential
 pkg install zip -y
+pkg install dbus
 termux-setup-storage
 
 git clone https://github.com/Ashit-10/PYTHON_OMR_APP
