@@ -114,5 +114,6 @@ print(f"{len(dup_rolls)} Duplicate photos found and copied them to duplicate fol
 print(dup_rolls)
 print()
 print("Time taken:", int(end_time - start_time), "seconds")
-print("Total OMR sheets:", len(os.listdir("output/")))
+print("Total OMR sheets input:", len(os.listdir("input/")))
+print("Total OMR sheets output:", len(os.listdir("output/")))
 
