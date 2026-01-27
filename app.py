@@ -25,6 +25,54 @@ for f in glob.glob('/sdcard/Download/*ans*_key*.txt*'):
         moved.append(os.path.basename(f))
     except: pass
 print("Moved files:", moved)
+# ---- Check Download folder for OMR images (safe move, no overwrite) ----
+download_path = "/sdcard/Download"
+target_input_path = "../PYTHON_OMR_APP/input"
+
+image_exts = (".jpg", ".jpeg", ".png")
+omr_images = []
+
+for f in os.listdir(download_path):
+    fname = f.lower()
+    if fname.startswith("omr_sheet") and fname.endswith(image_exts):
+        omr_images.append(f)
+
+def get_safe_name(dst_folder, filename):
+    name, ext = os.path.splitext(filename)
+    counter = 1
+    new_name = filename
+    while os.path.exists(os.path.join(dst_folder, new_name)):
+        new_name = f"{name}_{counter}{ext}"
+        counter += 1
+    return new_name
+
+if omr_images:
+    print(f"{len(omr_images)} OMR image(s) found in Download folder.")
+    print("Move them to input folder? [y/n]")
+    choice = input().strip().lower()
+
+    if choice == "y":
+        moved_imgs = []
+        for img in omr_images:
+            try:
+                safe_name = get_safe_name(target_input_path, img)
+                shutil.move(
+                    os.path.join(download_path, img),
+                    os.path.join(target_input_path, safe_name)
+                )
+                moved_imgs.append(safe_name)
+            except Exception as e:
+                print(f"Failed to move {img}: {e}")
+
+        print("Moved OMR images:")
+        for m in moved_imgs:
+            print(" -", m)
+    else:
+        print("Skipping move operation.")
+
+else:
+    print("No OMR images found in Download folder.\nProceeding to input folder.")
+# ---- End of pre-check ----
 
 if_in_output = os.listdir("output/")
 if len(if_in_output) > 0:
