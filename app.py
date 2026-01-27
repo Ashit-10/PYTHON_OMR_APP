@@ -110,7 +110,7 @@ for photo in photos:
     
 end_time = time.time()
 print()
-print("Duplicate photos found and copied them to duplicate folder.")
+print(f"{len(dup_rolls)} Duplicate photos found and copied them to duplicate folder.")
 print(dup_rolls)
 print()
 print("Time taken:", int(end_time - start_time), "seconds")
