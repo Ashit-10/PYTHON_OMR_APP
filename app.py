@@ -27,7 +27,7 @@ for f in glob.glob('/sdcard/Download/*ans*_key*.txt*'):
 print("Moved files:", moved)
 # ---- Check Download folder for OMR images (safe move, no overwrite) ----
 download_path = "/sdcard/Download"
-target_input_path = "../PYTHON_OMR_APP/input"
+target_input_path = "/sdcard/PYTHON_OMR_APP/input"
 
 image_exts = (".jpg", ".jpeg", ".png")
 omr_images = []
