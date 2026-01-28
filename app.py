@@ -102,11 +102,17 @@ for photo in photos:
         print()
         print("-----------------------------------")
         eval_data = evaluate(f"{ppath}/{photo}", "output/", "answer_key.txt", cap, None, None)
-        if eval_data[4] in rolls:
-            dup_rolls.append(photo)
-            os.system(f"cp '{ppath}/{photo}' duplicates/")
-        else:
-            rolls.append(eval_data[4])
+        try:
+            print(f"{ppath}/{photo}")
+            if eval_data[4] in rolls:
+                dup_rolls.append(photo)
+                os.system(f"cp '{ppath}/{photo}' duplicates/")
+            else:
+                rolls.append(eval_data[4])
+        except:            
+          #  print(eval_data)
+            print(f"\033[1;91m{eval_data}\033[0m")
+        
     
 end_time = time.time()
 print()
