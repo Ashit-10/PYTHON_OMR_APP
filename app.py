@@ -86,6 +86,8 @@ if len(if_in_output) > 0:
         print("Proceeding without deleting ...")
 
 start_time = time.time()
+print()
+print("-----------------------------------")
 
 ppath = "input/"
 photos = os.listdir(ppath)
@@ -99,8 +101,8 @@ for photo in photos:
                 cap = photo.split("_roll_")[1]
         except:
             cap = None
-        print()
-        print("-----------------------------------")
+     #   print()
+        
         eval_data = evaluate(f"{ppath}/{photo}", "output/", "answer_key.txt", cap, None, None)
         try:
             print(f"{ppath}/{photo}")
@@ -112,6 +114,7 @@ for photo in photos:
         except:            
           #  print(eval_data)
             print(f"\033[1;91m{eval_data}\033[0m")
+        print("-----------------------------------")
         
     
 end_time = time.time()
