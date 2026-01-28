@@ -98,7 +98,7 @@ for photo in photos:
         cap = None
         try:
             if "_roll_" in photo:
-                cap = photo.split("_roll_")[1]
+                cap = (photo.split("_roll_")[1]).replace(".jpg", "")
         except:
             cap = None
         print()
