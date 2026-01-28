@@ -114,8 +114,9 @@ for photo in photos:
         except:            
           #  print(eval_data)
             print(f"\033[1;91m{eval_data}\033[0m")
-        print("-----------------------------------")
         print()
+        print("-----------------------------------")
+        
         
     
 end_time = time.time()
