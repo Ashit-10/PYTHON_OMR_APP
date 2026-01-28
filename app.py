@@ -81,6 +81,7 @@ if len(if_in_output) > 0:
     if y_or_n.lower() == "y":
         os.system("rm -f output/*")
         os.system("rm -f duplicates/*")
+        os.system("rm -f error_images/*")
         print("Deleted all photos in output folder .")
     else:
         print("Proceeding without deleting ...")
@@ -114,6 +115,7 @@ for photo in photos:
         except:            
           #  print(eval_data)
             print(f"\033[1;91m{eval_data}\033[0m")
+            shutil.copy(f"{ppath}/{photo}", "error_images/")
         print()
         print("-----------------------------------")
         
