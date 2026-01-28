@@ -101,7 +101,7 @@ for photo in photos:
                 cap = photo.split("_roll_")[1]
         except:
             cap = None
-     #   print()
+        print()
         
         eval_data = evaluate(f"{ppath}/{photo}", "output/", "answer_key.txt", cap, None, None)
         try:
@@ -115,6 +115,7 @@ for photo in photos:
           #  print(eval_data)
             print(f"\033[1;91m{eval_data}\033[0m")
         print("-----------------------------------")
+        print()
         
     
 end_time = time.time()
