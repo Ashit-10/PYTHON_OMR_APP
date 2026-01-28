@@ -227,45 +227,56 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
 
     # Convert to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    for blur_value in [(1, 1), (3, 3), (5, 5), (7, 7), (9, 9), (11, 11)]:
+    for blur_value in [(1, 1), (3, 3), (5, 5), (7, 7), (9, 9), (11, 11), None]:
         # Apply Gaussian blur to smooth edges
-        blurred = cv2.GaussianBlur(gray, blur_value, 0)
-
+        if blur_value is None:
+            blurred = gray  # Use original image without blur
+        else:
+            blurred = cv2.GaussianBlur(gray, blur_value, 0)
+     #   print(blur_value)
     #####################################################new#############################################################
         # Adaptive thresholding
         blockSize = 27  # Try increasing to 15, 19, 23, etc.
-        C = 5  # Try adjusting to different values like 5, 10, etc.
-        thresh1 = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, blockSize, C)
+        for C in [5, 10]: # Try adjusting to different values like 5, 10, etc.
+            thresh1 = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, blockSize, C)
 
         # Morphological operations to enhance square features
-        kernel_size = 3  # Try adjusting to 5, 7, etc.
-        kernel = np.ones((kernel_size, kernel_size), np.uint8)
-        thresh1 = cv2.morphologyEx(thresh1, cv2.MORPH_CLOSE, kernel)
+            kernel_size = 3  # Try adjusting to 5, 7, etc.
+            kernel = np.ones((kernel_size, kernel_size), np.uint8)
+            thresh1 = cv2.morphologyEx(thresh1, cv2.MORPH_CLOSE, kernel)
 
         # cv2.imshow("Binary Image", thresh1)
         # cv2.waitKey(0)
-        contours, _ = cv2.findContours(thresh1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            contours, _ = cv2.findContours(thresh1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         # Filter and store square-like contours
-        square_contours = []
-        for contour in contours:
-            approx = cv2.approxPolyDP(contour, 0.03 * cv2.arcLength(contour, True), True)
-            if len(approx) == 4:
-                (x, y, w, h) = cv2.boundingRect(approx)
-                aspect_ratio = w / float(h)
-                area = cv2.contourArea(contour)
+            square_contours = []
+            for contour in contours:
+                approx = cv2.approxPolyDP(contour, 0.03 * cv2.arcLength(contour, True), True)
+                if len(approx) == 4:
+                    (x, y, w, h) = cv2.boundingRect(approx)
+                    aspect_ratio = w / float(h)
+                    area = cv2.contourArea(contour)
                 # Additional check for convexity and aspect ratio closer to 1
-                if 0.7 <= aspect_ratio <= 1.3 and area >= min_area and area < max_area and cv2.isContourConvex(approx):
+                    if 0.7 <= aspect_ratio <= 1.3 and area >= min_area and area < max_area and cv2.isContourConvex(approx):
                     # print("Area of square boxes:", area)
-                    square_contours.append(approx)
+                        square_contours.append(approx)
 
+            if len(square_contours) > 8:
+            # print("gone to choose", len(square_contours))
+                square_contours = choose_8(thresh1, square_contours)
+            # print(len(square_contours))
+
+            if len(square_contours) == 8:
+                break
         if len(square_contours) > 8:
             # print("gone to choose", len(square_contours))
-            square_contours = choose_8(thresh1, square_contours)
+                square_contours = choose_8(thresh1, square_contours)
             # print(len(square_contours))
 
         if len(square_contours) == 8:
-            break
-
+                break
+                
+                
     if len(square_contours) != 8:
         return None, "Could not find 8 square boxes."
     # Extract top-left corner points from the square contours
