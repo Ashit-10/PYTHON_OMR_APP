@@ -36,7 +36,7 @@ while true; do
             echo -e "${YELLOW}⚠️  Are you sure you want to delete all files in input/ and output/? (y/n)${RESET}"
             read -p "> " confirm
             if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
-                rm -rf input/* output/* original_images/input/* original_images/output/*
+                rm -rf input/* output/* original_images/input/* original_images/output/* duplicates/* error_images/*
                 echo -e "${GREEN}✅ All files deleted from original_images, input/ and output/.${RESET}"
             else
                 echo -e "${CYAN}❎ Deletion cancelled.${RESET}"
