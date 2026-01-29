@@ -111,6 +111,10 @@ for photo in photos:
                 os.system(f"cp '{ppath}/{photo}' duplicates/")
             else:
                 rolls.append(eval_data[4])
+              #  print(eval_data[6])              
+                
+            os.system(f"cp '{ppath}/{photo}' original_images/input/")
+            os.system(f"cp '{eval_data[6]}' original_images/output/")
         except:            
           #  print(eval_data)
             print(f"\033[1;91m{eval_data}\033[0m")
@@ -128,4 +132,6 @@ print()
 print("Time taken:", int(end_time - start_time), "seconds")
 print("Total OMR sheets input:", len(os.listdir("input/")))
 print("Total OMR sheets output:", len(os.listdir("output/")))
+print("Total OMR sheets Error:", len(os.listdir("error_images/")))
+print("Total Duplicate Roll No:", len(os.listdir("duplicates/")))
 
