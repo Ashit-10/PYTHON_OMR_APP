@@ -207,10 +207,25 @@ Just click Capture – it will process in background and show result here.
     async function startCamera() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } }
-        });
+          video: { facingMode: { ideal: 'environment' },
+        width: { ideal: 1920 }, // High-res source
+        height: { ideal: 1080 }
+      }
+    });
         video.srcObject = stream;
         video.play();
+        
+         // --- ADD FOCUS LOGIC HERE ---
+    const track = stream.getVideoTracks()[0];
+    const capabilities = track.getCapabilities();
+
+    if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+      await track.applyConstraints({
+        advanced: [{ focusMode: 'continuous' }]
+      });
+    }
+    // ----------------------------
+
         cameraStartTime = Date.now();
         startAutoCooldownCheck();
       } catch (e) {
@@ -332,7 +347,7 @@ Just click Capture – it will process in background and show result here.
             }, 1000);
           });
         }
-      }, 'image/jpeg', 0.8);
+      }, 'image/jpeg', 0.5);
     };
 
     refreshBtn.onclick = () => location.reload();
