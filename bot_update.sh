@@ -56,3 +56,16 @@ fi
 
 # Final message in magenta (pinkish)
 echo -e "${MAGENTA}🎉 Update complete! Your project is now up to date.${NC}"
+
+echo -e "${YELLOW}🧹 Removing .placeholder and hidden dot-files...${NC}"
+
+# Delete all .placeholder files
+find . -type f -name ".placeholder" -delete
+
+# Delete all hidden files (but keep .git and its contents safe)
+find . -type f -name ".*" \
+    ! -path "./.git/*" \
+    ! -name ".git" \
+    -delete
+
+echo -e "${GREEN}✅ Cleanup complete.${NC}"
