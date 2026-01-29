@@ -186,10 +186,25 @@ def run():
         html_success = upload_to_github(session, output_filename, f"{github_base}/{output_filename}")
         
         # Progress Bar Fix: Fixed width (80) and steady format
-        custom_format = "|{bar:40}| {n_fmt}/{total_fmt} Files [ETA: {remaining}]"
+       # custom_format = "|{bar:40}| {n_fmt}/{total_fmt} Files [ETA: {remaining}]"
+
+        # Fixed-width bar (40 chars) + Percentage + ETA
+        # The :3.0f keeps the percentage from pushing the bar around
+        custom_format = "|{bar:40}| {percentage:3.0f}% [ETA: {remaining}]"
         
         print(f"\n🚀 Uploading {len(student_list)} images...")
-        pbar = tqdm(total=len(student_list), bar_format=custom_format, ascii=" #", colour="green")
+        pbar = tqdm(
+            total=len(student_list), 
+            bar_format=custom_format, 
+            ascii=" #", 
+            colour="green",
+            dynamic_ncols=False 
+        )
+
+
+        
+      #  print(f"\n🚀 Uploading {len(student_list)} images...")
+      #  pbar = tqdm(total=len(student_list), bar_format=custom_format, ascii=" #", colour="green")
         
         for s in student_list:
             upload_to_github(session, f"{output_folder}/{s['file']}", f"{github_img_folder}/{s['file']}")
