@@ -185,9 +185,11 @@ def run():
         # Upload HTML
         html_success = upload_to_github(session, output_filename, f"{github_base}/{output_filename}")
         
+    
+
         
-        # Custom format: \n puts the stats on the first line, the bar on the second
-        custom_format = "📊 Progress: {percentage:3.0f}% | {n_fmt}/{total_fmt} Files | ETA: {remaining}\n|{bar:40}|"
+        # Shortened bar (20 chars) to make room for text on the same line
+        custom_format = "|{bar:20}| {percentage:3.0f}% | {n_fmt}/{total_fmt} | ETA: {remaining}"
         
         print(f"\n🚀 Uploading {len(student_list)} images...")
         pbar = tqdm(
@@ -195,7 +197,8 @@ def run():
             bar_format=custom_format, 
             ascii=" #", 
             colour="green",
-            dynamic_ncols=False
+            dynamic_ncols=False,
+            leave=True  # Keeps the bar visible when finished
         )
 
 
