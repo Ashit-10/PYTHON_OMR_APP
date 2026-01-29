@@ -19,11 +19,13 @@ def evaluate(image_file, out_put_path, answer_key_file, caption, has_darkness, a
 
 # evaluate('images/n18.jpg', 'output/', "answer_key.txt", "", None, None)   
 moved = []
-for f in glob.glob('/sdcard/Download/*ans*_key*.txt*'):
-    try:
-        shutil.move(f, '/sdcard/PYTHON_OMR_APP/answer_key.txt')
-    except: pass
-print("Answer key found in download folder and moved to main folder")
+for f in glob.glob('/sdcard/Download/*ans*_key*.txt*'):    
+     os.system("rm -f /sdcard/PYTHON_OMR_APP/answer_key*.txt")
+    
+     os.system(f"mv -f '{f}' /sdcard/PYTHON_OMR_APP/answer_key.txt")    
+     if os.path.exists("/sdcard/PYTHON_OMR_APP/answer_key.txt"):
+         print(f"Answer key found in download folder and moved to main folder\n{f}")
+         print()
 # ---- Check Download folder for OMR images (safe move, no overwrite) ----
 download_path = "/sdcard/Download"
 target_input_path = "/sdcard/PYTHON_OMR_APP/input"
