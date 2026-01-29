@@ -27,7 +27,10 @@ while true; do
     read -p "Enter your choice: " choice
 
     case "$choice" in
-        1) bash bot_update.sh ;;
+        1) bash bot_update.sh 
+          exit 0
+          ;;
+
         2) bash settings.sh ;;
         3)
             echo -e "${YELLOW}⚠️  Are you sure you want to delete all files in input/ and output/? (y/n)${RESET}"
@@ -47,7 +50,7 @@ while true; do
             exit 0
             ;;
         5) python3 app.py ;;
-           exit 0 ;;
+           
         6) python3 web.py ;;
         7) bash answer_key_edit.sh ;;
         8) python3 gitup.py ;;
