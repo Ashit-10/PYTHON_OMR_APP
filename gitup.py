@@ -6,9 +6,9 @@ import base64
 from tqdm import tqdm
 
 # --- CONFIGURATION ---
-GITHUB_TOKEN = "your_fine_grained_token"
-REPO_OWNER = "your_username"
-REPO_NAME = "your_repo"
+GITHUB_TOKEN = "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"
+REPO_OWNER = "Ashit-10"
+REPO_NAME = "omr_exams"
 YEAR = "2026"
 
 def get_total_marks():
