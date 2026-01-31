@@ -1,60 +1,61 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>OMR Dashboard</title>
-  <link rel="stylesheet" href="/static/style.css">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
-<div class="container">
-  <h1>📄 OMR Scanner</h1>
+<header>OMR Scanner</header>
 
-  <div class="card">
-    <button onclick="location.href='/camera'">📷 Open Camera Scanner</button>
-  </div>
+<section>
+<button onclick="location.href='/camera'">📷 Camera Scanner</button>
+</section>
 
-  <div class="card">
-    <h3>Create New Folder</h3>
-    <input id="cls" placeholder="Class (e.g. 10)">
-    <input id="subject" placeholder="Subject (e.g. odia)">
-    <input id="set" placeholder="Set (default 1)">
-    <button onclick="createFolder()">Create Folder</button>
-    <p id="msg"></p>
-  </div>
+<section class="card">
+<h3>Create New Folder</h3>
+<input id="cls" placeholder="Class" required>
+<input id="sub" placeholder="Subject" required>
+<button onclick="create()">Create</button>
+<p id="msg"></p>
+</section>
 
-  <div class="card">
-    <button onclick="location.href='#'">🗝 Create Answer Key</button>
-  </div>
-
-  <div class="card">
-    <h3>Project Folders</h3>
-    <ul>
-      {% for f in folders %}
-        <li>📁 {{ f }}</li>
-      {% endfor %}
-    </ul>
-  </div>
-</div>
+<section class="card">
+<h3>Project Folders</h3>
+<ul id="folders">
+{% for f in folders %}
+<li onclick="openFolder('{{f}}')">📁 {{f}}</li>
+{% endfor %}
+</ul>
+</section>
 
 <script>
-function createFolder() {
-  fetch("/create_folder", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      class: document.getElementById("cls").value,
-      subject: document.getElementById("subject").value,
-      set: document.getElementById("set").value || "1"
-    })
+function openFolder(f){
+  location.href = "/browse?path=" + f
+}
+
+function create(){
+  const cls = clsInput.value = document.getElementById("cls").value
+  const sub = document.getElementById("sub").value
+
+  if(!cls || !sub){
+    msg.innerText = "Class & Subject required"
+    return
+  }
+
+  fetch("/create_folder",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({class:cls,subject:sub})
   })
-  .then(res => res.json())
-  .then(data => {
-    document.getElementById("msg").innerText =
-      data.status === "ok"
-      ? "✅ Folder created: " + data.folder
-      : "⚠ Folder already exists";
-  });
+  .then(r=>r.json())
+  .then(d=>{
+    const li = document.createElement("li")
+    li.innerText = "📁 " + d.folder
+    li.onclick = ()=>openFolder(d.folder)
+    folders.appendChild(li)
+    msg.innerText = "Folder created"
+  })
 }
 </script>
 
