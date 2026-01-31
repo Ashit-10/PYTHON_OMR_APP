@@ -110,12 +110,10 @@ def answer_key():
 @app.route("/save_answer_key", methods=["POST"])
 def save_answer_key():
     data = request.json
-    folder = data.get("folder")
+    
     content = data.get("content")
     
-    if not folder:
-        return jsonify(ok=False, error="No folder specified"), 400
-        
+    
     file_path = os.path.join(BASE, "answer_key.txt")
     
     try:
