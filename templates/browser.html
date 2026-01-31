@@ -19,31 +19,25 @@
       {% endif %}
     </div>
   {% else %}
-    {% if i.name == "answer_key.txt" %}
-      <div class="folder-row" onclick="openAnswerKey()">
-        🗝 {{ i.name }}
+    <div class="image-card">
+      <img src="/file?path={{path}}/{{i.name}}" onclick="viewImage(this.src)">
+      <div class="file-actions">
+        <span class="fname">{{ i.name }}</span>
+        <button class="mini" onclick="renameFile('{{path}}/{{i.name}}')">✏</button>
+        <button class="mini danger" onclick="askDelete('{{path}}/{{i.name}}')">🗑</button>
       </div>
-    {% else %}
-      <div class="image-card">
-        <img src="/file?path={{path}}/{{i.name}}" onclick="viewImage(this.src)">
-        <div class="file-actions">
-          <span class="fname">{{ i.name }}</span>
-          <button class="mini" onclick="renameFile('{{path}}/{{i.name}}')">✏</button>
-          <button class="mini danger" onclick="askDelete('{{path}}/{{i.name}}')">🗑</button>
-        </div>
-      </div>
-    {% endif %}
+    </div>
   {% endif %}
 {% endfor %}
 
 </div>
 
-<!-- DELETE POPUP -->
-<div id="confirm" class="modal">
+<!-- DELETE CONFIRM MODAL -->
+<div id="deleteModal" class="modal">
   <div class="modal-box">
-    <p>Delete this item?</p>
+    <p>Are you sure you want to delete?</p>
     <button onclick="doDelete()">Yes</button>
-    <button class="danger" onclick="closeConfirm()">Cancel</button>
+    <button class="danger" onclick="closeDelete()">Cancel</button>
   </div>
 </div>
 
@@ -53,20 +47,20 @@
 </div>
 
 <script>
-let delPath=""
+let deletePath=""
 
 function askDelete(p){
-  delPath=p
-  confirm.style.display="flex"
+  deletePath=p
+  deleteModal.style.display="flex"
 }
-function closeConfirm(){
-  confirm.style.display="none"
+function closeDelete(){
+  deleteModal.style.display="none"
 }
 function doDelete(){
   fetch("/delete",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({path:delPath})
+    body:JSON.stringify({ path: deletePath })
   }).then(()=>location.reload())
 }
 
@@ -78,17 +72,16 @@ function renameFile(oldPath){
   fetch("/rename",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({old:oldPath,new:folder+"/"+n+".jpg"})
+    body:JSON.stringify({
+      old: oldPath,
+      new: folder+"/"+n+".jpg"
+    })
   }).then(()=>location.reload())
 }
 
 function viewImage(src){
   previewImg.src=src
   preview.style.display="flex"
-}
-
-function openAnswerKey(){
-  location.href="https://theomr.shop/50?filename=answer_key.txt&data=save"
 }
 </script>
 
