@@ -28,7 +28,7 @@ download_folder = "/sdcard/Download"
 input_folder = "temp_input"
 output_folder = "temp_output"
 extensions = ('.jpg', '.jpeg', '.png')
-STATIC_FOLDERS = ["input", "output", "duplicates", "error_images", "temp_input", "temp_output"]
+STATIC_FOLDERS = ["input", "output", "duplicates", "error_images"]
 
 # --- GLOBAL STATE ---
 processing = False
