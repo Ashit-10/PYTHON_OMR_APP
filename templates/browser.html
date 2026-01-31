@@ -41,24 +41,34 @@
     display: block;
   }
 
-  /* INPUT FOLDER (FULL WIDTH FIX) */
-  .rotate-box {
-    /* We set the height to exactly match the intended visual width of the OMR strip */
-    height: 60vw; 
-  }
+/* 1. This container controls the 'window' you see the image through */
+.rotate-box {
+  width: 100%;
+  height: 25vh;      /* This controls how "tall" the strip looks on your screen */
+  position: relative;
+  background: #fff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
 
-  .rotate-box img {
-    /* 1. We set the 'height' of the image to 100% of the screen width 
-       2. We set the 'width' of the image to auto
-    */
-    height: 100vw !important; 
-    width: auto !important;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotate(-90deg);
-    object-fit: contain;
-  }
+/* 2. This forces the image to be huge so it fills the screen after rotation */
+.rotate-box img {
+  /* We make the image's height match your screen width (100vw) */
+  height: 100vw !important; 
+  width: auto !important;
+  
+  /* We scale it up (zoom) to remove the centering 'smallness' */
+  /* If it's still too small, increase 1.5 to 1.8 */
+  transform: translate(-50%, -50%) rotate(-90deg) scale(1.5);
+  
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  object-fit: contain;
+  max-width: none !important; /* Prevents the browser from forced shrinking */
+}
+
 
   .file-actions {
     padding: 8px 12px;
