@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OMR Sheet</title>
+  <style>
+    /* Existing styles remain unchanged... */
+    body {
+      font-family: Arial, sans-serif;
+    }
+
+    .filename-container {
+      text-align: center;
+      margin: 20px 0;
+    }
+
+    .filename-container h5 {
+      font-size: 1rem;
+    }
+
+    .question {
+      margin: 20px 0;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: background-color 0.5s ease;
+    }
+
+    .question.green {
+      background-color: #c3e6cb;
+    }
+
+    .question.blue {
+      background-color: #9decf1;
+    }
+
+    .question.red {
+      background-color: #f8d7da;
+    }
+
+    .options {
+      display: flex;
+      gap: 20px;
+    }
+
+    .option {
+      display: flex;
+      align-items: center;
+    }
+
+    .option input[type="checkbox"] {
+      display: none;
+    }
+
+    .option label {
+      position: relative;
+      cursor: pointer;
+    }
+
+    .option label::before {
+      content: attr(data-text);
+      display: inline-block;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 30px;
+      font-size: 15px;
+      background-color: #fff;
+      color: #000;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .option input[type="checkbox"]:checked+label::before {
+      background-color: #4744f7;
+      color: #fff;
+    }
+
+    .action-button {
+      background-color: #5451f0;
+      color: #fff;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 15px;
+      height: 30px;
+      transition: background-color 0.3s ease;
+    }
+
+    .action-button:hover {
+      background-color: #3030a6;
+    }
+
+    #loadingOverlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255, 255, 255, 0.7);
+      z-index: 9999;
+    }
+
+    #loadingSpinner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 20px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #3498db;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .topButtons {
+      display: flex;
+      align-items: center;
+      flex-direction: row;
+      gap: 12px;
+    }
+
+    select {
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+      height: 40px;
+      font-size: 15px;
+    }
+
+    select:focus {
+      background-color: #f0f0f0;
+      color: #000;
+      border-color: #5451f0;
+    }
+  </style>
+  <script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+    const userInput = [];
+    let questionCount = 100; // Always 100
+    const questionContainer = document.getElementById('questionContainer');
+    const saveButton = document.getElementById('saveButton');
+    const copyButton = document.getElementById('copyButon');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const filenameDisplay = document.getElementById('filenameDisplay');
+
+    function getQueryParameter(name) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
+    }
+
+    const filename = getQueryParameter('filename');
+    const dataSave = getQueryParameter('data') === 'save';
+    const showTopButtons = getQueryParameter('user');
+    const subjectName = getQueryParameter('subject');
+
+    filenameDisplay.textContent = subjectName || filename || "New OMR Sheet";
+
+    if (showTopButtons === 'student') {
+        document.querySelector('.topButtons').style.display = 'none';
+    }
+    if (subjectName) {
+        questionContainer.style.pointerEvents = 'none';
+    }
+
+    // --- 1. ALWAYS DISPLAY 100 QUESTIONS FIRST ---
+    function displayQuestions() {
+        questionContainer.innerHTML = '';
+        for (let i = 1; i <= 100; i++) {
+            const options = userInput[i - 1] || []; 
+            const questionDiv = createQuestionElement(i, options);
+            questionContainer.appendChild(questionDiv);
+        }
+        updateQuestionColors();
+    }
+
+    function createQuestionElement(index, selectedOptions = []) {
+        const questionDiv = document.createElement('div');
+        questionDiv.className = 'question';
+        questionDiv.innerHTML = `<span>Question - ${index}:</span>`;
+        const optionsDiv = document.createElement('div');
+        optionsDiv.className = 'options';
+
+        ['A', 'B', 'C', 'D'].forEach((option) => {
+            const optionDiv = document.createElement('div');
+            optionDiv.className = 'option';
+            const checkboxId = `question${index}_${option}`;
+            optionDiv.innerHTML = `
+                <input type="checkbox" id="${checkboxId}" name="question${index}" value="${option}" ${selectedOptions.includes(option) ? 'checked' : ''}>
+                <label for="${checkboxId}" data-text="${option}"></label>
+            `;
+            optionsDiv.appendChild(optionDiv);
+        });
+        questionDiv.appendChild(optionsDiv);
+        return questionDiv;
+    }
+
+    function processJSON(data) {
+        for (const key in data) {
+            if (data.hasOwnProperty(key)) {
+                userInput[parseInt(key) - 1] = data[key];
+            }
+        }
+        displayQuestions();
+    }
+
+    // --- 2. ADD RESET BUTTON (ALWAYS VISIBLE) ---
+    const topButtonsContainer = document.querySelector('.topButtons');
+        // Replace the previous resetBtn block with this:
+    const resetBtn = document.createElement('button');
+    resetBtn.textContent = 'Reset';
+    resetBtn.className = 'action-button';
+    resetBtn.style.backgroundColor = '#999';
+    resetBtn.style.marginLeft = '10px'; 
+    
+    resetBtn.addEventListener('click', (e) => {
+        e.preventDefault(); 
+        if (confirm('Clear all bubbles and saved data?')) {
+            // 1. Clear LocalStorage
+            localStorage.removeItem('omr_saved_data');
+            
+            // 2. Uncheck every checkbox in the UI manually
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = false);
+            
+            // 3. Reset the userInput array
+            userInput.length = 0; 
+            
+            // 4. Refresh colors (turns everything back to red)
+            updateQuestionColors();
+            
+            alert("Sheet cleared!");
+        }
+    });
+    topButtonsContainer.appendChild(resetBtn);
+
+    // --- 3. LOADING DATA ---
+    displayQuestions(); // Initialize blank 100 questions immediately
+
+    if (filename) {
+        fetch(filename)
+            .then(response => response.json())
+            .then(data => processJSON(data))
+            .catch(err => console.log("New file, starting blank."));
+    }
+
+    const existingContent = `{{ content|safe }}`; 
+    if (existingContent && existingContent.trim() !== "" && existingContent !== "None") {
+        try {
+            processJSON(JSON.parse(existingContent)); 
+        } catch (e) {
+            console.error("Jinja content error");
+        }
+    }
+
+    if (dataSave) loadFromLocalStorage();
+
+    // --- 4. SAVING DATA (SAVES ONLY MARKED QUESTIONS) ---
+    async function saveData(e) {
+        e.preventDefault();
+        const jsonOutput = {};
+        const questions = document.querySelectorAll('.question');
+
+        questions.forEach((question, i) => {
+            const selected = Array.from(question.querySelectorAll('input[type="checkbox"]:checked'))
+                                 .map(input => input.value);
+            if (selected.length > 0) {
+                jsonOutput[i + 1] = selected;
+            }
+        });
+
+        const jsonString = JSON.stringify(jsonOutput, null, 2);
+        loadingOverlay.style.display = 'block';
+
+        try {
+            const response = await fetch("/save_answer_key", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ folder: "{{ folder }}", content: jsonString })
+            });
+            if (response.ok) alert("✅ Saved successfully!");
+        } catch (error) {
+            alert("❌ Save failed.");
+        } finally {
+            loadingOverlay.style.display = 'none';
+        }
+    }
+
+    // Event Listeners
+    saveButton.addEventListener('click', saveData);
+    copyButton.addEventListener('click', copyJSONData);
+    questionContainer.addEventListener('change', updateQuestionColors);
+
+    // Helper functions (updateQuestionColors, copyJSONData, etc.) remain as you had them...
+    function updateQuestionColors() {
+        const questions = document.querySelectorAll('.question');
+        questions.forEach(question => {
+            const checkboxes = question.querySelectorAll('input[type="checkbox"]');
+            const selectedOptions = Array.from(checkboxes).filter(c => c.checked);
+            question.className = 'question';
+            if (selectedOptions.length === 1) question.classList.add('green');
+            else if (selectedOptions.length > 1) question.classList.add('blue');
+            else question.classList.add('red');
+        });
+        if (dataSave) saveToLocalStorage();
+    }
+
+    function saveToLocalStorage() {
+        const answerObj = {};
+        document.querySelectorAll('.question').forEach((question, i) => {
+            const selected = Array.from(question.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
+            if (selected.length > 0) answerObj[i + 1] = selected;
+        });
+        localStorage.setItem('omr_saved_data', JSON.stringify(answerObj));
+    }
+
+    function loadFromLocalStorage() {
+        const saved = localStorage.getItem('omr_saved_data');
+        if (saved) processJSON(JSON.parse(saved));
+    }
+
+    async function copyJSONData() {
+        const jsonOutput = {};
+        document.querySelectorAll('.question').forEach((q, i) => {
+            const sel = Array.from(q.querySelectorAll('input[type="checkbox"]:checked')).map(n => n.value);
+            if (sel.length > 0) jsonOutput[i+1] = sel;
+        });
+        await navigator.clipboard.writeText(JSON.stringify(jsonOutput, null, 2));
+        alert('Copied!');
+    }
+});
+
+  </script>
+</head>
+
+<body>
+  <div class="filename-container">
+    <h5 id="filenameDisplay">New OMR Sheet</h5>
+  </div>
+  <div class="topButtons">
+    <button id="copyButon" class="action-button">Copy JSON data</button>
+    <h3 id="setButon">set:</h3>
+    <select id="setValue">
+      <option value="A">set - A</option>
+      <option value="B">set - B</option>
+      <option value="C">set - C</option>
+      <option value="D">set - D</option>
+      <option value="none" selected>No set</option>
+    </select>
+    <button id="saveButton" class="action-button">Save</button>
+  </div>
+  <form id="omrForm">
+    <div id="questionContainer"></div>
+  </form>
+  <div id="loadingOverlay">
+    <div id="loadingSpinner"></div>
+  </div>
+</body>
+
+</html>
