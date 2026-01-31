@@ -33,7 +33,7 @@
             border-top: 1px solid #333;
         }
         .footer-actions button {
-            border: none; border-radius: 8px; padding: 12px 5px;
+            border: none; border-radius: 8px; padding: 12px;
             color: white; font-weight: bold; cursor: pointer;
             font-size: 0.9rem;
         }
@@ -47,23 +47,21 @@
 
     <div id="list-container" style="padding-bottom: 100px;">
         {% for s in students %}
-        <div class="student-item" data-roll="{{ s.roll }}">
+        <div class="student-item">
             <span class="roll-number">{{ s.roll }}</span>
-            <input type="text" class="name-input" value="{{ s.name }}">
-            <button type="button" class="delete-btn" onclick="this.parentElement.remove()">🗑</button>
+            <input type="text" class="name-input" value="{{ s.name }}" onchange="saveChanges()">
+            <button type="button" class="delete-btn" onclick="this.parentElement.remove(); saveChanges();">🗑</button>
         </div>
         {% endfor %}
     </div>
 
     <div class="footer-actions">
-        <button type="button" onclick="addNewStudent()" style="flex: 1; background: #333;">➕ Add</button>
-        <button type="button" onclick="saveChanges()" style="flex: 1.5; background: #00897b;">💾 Save</button>
-        <button type="button" id="gitBtn" onclick="syncToGithub()" style="flex: 1; background: #24292e;">🐙 GitHub</button>
+        <button type="button" onclick="addNewStudent()" style="flex: 1; background: #333;">➕ Add Student</button>
+        <button type="button" id="gitBtn" onclick="syncToGithub()" style="flex: 1; background: #24292e;">🐙 Upload GitHub</button>
     </div>
 
 <script>
 function addNewStudent() {
-    // 1. Calculate the default "next" roll number
     const items = document.querySelectorAll('.student-item');
     let maxRoll = 0;
     let existingRolls = [];
@@ -75,49 +73,44 @@ function addNewStudent() {
     });
 
     const nextRollDefault = maxRoll + 1;
-
-    // 2. Prompt for Roll Number
-    let customRoll = prompt("Roll Number:", nextRollDefault);
-    if (customRoll === null || customRoll.trim() === "") return;
+    let customRollStr = prompt("Roll Number:", nextRollDefault);
+    if (customRollStr === null || customRollStr.trim() === "") return;
     
-    customRoll = parseInt(customRoll);
+    let customRoll = parseInt(customRollStr);
 
-    // 3. DUPLICATE CHECK
     if (existingRolls.includes(customRoll)) {
-        alert("Roll Number " + customRoll + " already exists! Please update the existing name or choose a different roll.");
+        alert("Roll " + customRoll + " already exists!");
         return;
     }
 
-    // 4. Prompt for Name
     const name = prompt("Enter Student Name:");
     if (name === null || name.trim() === "") return;
 
-    // 5. Create Row
     const container = document.getElementById('list-container');
     const div = document.createElement('div');
     div.className = 'student-item';
-    div.setAttribute('data-roll', customRoll);
     div.innerHTML = `
         <span class="roll-number">${customRoll}</span>
-        <input type="text" class="name-input" value="${name}">
-        <button type="button" class="delete-btn" onclick="this.parentElement.remove()">🗑</button>
+        <input type="text" class="name-input" value="${name}" onchange="saveChanges()">
+        <button type="button" class="delete-btn" onclick="this.parentElement.remove(); saveChanges();">🗑</button>
     `;
     
     container.appendChild(div);
     sortList(); 
     div.scrollIntoView({ behavior: 'smooth' });
+
+    // --- AUTO SAVE ---
+    saveChanges(true); // Passing true to silence the alert
 }
 
 function sortList() {
     const container = document.getElementById('list-container');
     const items = Array.from(container.getElementsByClassName('student-item'));
-    items.sort((a, b) => {
-        return parseInt(a.querySelector('.roll-number').innerText) - parseInt(b.querySelector('.roll-number').innerText);
-    });
+    items.sort((a, b) => parseInt(a.querySelector('.roll-number').innerText) - parseInt(b.querySelector('.roll-number').innerText));
     items.forEach(item => container.appendChild(item));
 }
 
-function saveChanges() {
+function saveChanges(silent = false) {
     const items = document.querySelectorAll('.student-item');
     const students = Array.from(items).map(item => ({
         roll: item.querySelector('.roll-number').innerText,
@@ -127,37 +120,33 @@ function saveChanges() {
     fetch('/save_rolls', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            filename: "{{ filename }}",
-            students: students
-        })
+        body: JSON.stringify({ filename: "{{ filename }}", students: students })
     })
     .then(r => r.json())
     .then(data => {
-        if (data.status === 'success') alert("File saved locally!");
-        else alert("Error: " + data.message);
+        if (data.status === 'success') {
+            if (!silent) console.log("Auto-saved");
+        } else {
+            alert("Save Error: " + data.message);
+        }
     });
 }
 
 function syncToGithub() {
     const btn = document.getElementById('gitBtn');
-    if(!confirm("Upload {{ filename }} to GitHub?")) return;
+    if(!confirm("Push changes to GitHub?")) return;
     
-    btn.innerText = "⏳ Uploading...";
+    btn.innerText = "⏳ Pushing...";
     btn.disabled = true;
 
     fetch(`/sync_roll_github?file={{ filename }}`)
     .then(r => r.json())
     .then(data => {
-        if(data.status === 'success') {
-            alert("✅ Successfully uploaded to GitHub!");
-        } else {
-            alert("❌ GitHub Error: " + (data.log || data.message));
-        }
+        if(data.status === 'success') alert("✅ Pushed to GitHub!");
+        else alert("❌ Error: " + JSON.stringify(data.message));
     })
-    .catch(err => alert("System Error: " + err))
     .finally(() => {
-        btn.innerText = "🐙 GitHub";
+        btn.innerText = "🐙 Upload GitHub";
         btn.disabled = false;
     });
 }
