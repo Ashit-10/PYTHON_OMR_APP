@@ -184,7 +184,9 @@ def run():
     output_filename = f"class-{cls}_{clean_subject}_{exam_no}.html"
     with open(output_filename, "w", encoding="utf-8") as f:
         f.write(html_content)
-    print(f"✅ HTML Generated: {output_filename}")
+    print()
+    print(f"✅ HTML Generated:\n {output_filename}")
+    print()
 
     # 5. Upload to GitHub (Automatic)
     session = requests.Session()
@@ -204,7 +206,7 @@ def run():
             sys.stdout.flush() # Forces line to show in browser tray immediately
 
         os.remove(output_filename)
-        print(f"\n✅ SYNC COMPLETE: Files available in {github_base}")
+        print(f"\n✅ SYNC COMPLETE")
         print()
         print(f"The webpage will be available in 5 minutes: {site_link}/{github_base}/{output_filename}")
         print()
