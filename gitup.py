@@ -15,16 +15,16 @@ import sys
 # sys.argv[0] is the script name
 # sys.argv[1] is tution, and so on...
 if len(sys.argv) > 3:
-    tution = sys.argv[1]
+    tuition = sys.argv[1]
     cls = sys.argv[2]
     subject = sys.argv[3]
 else:
     # Fallback if you run it manually without args
-    tution = "unknown"
+    tuition = "unknown"
     cls = "unknown"
     subject = "unknown"
 
-print(f"Syncing {tution} - Class {cls} - {subject}...")
+print(f"Syncing {tuition} - Class {cls} - {subject}...")
 # ... the rest of your git code ...
 
 
@@ -145,7 +145,7 @@ def run():
         html_content += f"""
             <tr>
                 <td><a href="{s['path']}">{s['name']}</a></td>
-                <td>{total_marks}</td>
+                <td>{get_total_marks}</td>
                 <td>{s['mark']}</td>
                 <td>{s['rank']}</td>
             </tr>"""
