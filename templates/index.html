@@ -19,17 +19,20 @@
 <section class="card" style="margin: 12px;">
   <h3>Project Folders</h3>
   <div id="folders">
-    {% for f in folders %}
-      {# Add this IF statement to filter out the temp folders #}
-      {% if f not in ['temp_input', 'temp_output'] %}
-        <div class="folder-card" onclick="openFolder('{{ f }}')">
-          📁 {{ f }}
-          <button class="mini danger delete-folder" onclick="event.stopPropagation(); deleteFolder('{{ f }}')">🗑</button>
+    {# Manually list the folders in your preferred order #}
+    {% set ordered_list = ['input', 'output', 'error_images', 'duplicates'] %}
+    
+    {% for target in ordered_list %}
+      {% if target in folders %}
+        <div class="folder-card" onclick="openFolder('{{ target }}')">
+          📁 {{ target }}
+          <button class="mini danger delete-folder" onclick="event.stopPropagation(); deleteFolder('{{ target }}')">🗑</button>
         </div>
       {% endif %}
     {% endfor %}
   </div>
 </section>
+
 
 
 <div id="modal" class="modal hidden">
