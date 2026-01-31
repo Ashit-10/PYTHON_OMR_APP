@@ -20,13 +20,17 @@
   <h3>Project Folders</h3>
   <div id="folders">
     {% for f in folders %}
-      <div class="folder-card" onclick="openFolder('{{ f }}')">
-        📁 {{ f }}
-        <button class="mini danger delete-folder" onclick="event.stopPropagation(); deleteFolder('{{ f }}')">🗑</button>
-      </div>
+      {# Add this IF statement to filter out the temp folders #}
+      {% if f not in ['temp_input', 'temp_output'] %}
+        <div class="folder-card" onclick="openFolder('{{ f }}')">
+          📁 {{ f }}
+          <button class="mini danger delete-folder" onclick="event.stopPropagation(); deleteFolder('{{ f }}')">🗑</button>
+        </div>
+      {% endif %}
     {% endfor %}
   </div>
 </section>
+
 
 <div id="modal" class="modal hidden">
   <div class="modal-content">
