@@ -6,83 +6,100 @@
 <title>File Browser</title>
 <link rel="stylesheet" href="/static/style.css">
 <style>
-  body { background: #f5f5f5; color: #111; margin: 0; padding: 0; }
-  header { background: #111; color: #fff; padding: 15px; position: sticky; top: 0; z-index: 100; }
+  body { background: #f0f2f5; color: #111; margin: 0; padding: 0; font-family: sans-serif; }
+  header { background: #111; color: #fff; padding: 15px; position: sticky; top: 0; z-index: 100; text-align: center; }
+
+  .search-bar {
+    padding: 10px;
+    display: flex;
+    gap: 8px;
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+  }
+  .search-bar input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+  .search-bar button { padding: 10px 15px; background: #2563eb; color: white; border: none; border-radius: 5px; }
 
   .file-container {
     display: flex;
     flex-direction: column;
-    align-items: center; /* Centers the cards */
+    align-items: center;
     gap: 15px;
-    padding: 10px 0;
+    padding: 15px 0;
   }
 
   .image-card {
     background: #fff;
-    width: 92%; /* Takes up nearly full screen width */
-    border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    width: 95%; /* Almost full width */
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
   }
 
-  /* THE MAGIC BOX: Forces the container to be vertical */
+  /* CONTAINER FOR ALL IMAGES */
   .img-wrapper {
     width: 100%;
-    position: relative;
-    overflow: hidden;
     background: #fff;
+    display: flex;
+    justify-content: center;
+    overflow: hidden;
   }
 
-  /* FOR OUTPUT FOLDER (NORMAL) */
+  /* FIX FOR OUTPUT (NORMAL) */
   .img-wrapper img {
     width: 100%;
     height: auto;
     display: block;
   }
 
-  /* FOR INPUT FOLDER (ROTATED FIX) */
+  /* THE "INPUT" FOLDER ROTATION FIX */
   .rotate-box {
-    /* This creates a vertical box (Height > Width) */
-    aspect-ratio: 0.75; 
-    display: grid;
-    place-items: center;
+    /* Force a vertical aspect ratio container */
+    height: 120vw; /* Height is 120% of the screen width */
+    position: relative;
   }
 
   .rotate-box img {
-    /* We make the image's "width" match the container's "height" */
-    width: 133.33vh !important; 
-    height: 92vw !important;
-    max-width: none !important;
-    transform: rotate(-90deg);
+    /* Swap width and height logic for rotation */
+    width: 120vw !important; /* This becomes the 'height' after rotation */
+    height: 95vw !important; /* This becomes the 'width' after rotation */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-90deg);
     object-fit: contain;
   }
 
   .file-actions {
-    padding: 10px 15px;
+    padding: 12px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    background: #fafafa;
     border-top: 1px solid #eee;
   }
 
-  .fname { font-size: 14px; font-weight: 600; color: #333; }
+  .fname { font-size: 13px; font-weight: bold; color: #555; }
 
-  /* Fullscreen Preview */
   #preview {
     position: fixed; top:0; left:0; width:100%; height:100%;
-    background: rgba(255,255,255,0.95); z-index: 9999;
+    background: rgba(0,0,0,0.9); z-index: 9999;
     display: none; justify-content: center; align-items: center;
   }
-  #preview img { max-width: 100%; max-height: 100%; box-shadow: 0 0 20px rgba(0,0,0,0.2); }
+  #preview img { max-width: 98%; max-height: 98%; }
 </style>
 </head>
 <body>
 
 <header onclick="location.href='/'">⬅ {{ path }}</header>
 
-<div class="file-container">
+{% if path == "output" or path == "class" in path %}
+<div class="search-bar">
+  <input id="rollSearch" placeholder="Search Roll Number...">
+  <button onclick="searchRoll()">Search</button>
+</div>
+{% endif %}
+
+<div class="file-container" id="fileBox">
 {% for item in items %}
   {% if not item.is_dir %}
   <div class="image-card" data-name="{{ item.name }}">
@@ -112,9 +129,19 @@ function openPreview(src){
     document.getElementById('previewImg').src = src;
     document.getElementById('preview').style.display = 'flex';
 }
+
+function searchRoll(){
+  let val = document.getElementById("rollSearch").value.toLowerCase();
+  document.querySelectorAll(".image-card").forEach(card => {
+    let name = card.getAttribute("data-name").toLowerCase();
+    card.style.display = name.includes(val) ? "flex" : "none";
+  });
+}
+
 function deleteFile(p){
     if(confirm("Delete?")) fetch("/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:p})}).then(()=>location.reload());
 }
+
 function renameFile(oldPath){
     let n = prompt("New name", oldPath.split('/').pop().replace('.jpg',''));
     if(!n) return;
