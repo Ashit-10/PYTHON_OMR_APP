@@ -21,7 +21,7 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.INFO)
 log.addFilter(FilterRequests())
 
-# --- CONFIGURATION & GLOBALS ---
+# --- CONFIGURATION ---
 app = Flask(__name__)
 BASE = os.getcwd()
 download_folder = "/sdcard/Download"
@@ -30,22 +30,25 @@ output_folder = "temp_output"
 extensions = ('.jpg', '.jpeg', '.png')
 STATIC_FOLDERS = ["input", "output", "duplicates", "error_images", "temp_input", "temp_output"]
 
+# --- GLOBAL STATE ---
 processing = False
 current_filename = ""
 latest_output_filename = ""
 error_occurred = False
 
-# --- OMR PROCESSING LOGIC (From Old App) ---
+# --- OMR BACKGROUND PROCESSING ---
 
 def move_and_process(file_path):
     global processing, current_filename, latest_output_filename, error_occurred
     processing = True
     error_occurred = False
 
-    for folder in [input_folder, output_folder, "output"]:
-        os.makedirs(folder, exist_ok=True)
+    # Ensure directories exist
+    os.makedirs(input_folder, exist_ok=True)
+    os.makedirs(output_folder, exist_ok=True)
+    os.makedirs("output", exist_ok=True)
 
-    # Clean temp folders for new scan
+    # Clean previous temp files
     shutil.rmtree(input_folder, ignore_errors=True)
     shutil.rmtree(output_folder, ignore_errors=True)
     os.makedirs(input_folder)
@@ -54,36 +57,56 @@ def move_and_process(file_path):
     current_filename = os.path.basename(file_path)
     shutil.move(file_path, os.path.join(input_folder, current_filename))
 
-    # Run the OMR core
+    # Trigger OMR Logic
     process = subprocess.Popen(["python3", "autoapp.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
 
+    if stdout: print(stdout.decode())
+    if stderr:
+        print(stderr.decode(), file=sys.stderr)
+        error_occurred = True
+
+    # Identify output
     files = [f for f in os.listdir(output_folder) if f.endswith(extensions)]
     if files:
         latest_output_filename = files[-1]
         src_path = os.path.join(output_folder, latest_output_filename)
+        
+        # Handle duplicate filenames in the permanent output folder
         dest_path = os.path.join("output", latest_output_filename)
-        shutil.copy(src_path, dest_path)
-    
+        if os.path.exists(dest_path):
+            count = 1
+            while True:
+                new_name = f"dup{count}_{latest_output_filename}"
+                dest_path = os.path.join("output", new_name)
+                if not os.path.exists(dest_path): break
+                count += 1
+            latest_output_filename = new_name
+        
+        shutil.copy(src_path, os.path.join("output", latest_output_filename))
+    else:
+        latest_output_filename = ""
+
     processing = False
 
 def watch_folder():
-    """Background thread to watch for new images and answer keys."""
+    """Background loop for file automation."""
     while True:
-        # Move answer keys from Download to project root
+        # 1. Sync Answer Keys
         for f in glob.glob(os.path.join(download_folder, '*ans*_key*.txt*')):
             try:
                 shutil.move(f, os.path.join(BASE, os.path.basename(f)))
+                print(f"Moved answer key: {f}")
             except: pass
 
-        # Watch for OMR images
+        # 2. Sync OMR Scans
         files = [f for f in os.listdir(download_folder) if f.startswith("OMR_") and f.endswith(extensions)]
         for f in files:
             path = os.path.join(download_folder, f)
             move_and_process(path)
         time.sleep(1)
 
-# --- FILE MANAGER LOGIC (From New App) ---
+# --- PROJECT MANAGEMENT LOGIC ---
 
 def get_project_folders():
     out = []
@@ -94,32 +117,25 @@ def get_project_folders():
             out.append(f)
     return sorted(out)
 
-# --- ROUTES ---
+# --- MAIN ROUTES ---
 
 @app.route("/")
-def index():
-    """The main Dashboard."""
+def dashboard():
+    """Main landing page with folder manager."""
     return render_template("index.html", folders=get_project_folders())
 
-@app.route("/scan_page")
-def scan_page():
-    """The Camera/Scanning UI."""
+@app.route("/scan")
+def scan_ui():
+    """Camera interface for scanning."""
     with open("camera_ui.html") as f:
         return f.read()
 
 @app.route("/results")
-def results():
-    """The old results viewing page."""
-    # Note: Use the HTML string from your original app.py results() function
-    return render_template_string(RESULTS_HTML_STRING) # Defined below
+def results_page():
+    """Real-time OMR result viewer."""
+    return render_template_string(RESULTS_HTML)
 
-@app.route('/status')
-def status():
-    return jsonify({
-        "processing": processing,
-        "filename": latest_output_filename,
-        "input_filename": current_filename
-    })
+# --- API ENDPOINTS ---
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -129,6 +145,14 @@ def upload():
     path = os.path.join(download_folder, current_filename)
     file.save(path)
     return jsonify({"message": "OK"})
+
+@app.route('/status')
+def status():
+    return jsonify({
+        "processing": processing,
+        "filename": latest_output_filename,
+        "input_filename": current_filename
+    })
 
 @app.route("/create_folder", methods=["POST"])
 def create_folder():
@@ -162,21 +186,27 @@ def browse():
     return render_template("browser.html", items=items, path=path)
 
 @app.route("/file")
-def file():
+def get_file():
     target = os.path.join(BASE, request.args.get("path", ""))
     return send_file(target) if os.path.exists(target) else ("Not Found", 404)
 
+@app.route("/delete", methods=["POST"])
+def delete_item():
+    path = os.path.join(BASE, request.json["path"])
+    if os.path.isdir(path): shutil.rmtree(path)
+    else: os.remove(path)
+    return jsonify(ok=True)
+
 @app.route("/answer_key")
-def answer_key():
+def answer_key_route():
     file_path = os.path.join(BASE, "answer_key.txt")
     content = ""
     if os.path.exists(file_path):
-        with open(file_path, "r") as f:
-            content = f.read()
+        with open(file_path, "r") as f: content = f.read()
     return render_template("50.html", content=content, folder=".")
 
 @app.route("/save_answer_key", methods=["POST"])
-def save_answer_key():
+def save_key():
     data = request.json
     try:
         with open(os.path.join(BASE, "answer_key.txt"), "w") as f:
@@ -185,19 +215,75 @@ def save_answer_key():
     except Exception as e:
         return jsonify(ok=False, error=str(e)), 500
 
-# Helper routes for images
+# Static file serving for OMR images
 @app.route('/temp_output/<path:filename>')
-def get_output(filename):
+def serve_output(filename):
     return send_from_directory("output", filename)
 
 @app.route('/temp_input/<path:filename>')
-def get_input(filename):
+def serve_input(filename):
     return send_from_directory("temp_input", filename)
 
-# Put your massive HTML string for the results page here
-RESULTS_HTML_STRING = """... (Copy the HTML from Old App Results function) ..."""
+# --- RESULTS HTML TEMPLATE ---
+
+RESULTS_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+  <title>OMR Result Viewer</title>
+  <style>
+    body { margin: 0; background: black; color: white; text-align: center; font-family: sans-serif; }
+    #status { margin-top: 20px; font-size: 22px; }
+    img { max-height: 80vh; width: auto; display: block; margin: 20px auto; border: 3px solid white; }
+    #timestamp { font-size: 150px; font-weight: bold; color: #00ffcc; }
+    .btn { padding: 10px 20px; font-size: 16px; background: #5451f0; color: white; border: none; cursor: pointer; }
+  </style>
+  <script>
+    let lastInput = ""; let lastOutput = "";
+    async function pollStatus() {
+      try {
+        const response = await fetch('/status');
+        const data = await response.json();
+        const statusDiv = document.getElementById("status");
+        const imgTag = document.getElementById("result-img");
+        const ts = document.getElementById("timestamp");
+
+        if (data.input_filename && data.input_filename !== lastInput) {
+            lastInput = data.input_filename;
+            statusDiv.textContent = "🟡 Processing New Image...";
+            imgTag.src = "/temp_input/" + data.input_filename + "?t=" + Date.now();
+            imgTag.style.display = "block";
+            ts.textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+        if (!data.processing && data.filename && data.filename !== lastOutput) {
+            lastOutput = data.filename;
+            statusDiv.textContent = "✅ Success!";
+            imgTag.src = "/temp_output/" + data.filename + "?t=" + Date.now();
+        }
+      } catch (err) { console.error(err); }
+    }
+    setInterval(pollStatus, 800);
+  </script>
+</head>
+<body>
+  <h2>📸 OMR LIVE FEED</h2>
+  <div id="status">⏳ Waiting for scan...</div>
+  <div id="timestamp"></div>
+  <img id="result-img" style="display:none;" />
+  <button class="btn" onclick="window.location.href='/'">🔙 Back to Dashboard</button>
+</body>
+</html>
+"""
 
 if __name__ == '__main__':
+    # Initialize background threads
     threading.Thread(target=watch_folder, daemon=True).start()
-    # Port 7860 to match your old setup
-    app.run(host='0.0.0.0', port=7860, ssl_context=('certs/cert.pem', 'certs/key.pem'), threaded=True)
+    
+    # Run server on port 7860 with SSL (mandatory for camera access in Chrome)
+    app.run(
+        host='0.0.0.0', 
+        port=7860, 
+        ssl_context=('certs/cert.pem', 'certs/key.pem'), 
+        threaded=True,
+        debug=False # Set to False for production/camera stability
+    )
