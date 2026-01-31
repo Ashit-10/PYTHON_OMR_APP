@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OMR Sheet</title>
+  <style>
+    /* Existing styles remain unchanged... */
+    body {
+      font-family: Arial, sans-serif;
+    }
+
+    .filename-container {
+      text-align: center;
+      margin: 20px 0;
+    }
+
+    .filename-container h5 {
+      font-size: 1rem;
+    }
+
+    .question {
+      margin: 20px 0;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: background-color 0.5s ease;
+    }
+
+    .question.green {
+      background-color: #c3e6cb;
+    }
+
+    .question.blue {
+      background-color: #9decf1;
+    }
+
+    .question.red {
+      background-color: #f8d7da;
+    }
+
+    .options {
+      display: flex;
+      gap: 20px;
+    }
+
+    .option {
+      display: flex;
+      align-items: center;
+    }
+
+    .option input[type="checkbox"] {
+      display: none;
+    }
+
+    .option label {
+      position: relative;
+      cursor: pointer;
+    }
+
+    .option label::before {
+      content: attr(data-text);
+      display: inline-block;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 30px;
+      font-size: 15px;
+      background-color: #fff;
+      color: #000;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .option input[type="checkbox"]:checked+label::before {
+      background-color: #4744f7;
+      color: #fff;
+    }
+
+    .action-button {
+      background-color: #5451f0;
+      color: #fff;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 15px;
+      height: 30px;
+      transition: background-color 0.3s ease;
+    }
+
+    .action-button:hover {
+      background-color: #3030a6;
+    }
+
+    #loadingOverlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255, 255, 255, 0.7);
+      z-index: 9999;
+    }
+
+    #loadingSpinner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 20px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #3498db;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .topButtons {
+      display: flex;
+      align-items: center;
+      flex-direction: row;
+      gap: 12px;
+    }
+
+    select {
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+      height: 40px;
+      font-size: 15px;
+    }
+
+    select:focus {
+      background-color: #f0f0f0;
+      color: #000;
+      border-color: #5451f0;
+    }
+  </style>
+  <script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+      const userInput = [];
+      let entryCount = 1;
+      let questionCount = 100;
+      const questionContainer = document.getElementById('questionContainer');
+      const setButton = document.getElementById('setButon');
+      const saveButton = document.getElementById('saveButton');
+      const copyButton = document.getElementById('copyButon');
+      const loadingOverlay = document.getElementById('loadingOverlay');
+      const filenameDisplay = document.getElementById('filenameDisplay');
+
+      function getQueryParameter(name) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
+      }
+
+      const filename = getQueryParameter('filename');
+      const dataSave = getQueryParameter('data') === 'save';
+      filenameDisplay.textContent = filename || "New OMR Sheet";
+      const showTopButtons = getQueryParameter('user');
+      const subjectName = getQueryParameter('subject');
+
+      if (showTopButtons === 'student') {
+        document.querySelector('.topButtons').style.display = 'none';
+      }
+      if (subjectName) {
+        filenameDisplay.textContent = subjectName;
+        document.getElementById('questionContainer').style.pointerEvents = 'none';
+      }
+
+      if (filename) {
+        fetch(filename)
+          .then(response => {
+            if (!response.ok) throw new Error('Network error');
+            return response.json();
+          })
+          .then(data => {
+            setSet();
+            questionCount = Array.isArray(data) ? data.length : Object.keys(data).length;
+            processJSON(data);
+          })
+          .catch(error => {
+            setSet();
+            displayNewOMRSheet();
+          });
+      } else {
+        setSet();
+        displayNewOMRSheet();
+      }
+
+      function setSet() {
+        if (filename) {
+          let select = document.getElementById('setValue');
+          let fname = filename.split('_ans_key.txt')[0];
+          select.value = ['A', 'B', 'C', 'D'].includes(fname.slice(-1)) ? fname.slice(-1) : 'none';
+        }
+      }
+
+      function displayNewOMRSheet() {
+        questionContainer.innerHTML = '';
+        for (let i = 1; i <= questionCount; i++) {
+          const questionDiv = createQuestionElement(i, []);
+          questionContainer.appendChild(questionDiv);
+        }
+
+        if (dataSave) {
+          loadFromLocalStorage();
+        }
+
+        updateQuestionColors();
+      }
+
+      function processJSON(data) {
+        for (const key in data) {
+          if (data.hasOwnProperty(key)) {
+            userInput[parseInt(key) - 1] = data[key];
+            entryCount = Math.max(entryCount, parseInt(key) + 1);
+          }
+        }
+        displayQuestions();
+      }
+
+      function displayQuestions() {
+        questionContainer.innerHTML = '';
+        userInput.forEach((options, index) => {
+          const questionDiv = createQuestionElement(index + 1, options);
+          questionContainer.appendChild(questionDiv);
+        });
+        updateQuestionColors();
+      }
+
+      function createQuestionElement(index, selectedOptions = []) {
+        const questionDiv = document.createElement('div');
+        questionDiv.className = 'question';
+        questionDiv.innerHTML = `<span>Question - ${index}:</span>`;
+        const optionsDiv = document.createElement('div');
+        optionsDiv.className = 'options';
+
+        ['A', 'B', 'C', 'D'].forEach((option) => {
+          const optionDiv = document.createElement('div');
+          optionDiv.className = 'option';
+          const checkboxId = `question${index}_${option}`;
+          optionDiv.innerHTML = `
+            <input type="checkbox" id="${checkboxId}" name="question${index}" value="${option}" ${selectedOptions.includes(option) ? 'checked' : ''}>
+            <label for="${checkboxId}" data-text="${option}"></label>
+          `;
+          optionsDiv.appendChild(optionDiv);
+        });
+
+        questionDiv.appendChild(optionsDiv);
+        return questionDiv;
+      }
+
+      function updateQuestionColors() {
+        const questions = document.querySelectorAll('.question');
+        questions.forEach(question => {
+          const checkboxes = question.querySelectorAll('input[type="checkbox"]');
+          const selectedOptions = Array.from(checkboxes).filter(c => c.checked);
+          question.className = 'question';
+          if (selectedOptions.length === 1) question.classList.add('green');
+          else if (selectedOptions.length > 1) question.classList.add('blue');
+          else question.classList.add('red');
+        });
+
+        if (dataSave) saveToLocalStorage();
+      }
+
+      function saveToLocalStorage() {
+        const answerObj = {};
+        const questions = document.querySelectorAll('.question');
+        questions.forEach((question, i) => {
+          const selected = Array.from(question.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
+          if (selected.length > 0) {
+            answerObj[i + 1] = selected;
+          }
+        });
+        localStorage.setItem('omr_saved_data', JSON.stringify(answerObj));
+      }
+
+      function loadFromLocalStorage() {
+        const saved = localStorage.getItem('omr_saved_data');
+        if (!saved) return;
+        const data = JSON.parse(saved);
+        for (const q in data) {
+          const opts = data[q];
+          opts.forEach(option => {
+            const checkbox = document.getElementById(`question${q}_${option}`);
+            if (checkbox) checkbox.checked = true;
+          });
+        }
+      }
+
+      saveButton.addEventListener('click', saveData);
+      copyButton.addEventListener('click', copyJSONData);
+      questionContainer.addEventListener('change', updateQuestionColors);
+
+      async function saveData(e) {
+                e.preventDefault();
+
+                const questions = document.querySelectorAll('.question');
+                let lastSelectedIndex = -1;
+
+                userInput.length = 0;
+
+                for (let i = 0; i < questions.length; i++) {
+                    const question = questions[i];
+                    const selectedOptions = Array.from(question.querySelectorAll('input[type="checkbox"]:checked')).map(input => input.value);
+                    if (selectedOptions.length > 0) {
+                        lastSelectedIndex = i;
+                    }
+                    userInput[i] = selectedOptions;
+                }
+
+                for (let i = 0; i <= lastSelectedIndex; i++) {
+                    if (userInput[i].length === 0) {
+                        alert(`Please select at least one option for Question ${i + 1}.`);
+                        return;
+                    }
+                }
+
+                const jsonOutput = {};
+                userInput.forEach((entry, index) => {
+                    if (entry.length > 0) {
+                        jsonOutput[index + 1] = entry;
+                    }
+                });
+
+                const jsonString = JSON.stringify(jsonOutput, null, 2);
+                loadingOverlay.style.display = 'block';
+
+                await sendToTelegram(jsonString, filename || 'OMR_Sheet.json');
+            }
+
+            async function copyJSONData() {
+                const jsonOutput = {};
+                userInput.forEach((entry, index) => {
+                    if (entry.length > 0) {
+                        jsonOutput[index + 1] = entry;
+                    }
+                });
+
+                const jsonString = JSON.stringify(jsonOutput, null, 2);
+                try {
+                    await navigator.clipboard.writeText(jsonString);
+                    alert('JSON data copied to clipboard!');
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                }
+            }
+
+            async function sendToTelegram(jsonString, filename) {
+                var newFilename = filename;
+                var select = document.getElementById('setValue');
+                var selectedSet = select.value;
+                if (selectedSet != 'none') {
+                    let parts = filename.split('_ans_key.txt');
+                    let fname = parts[0];
+                    if (fname.endsWith("A")) {
+                        fname = fname.slice(0, -2);
+                    } else if (fname.endsWith("B")) {
+                        fname = fname.slice(0, -2);
+
+                    } else if (fname.endsWith("C")) {
+                        fname = fname.slice(0, -2);
+
+                    } else if (fname.endsWith("D")) {
+                        fname = fname.slice(0, -2);
+                    }
+                    newFilename = fname + "_" + selectedSet + "_ans_key.txt";
+                }
+                console.log(newFilename);
+                const telegramBotToken = '1848113090:AAHt8IFMRQ5JD4DjKe-AihZJuiD48u-uyp0'; // Replace with your Telegram bot token
+                const chatId = '-1001774957665'; // Replace wit
+
+                const formData = new FormData();
+                formData.append('chat_id', chatId);
+                formData.append('caption', newFilename);
+                formData.append('document', new Blob([jsonString], { type: 'application/json' }), newFilename);
+
+              //  try {
+                   // const response = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendDocument`, {
+              //          method: 'POST',
+                //        body: formData
+              //      });
+
+               //     if (response.ok) {
+                  //      alert('JSON data saved and sent to Telegram successfully!');
+               //     } else {
+                 //       alert('Failed to send JSON data to Telegram.');
+                 //   }
+            //    } catch (error) {
+                  //  console.error('Error sending JSON data to Telegram:', error);
+                 //   alert('An error occurred while sending JSON data to Telegram.');
+             //   } finally {
+                  //  loadingOverlay.style.display = 'none';
+             //   }
+                try {
+    const response = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendDocument`, {
+        method: 'POST',
+        body: formData
+    });
+
+    if (response.ok) {
+        alert('JSON data sent to Telegram successfully!');
+
+        const shouldDownload = confirm('Do you want to download the file too?');
+        if (shouldDownload) {
+            const originalFile = formData.get('document'); // your uploaded file
+            const blob = new Blob([await originalFile.text()], { type: originalFile.type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'answer_key.txt'; // Now it will download exactly as 'answer_key.txt'
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    } else {
+        alert('Failed to send JSON data to Telegram.');
+    }
+} catch (error) {
+    console.error('Error sending JSON data to Telegram:', error);
+    alert('An error occurred while sending JSON data to Telegram.');
+} finally {
+    loadingOverlay.style.display = 'none';
+}
+
+
+            }
+
+      // ✅ Add Reset button dynamically if ?data=save
+      if (dataSave) {
+        const resetBtn = document.createElement('button');
+        resetBtn.textContent = 'Reset';
+        resetBtn.className = 'action-button';
+        resetBtn.style.backgroundColor = '#999';
+        resetBtn.addEventListener('click', () => {
+          if (confirm('Clear all saved answers?')) {
+            localStorage.removeItem('omr_saved_data');
+            location.reload();
+          }
+        });
+        document.querySelector('.topButtons').appendChild(resetBtn);
+      }
+    });
+  </script>
+</head>
+
+<body>
+  <div class="filename-container">
+    <h5 id="filenameDisplay">New OMR Sheet</h5>
+  </div>
+  <div class="topButtons">
+    <button id="copyButon" class="action-button">Copy JSON data</button>
+    <h3 id="setButon">set:</h3>
+    <select id="setValue">
+      <option value="A">set - A</option>
+      <option value="B">set - B</option>
+      <option value="C">set - C</option>
+      <option value="D">set - D</option>
+      <option value="none" selected>No set</option>
+    </select>
+    <button id="saveButton" class="action-button">Save</button>
+  </div>
+  <form id="omrForm">
+    <div id="questionContainer"></div>
+  </form>
+  <div id="loadingOverlay">
+    <div id="loadingSpinner"></div>
+  </div>
+</body>
+
+</html>
