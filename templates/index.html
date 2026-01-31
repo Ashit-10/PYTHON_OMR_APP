@@ -66,7 +66,11 @@ function createFolder(){
   });
 }
 
-function openAnswerKey(){ window.location.href="https://theomr.shop/50?filename=answer_key.txt&data=save" }
+function openAnswerKey() {
+    // This assumes you want to edit the answer key for the "input" folder by default
+    // or you can change "input" to whatever folder you are working in.
+    window.location.href = "/answer_key?folder=input";
+}
 
 function deleteFolder(f){
   if(!confirm("Delete folder "+f+"?")) return
