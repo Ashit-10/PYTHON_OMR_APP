@@ -10,6 +10,23 @@ GITHUB_TOKEN = "github_pat_11AW3Q5NA03TUD3xtLKlVT_roM8JJVee3VsNYkwtTJpfjoVtE46zL
 REPO_OWNER = "Ashit-10"
 REPO_NAME = "omr_exams"
 YEAR = "2026"
+import sys
+
+# sys.argv[0] is the script name
+# sys.argv[1] is tution, and so on...
+if len(sys.argv) > 3:
+    tution = sys.argv[1]
+    cls = sys.argv[2]
+    subject = sys.argv[3]
+else:
+    # Fallback if you run it manually without args
+    tution = "unknown"
+    cls = "unknown"
+    subject = "unknown"
+
+print(f"Syncing {tution} - Class {cls} - {subject}...")
+# ... the rest of your git code ...
+
 
 def get_total_marks():
     """Parses answer_key.txt as JSON and returns the count of items."""
@@ -51,16 +68,10 @@ def upload_to_github(session, local_path, github_path):
 
 def run():
     # 1. Inputs & Marks
-    total_marks = get_total_marks()
     
-    print("\n--- Select Tuition ---")
-    print("[1] wsc\n[2] mvm")
-    choice = input("Enter choice (1 or 2): ").strip()
-    tuition = "wsc" if choice == "1" else "mvm"
     
-    cls = input("Enter Class: ").strip()
-    raw_subject = input("Enter Subject Name: ").strip()
-    exam_no = input("Enter Exam Number: ").strip()
+    raw_subject = subject.strip()
+    exam_no = 1
 
     clean_subject = raw_subject.replace(" ", "").lower()
     folder_path = f"class-{cls}_{clean_subject}_{exam_no}"
