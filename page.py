@@ -91,14 +91,32 @@ def delete():
 
 import json
 
+# Add these to your App.py file
+
+@app.route("/answer_key")
+def answer_key():
+    # This gets the 'folder' from the URL (e.g., /answer_key?folder=input)
+    folder = request.args.get("folder", "input") 
+    
+    # Path to the specific answer_key.txt in THAT folder
+    file_path = os.path.join(BASE, folder, "answer_key.txt")
+    
+    content = ""
+    if os.path.exists(file_path):
+        with open(file_path, "r") as f:
+            content = f.read()
+            
+    # This sends the folder name and the file text into 50.html
+    return render_template("50.html", content=content, folder=folder)
+
 @app.route("/save_answer_key", methods=["POST"])
 def save_answer_key():
     data = request.json
     folder = data.get("folder")
-    content = data.get("content") # This will be the JSON string
+    content = data.get("content")
     
-    if not folder or not content:
-        return jsonify(ok=False, error="Missing data"), 400
+    if not folder:
+        return jsonify(ok=False, error="No folder specified"), 400
         
     file_path = os.path.join(BASE, folder, "answer_key.txt")
     
