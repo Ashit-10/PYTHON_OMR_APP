@@ -2,18 +2,70 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>File Browser</title>
 <link rel="stylesheet" href="/static/style.css">
+<style>
+  /* Mobile-first Fit-to-Screen Styles */
+  .file-container {
+    display: flex;
+    flex-direction: column; /* Stack images vertically */
+    gap: 20px;
+    padding: 10px;
+    background: #eee;
+  }
+
+  .image-card {
+    width: 100%; /* Full width of screen */
+    background: #fff;
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .image-card img {
+    width: 100%;      /* Stretch to fit card width */
+    height: auto;     /* Maintain aspect ratio */
+    max-height: 80vh; /* Don't let it get taller than the screen */
+    object-fit: contain;
+    border-radius: 8px;
+    margin-bottom: 10px;
+  }
+
+  .file-actions {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #eee;
+    padding-top: 10px;
+  }
+
+  .fname {
+    font-weight: bold;
+    font-size: 14px;
+    color: #333;
+    word-break: break-all;
+  }
+
+  /* Specific fix for the 'input' folder rotation */
+  .rotate-left {
+    transform: rotate(-90deg) scale(0.7); /* Scale down because rotation overflows width */
+    margin: 40px 0; /* Add space for the corners */
+  }
+</style>
 </head>
 <body>
 
-<header onclick="history.back()">⬅ {{ path }}</header>
+<header onclick="location.href='/'">⬅ {{ path }}</header>
 
 {% if path == "output" %}
-<div class="search-bar">
-  <input id="rollSearch" placeholder="Enter roll number">
-  <button onclick="searchRoll()">Search</button>
+<div class="search-bar" style="margin: 10px;">
+  <input id="rollSearch" placeholder="Roll Number" style="width:70%; padding:10px;">
+  <button onclick="searchRoll()" style="padding:10px;">🔍</button>
 </div>
 {% endif %}
 
@@ -25,12 +77,13 @@
       src="/file?path={{ path }}/{{ item.name }}"
       class="{% if path == 'input' %}rotate-left{% endif %}"
       onclick="openPreview(this.src)"
+      loading="lazy"
     >
     <div class="file-actions">
       <span class="fname">{{ item.name }}</span>
       <div>
-        <button class="mini" onclick="renameFile('{{ path }}/{{ item.name }}')">✏</button>
-        <button class="mini danger" onclick="deleteFile('{{ path }}/{{ item.name }}')">🗑</button>
+        <button class="mini" onclick="renameFile('{{ path }}/{{ item.name }}')">✏️</button>
+        <button class="mini danger" onclick="deleteFile('{{ path }}/{{ item.name }}')">🗑️</button>
       </div>
     </div>
   </div>
@@ -38,49 +91,53 @@
 {% endfor %}
 </div>
 
-<div id="preview" onclick="closePreview()">
-  <img id="previewImg">
+<div id="preview" onclick="closePreview()" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:2000; justify-content:center; align-items:center;">
+  <img id="previewImg" style="max-width:100%; max-height:100%;">
 </div>
 
 <script>
-function deleteFile(path){
+function deleteFile(filePath){
   if(!confirm("Delete this image?")) return
   fetch("/delete",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({ path })
+    body:JSON.stringify({ path: filePath })
   }).then(()=>location.reload())
 }
 
 function renameFile(oldPath){
-  let base = oldPath.split('/').pop().replace('.jpg','')
-  let folder = oldPath.split('/').slice(0,-1).join('/')
+  let parts = oldPath.split('/');
+  let filename = parts.pop();
+  let folder = parts.join('/');
+  let base = filename.replace(/\.[^/.]+$/, ""); // remove extension
+  
   let n = prompt("New filename", base)
   if(!n) return
+  
   fetch("/rename",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
     body:JSON.stringify({
       old: oldPath,
-      new: folder+"/"+n+".jpg"
+      new: folder + "/" + n + ".jpg"
     })
   }).then(()=>location.reload())
 }
 
 function openPreview(src){
-  previewImg.src = src
-  preview.style.display="flex"
+  document.getElementById("previewImg").src = src;
+  document.getElementById("preview").style.display="flex";
 }
 
 function closePreview(){
-  preview.style.display="none"
+  document.getElementById("preview").style.display="none";
 }
 
 function searchRoll(){
-  let r = rollSearch.value.trim()
+  let r = document.getElementById("rollSearch").value.trim();
   document.querySelectorAll(".image-card").forEach(card=>{
-    card.style.display = card.dataset.name.startsWith(r + "_") ? "block" : "none"
-  })
+    card.style.display = card.dataset.name.startsWith(r) ? "flex" : "none";
+  });
 }
 </script>
 
