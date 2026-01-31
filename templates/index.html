@@ -1,50 +1,58 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OMR Dashboard</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
 <header>OMR Scanner</header>
 
-<div class="banner">
-  <input id="cls" placeholder="Class">
-  <input id="sub" placeholder="Subject">
-  <button onclick="createFolder()">Create Folder</button>
-</div>
-
-<section>
+<section class="actions">
+  <button onclick="location.href='camera_ui.html'">📷 Scan OMR Sheet</button>
+  <button onclick="toggleBanner()">➕ Create Project Folder</button>
   <button onclick="openAnswerKey()">🗝 Answer Key</button>
 </section>
 
+<!-- Banner alert create folder -->
+<div id="createBanner" class="banner hidden">
+  <input id="cls" placeholder="Class">
+  <input id="sub" placeholder="Subject">
+  <button onclick="createFolder()">Create</button>
+</div>
+
 <section class="card">
-<h3>Project Folders</h3>
-<ul id="folders">
-{% for f in folders %}
-<li onclick="openFolder('{{f}}')">📁 {{f}}</li>
-{% endfor %}
-</ul>
+  <h3>Project Folders</h3>
+  <ul id="folders">
+    {% for f in folders %}
+      <li onclick="openFolder('{{ f }}')">📁 {{ f }}</li>
+    {% endfor %}
+  </ul>
 </section>
 
 <script>
-function openFolder(f){ location.href="/browse?path="+f }
+function openFolder(f){
+  location.href="/browse?path="+f
+}
+
+function toggleBanner(){
+  document.getElementById("createBanner").classList.toggle("hidden")
+}
 
 function createFolder(){
-  if(!cls.value || !sub.value){
+  let clsVal = cls.value.trim()
+  let subVal = sub.value.trim()
+  if(!clsVal || !subVal){
     alert("Class and Subject required")
     return
   }
   fetch("/create_folder",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({
-      class: cls.value.trim(),
-      subject: sub.value.trim()
-    })
-  })
-  .then(r=>r.json())
-  .then(d=>{
+    body:JSON.stringify({class:clsVal, subject:subVal})
+  }).then(r=>r.json()).then(d=>{
     folders.innerHTML=""
     d.folders.forEach(f=>{
       let li=document.createElement("li")
