@@ -6,35 +6,22 @@
 <title>File Browser</title>
 <link rel="stylesheet" href="/static/style.css">
 <style>
-  body { background: #fff; color: #111; margin: 0; padding: 0; font-family: sans-serif; }
+  body { background: #fff; color: #111; margin: 0; padding: 0; }
   header { background: #111; color: #fff; padding: 15px; position: sticky; top: 0; z-index: 100; text-align: center; }
 
-  .search-bar {
-    padding: 10px;
-    display: flex;
-    gap: 8px;
-    background: #fff;
-    border-bottom: 1px solid #ddd;
-  }
+  .search-bar { padding: 10px; display: flex; gap: 8px; background: #fff; border-bottom: 1px solid #ddd; }
   .search-bar input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }
   .search-bar button { padding: 10px 15px; background: #2563eb; color: white; border: none; border-radius: 5px; }
 
-  .file-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 15px;
-    padding: 15px 0;
-  }
+  .file-container { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 0; }
 
   .image-card {
     background: #fff;
-    width: 95%; /* 95% screen width */
-    border-radius: 8px;
-    box-shadow: 0 1px 5px rgba(0,0,0,0.1);
+    width: 98%; /* Maximum width */
+    border-radius: 4px;
+    border: 1px solid #ddd;
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
+    margin-bottom: 5px;
   }
 
   /* --- THE DYNAMIC BOX --- */
@@ -42,10 +29,9 @@
     width: 100%;
     background: #fff;
     overflow: hidden;
+    position: relative;
     display: flex;
     justify-content: center;
-    align-items: center;
-    position: relative;
   }
 
   /* OUTPUT FOLDER (NORMAL) */
@@ -55,42 +41,35 @@
     display: block;
   }
 
-  /* INPUT FOLDER (THE FIX) */
+  /* INPUT FOLDER (FULL WIDTH FIX) */
   .rotate-box {
-    /* Height must be large to fill the vertical gap */
-    height: 140vw; 
+    /* We set the height to exactly match the intended visual width of the OMR strip */
+    height: 60vw; 
   }
 
   .rotate-box img {
-    /* We make the image's "width" huge (140% of screen) */
-    /* When rotated -90deg, this "width" becomes the "height" */
-    width: 140vw !important; 
-    height: 95vw !important;
+    /* 1. We set the 'height' of the image to 100% of the screen width 
+       2. We set the 'width' of the image to auto
+    */
+    height: 100vw !important; 
+    width: auto !important;
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%) rotate(-90deg);
-    object-fit: cover;
+    object-fit: contain;
   }
 
   .file-actions {
-    padding: 10px 15px;
+    padding: 8px 12px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #f9f9f9;
-    border-top: 1px solid #eee;
+    background: #f1f1f1;
   }
 
-  .fname { font-size: 13px; font-weight: bold; color: #444; }
-
-  #noMatch {
-    display: none;
-    padding: 30px;
-    text-align: center;
-    color: #d32f2f;
-    font-weight: bold;
-  }
+  .fname { font-size: 12px; font-weight: bold; color: #333; }
+  #noMatch { display: none; padding: 20px; text-align: center; color: red; font-weight: bold; }
 </style>
 </head>
 <body>
@@ -137,7 +116,7 @@ function searchRoll(){
   cards.forEach(card => {
     let name = card.getAttribute("data-name").toLowerCase();
     if(name.includes(val)){
-      card.style.display = "flex";
+      card.style.display = "block";
       found++;
     } else {
       card.style.display = "none";
@@ -152,7 +131,7 @@ function openPreview(src){
 }
 
 function deleteFile(p){
-    if(confirm("Delete this image?")) fetch("/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:p})}).then(()=>location.reload());
+    if(confirm("Delete?")) fetch("/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:p})}).then(()=>location.reload());
 }
 
 function renameFile(oldPath){
