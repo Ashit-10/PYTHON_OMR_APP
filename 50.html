@@ -222,23 +222,29 @@
       }
 
       function processJSON(data) {
-        for (const key in data) {
-          if (data.hasOwnProperty(key)) {
+    // Instead of rebuilding the array based on data length, 
+    // just map the data into our existing 100-slot structure
+    for (const key in data) {
+        if (data.hasOwnProperty(key)) {
+            // Ensure the key maps correctly to the 1-100 index
             userInput[parseInt(key) - 1] = data[key];
-            entryCount = Math.max(entryCount, parseInt(key) + 1);
-          }
         }
-        displayQuestions();
-      }
+    }
+    displayQuestions();
+}
 
-      function displayQuestions() {
-        questionContainer.innerHTML = '';
-        userInput.forEach((options, index) => {
-          const questionDiv = createQuestionElement(index + 1, options);
-          questionContainer.appendChild(questionDiv);
-        });
-        updateQuestionColors();
-      }
+function displayQuestions() {
+    questionContainer.innerHTML = '';
+    // ALWAYS loop 1 to 100
+    for (let i = 1; i <= 100; i++) {
+        // Get options from userInput if they exist, otherwise empty array
+        const options = userInput[i - 1] || []; 
+        const questionDiv = createQuestionElement(i, options);
+        questionContainer.appendChild(questionDiv);
+    }
+    updateQuestionColors();
+}
+
 
       function createQuestionElement(index, selectedOptions = []) {
         const questionDiv = document.createElement('div');
@@ -301,10 +307,30 @@
         }
       }
 
+            // ... existing event listeners ...
       saveButton.addEventListener('click', saveData);
       copyButton.addEventListener('click', copyJSONData);
       questionContainer.addEventListener('change', updateQuestionColors);
 
+      // --- ADD THE RESET BUTTON LOGIC HERE ---
+      const topButtonsContainer = document.querySelector('.topButtons');
+      // I removed the "if (dataSave)" check so it ALWAYS shows up for you now
+      const resetBtn = document.createElement('button');
+      resetBtn.textContent = 'Reset';
+      resetBtn.className = 'action-button';
+      resetBtn.style.backgroundColor = '#999';
+      resetBtn.style.marginLeft = '10px'; 
+      resetBtn.addEventListener('click', (e) => {
+          e.preventDefault(); 
+          if (confirm('Clear all saved answers?')) {
+              localStorage.removeItem('omr_saved_data');
+              location.reload();
+          }
+      });
+      topButtonsContainer.appendChild(resetBtn);
+      // ----------------------------------------
+
+      
       
                 async function saveData(e) {
     e.preventDefault();
@@ -314,12 +340,14 @@
 
     // 1. Collect all checked options
     questions.forEach((question, i) => {
-        const selected = Array.from(question.querySelectorAll('input[type="checkbox"]:checked'))
-                             .map(input => input.value);
-        if (selected.length > 0) {
-            jsonOutput[i + 1] = selected;
-        }
-    });
+    const selected = Array.from(question.querySelectorAll('input[type="checkbox"]:checked'))
+                         .map(input => input.value);
+    // This 'if' ensures only questions with data get added to the JSON
+    if (selected.length > 0) {
+        jsonOutput[i + 1] = selected;
+    }
+});
+
 
     const jsonString = JSON.stringify(jsonOutput, null, 2);
     const currentFolder = "{{ folder }}"; 
@@ -351,12 +379,18 @@
 
 
             async function copyJSONData() {
-                const jsonOutput = {};
-                userInput.forEach((entry, index) => {
-                    if (entry.length > 0) {
-                        jsonOutput[index + 1] = entry;
-                    }
-                });
+    const jsonOutput = {};
+    const questions = document.querySelectorAll('.question');
+
+    questions.forEach((question, i) => {
+        const selected = Array.from(question.querySelectorAll('input[type="checkbox"]:checked'))
+                             .map(input => input.value);
+        if (selected.length > 0) {
+            jsonOutput[i + 1] = selected;
+        }
+    });
+
+    
 
                 const jsonString = JSON.stringify(jsonOutput, null, 2);
                 try {
