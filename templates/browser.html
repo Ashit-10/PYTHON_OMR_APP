@@ -6,7 +6,7 @@
 <title>File Browser</title>
 <link rel="stylesheet" href="/static/style.css">
 <style>
-  body { background: #f0f2f5; color: #111; margin: 0; padding: 0; font-family: sans-serif; }
+  body { background: #f5f5f5; margin: 0; padding: 0; font-family: sans-serif; }
   header { background: #111; color: #fff; padding: 15px; position: sticky; top: 0; z-index: 100; text-align: center; }
 
   .search-bar {
@@ -16,7 +16,7 @@
     background: #fff;
     border-bottom: 1px solid #ddd;
   }
-  .search-bar input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+  .search-bar input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }
   .search-bar button { padding: 10px 15px; background: #2563eb; color: white; border: none; border-radius: 5px; }
 
   .file-container {
@@ -29,85 +29,93 @@
 
   .image-card {
     background: #fff;
-    width: 95%; /* Almost full width */
-    border-radius: 10px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    width: 94%;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
-  /* CONTAINER FOR ALL IMAGES */
+  /* --- THE DYNAMIC BOX --- */
   .img-wrapper {
     width: 100%;
     background: #fff;
+    overflow: hidden;
     display: flex;
     justify-content: center;
-    overflow: hidden;
+    align-items: center;
+    position: relative;
   }
 
-  /* FIX FOR OUTPUT (NORMAL) */
+  /* NORMAL IMAGES (Output Folder) */
   .img-wrapper img {
     width: 100%;
     height: auto;
     display: block;
   }
 
-  /* THE "INPUT" FOLDER ROTATION FIX */
+  /* ROTATED IMAGES (Input Folder) */
   .rotate-box {
-    /* Force a vertical aspect ratio container */
-    height: 120vw; /* Height is 120% of the screen width */
-    position: relative;
+    height: 130vw; /* Forces the box to be tall */
   }
 
   .rotate-box img {
-    /* Swap width and height logic for rotation */
-    width: 120vw !important; /* This becomes the 'height' after rotation */
-    height: 95vw !important; /* This becomes the 'width' after rotation */
+    /* Scale it up significantly so it fits after rotation */
+    width: 130vw !important; 
+    height: 94vw !important;
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotate(-90deg);
-    object-fit: contain;
+    transform: rotate(-90deg);
+    object-fit: cover; /* Ensures it fills the space */
   }
 
   .file-actions {
-    padding: 12px;
+    padding: 12px 15px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #fafafa;
+    background: #fff;
     border-top: 1px solid #eee;
   }
 
-  .fname { font-size: 13px; font-weight: bold; color: #555; }
+  .fname { font-size: 13px; font-weight: bold; color: #444; }
 
+  #noMatch {
+    display: none;
+    padding: 40px;
+    text-align: center;
+    color: #888;
+    font-weight: bold;
+  }
+
+  /* Preview */
   #preview {
     position: fixed; top:0; left:0; width:100%; height:100%;
     background: rgba(0,0,0,0.9); z-index: 9999;
     display: none; justify-content: center; align-items: center;
   }
-  #preview img { max-width: 98%; max-height: 98%; }
 </style>
 </head>
 <body>
 
 <header onclick="location.href='/'">⬅ {{ path }}</header>
 
-{% if path == "output" or path == "class" in path %}
+{% if path == "output" or "class" in path %}
 <div class="search-bar">
-  <input id="rollSearch" placeholder="Search Roll Number...">
+  <input id="rollSearch" placeholder="Enter roll number..." oninput="searchRoll()">
   <button onclick="searchRoll()">Search</button>
 </div>
 {% endif %}
+
+<div id="noMatch">❌ No results found</div>
 
 <div class="file-container" id="fileBox">
 {% for item in items %}
   {% if not item.is_dir %}
   <div class="image-card" data-name="{{ item.name }}">
-    
     <div class="img-wrapper {% if path == 'input' %}rotate-box{% endif %}">
       <img src="/file?path={{ path }}/{{ item.name }}" onclick="openPreview(this.src)" loading="lazy">
     </div>
-
     <div class="file-actions">
       <span class="fname">{{ item.name }}</span>
       <div>
@@ -121,21 +129,31 @@
 </div>
 
 <div id="preview" onclick="this.style.display='none'">
-  <img id="previewImg">
+  <img id="previewImg" style="max-width:98%; max-height:98%;">
 </div>
 
 <script>
+function searchRoll(){
+  let val = document.getElementById("rollSearch").value.toLowerCase();
+  let cards = document.querySelectorAll(".image-card");
+  let foundCount = 0;
+
+  cards.forEach(card => {
+    let name = card.getAttribute("data-name").toLowerCase();
+    if(name.includes(val)){
+      card.style.display = "flex";
+      foundCount++;
+    } else {
+      card.style.display = "none";
+    }
+  });
+
+  document.getElementById("noMatch").style.display = (foundCount === 0) ? "block" : "none";
+}
+
 function openPreview(src){
     document.getElementById('previewImg').src = src;
     document.getElementById('preview').style.display = 'flex';
-}
-
-function searchRoll(){
-  let val = document.getElementById("rollSearch").value.toLowerCase();
-  document.querySelectorAll(".image-card").forEach(card => {
-    let name = card.getAttribute("data-name").toLowerCase();
-    card.style.display = name.includes(val) ? "flex" : "none";
-  });
 }
 
 function deleteFile(p){
