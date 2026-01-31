@@ -2,75 +2,74 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>File Browser</title>
 <link rel="stylesheet" href="/static/style.css">
 <style>
+  body { background: #1a1a1a; color: white; margin: 0; padding: 0; }
+  header { background: #000; padding: 15px; position: sticky; top: 0; z-index: 100; }
+
   .file-container {
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 10px;
     padding: 10px;
-    background: #f0f0f0;
   }
 
   .image-card {
-    background: #fff;
-    border-radius: 12px;
-    padding: 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    overflow: hidden; /* Critical to hide overflow from rotation */
+    background: #2a2a2a;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
-  /* CONTAINER FOR THE IMAGE */
+  /* CONTAINER THAT CLIPS THE BLANK SPACES */
   .img-wrapper {
     width: 100%;
+    position: relative;
+    background: #000;
+    overflow: hidden; /* This hides the 'ghost' white space */
     display: flex;
     justify-content: center;
     align-items: center;
-    background: #eee;
-    border-radius: 8px;
-    overflow: hidden;
   }
 
-  /* NORMAL IMAGES */
+  /* FOR OUTPUT FOLDER (NORMAL) */
   .img-wrapper img {
     width: 100%;
     height: auto;
     display: block;
   }
 
-  /* ROTATED IMAGES FIX (The "Input" Folder) */
-  /* We use a container with a set aspect ratio to "force" the height down */
-  .rotate-container {
-    aspect-ratio: 4 / 3; /* Typical OMR sheet ratio when turned sideways */
-    position: relative;
-    width: 100%;
-    height: auto;
+  /* FOR INPUT FOLDER (ROTATED) */
+  .rotate-fix {
+    /* This forces the container to a vertical shape before rotation */
+    aspect-ratio: 3 / 4; 
   }
 
-  .rotate-container img {
-    position: absolute;
-    width: 133.33%; /* (4/3) * 100 to compensate for the turn */
-    height: 75%;    /* (3/4) * 100 to compensate for the turn */
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotate(-90deg);
+  .rotate-fix img {
+    /* We make the image huge so when it rotates, it fills the width */
+    width: 140% !important; 
+    height: auto !important;
+    transform: rotate(-90deg);
     object-fit: contain;
   }
 
   .file-actions {
-    margin-top: 10px;
+    padding: 12px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    background: #333;
   }
 
-  .fname { font-size: 13px; font-weight: 600; color: #444; }
+  .fname { font-size: 14px; color: #eee; font-family: monospace; }
 
+  /* Fullscreen Preview */
   #preview {
     position: fixed; top:0; left:0; width:100%; height:100%;
-    background: rgba(0,0,0,0.9); z-index: 9999;
+    background: #000; z-index: 9999;
     display: none; justify-content: center; align-items: center;
   }
 </style>
@@ -84,7 +83,7 @@
   {% if not item.is_dir %}
   <div class="image-card" data-name="{{ item.name }}">
     
-    <div class="img-wrapper {% if path == 'input' %}rotate-container{% endif %}">
+    <div class="img-wrapper {% if path == 'input' %}rotate-fix{% endif %}">
       <img src="/file?path={{ path }}/{{ item.name }}" onclick="openPreview(this.src)" loading="lazy">
     </div>
 
@@ -109,11 +108,9 @@ function openPreview(src){
     document.getElementById('previewImg').src = src;
     document.getElementById('preview').style.display = 'flex';
 }
-
 function deleteFile(p){
     if(confirm("Delete?")) fetch("/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:p})}).then(()=>location.reload());
 }
-
 function renameFile(oldPath){
     let n = prompt("New name", oldPath.split('/').pop().replace('.jpg',''));
     if(!n) return;
