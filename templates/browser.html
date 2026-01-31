@@ -18,7 +18,6 @@
 {% endif %}
 
 <div class="file-container" id="fileBox">
-
 {% for item in items %}
   {% if not item.is_dir %}
   <div class="image-card" data-name="{{ item.name }}">
@@ -37,7 +36,6 @@
   </div>
   {% endif %}
 {% endfor %}
-
 </div>
 
 <div id="preview" onclick="closePreview()">
