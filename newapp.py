@@ -11,6 +11,7 @@ import json
 import logging
 from flask import Flask, send_from_directory, render_template, render_template_string, jsonify, request, send_file
 from datetime import datetime
+from flask import Flask, render_template, render_template_string, jsonify, request, send_file, Response
 
 # --- LOGGING FILTER ---
 class FilterRequests(logging.Filter):
@@ -199,11 +200,10 @@ import subprocess
 @app.route('/sync_roll_github')
 def sync_roll_github():
     filename = request.args.get('file')
-    # This assumes your gitup.py can handle a filename or 
-    # you just want to run the general sync logic
     def generate():
+        # Using 'python3' to be safe, adjust to 'python' if on Windows
         process = subprocess.Popen(
-            ['python', 'gitup.py', 'sync_file', filename], # Adjust args as per your gitup.py
+            ['python3', 'gitup.py', 'sync_file', filename], 
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True
@@ -212,6 +212,7 @@ def sync_roll_github():
             yield line
         process.wait()
     return Response(generate(), mimetype='text/plain')
+
 
 @app.route('/run_gitup')
 def run_gitup():
