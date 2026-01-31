@@ -1,52 +1,173 @@
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  font-family: system-ui;
-  background: #f2f2f2;
+/* ===== Global Reset ===== */
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f2f2f2;
+  color: #111;
+}
+
+/* ===== Header ===== */
 header {
   background: #111;
   color: #fff;
-  padding: 14px;
   text-align: center;
+  padding: 14px;
   font-size: 18px;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
-section, .card {
+/* ===== Layout Sections ===== */
+section,
+.card {
+  background: #ffffff;
   margin: 12px;
-  background: #fff;
-  padding: 12px;
-  border-radius: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
 }
 
+/* ===== Buttons ===== */
 button {
   width: 100%;
   padding: 12px;
   margin-top: 8px;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   background: #2563eb;
-  color: white;
+  color: #ffffff;
   font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
 }
 
+button:active {
+  background: #1e40af;
+}
+
+button.mini {
+  width: auto;
+  padding: 4px 8px;
+  font-size: 14px;
+  border-radius: 6px;
+  margin-left: 6px;
+}
+
+button.danger {
+  background: #dc2626;
+}
+
+button.danger:active {
+  background: #991b1b;
+}
+
+/* ===== Inputs ===== */
 input {
   width: 100%;
   padding: 10px;
-  margin-top: 6px;
+  margin-top: 8px;
+  font-size: 15px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
 }
 
+input:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+/* ===== Folder List ===== */
 ul {
   list-style: none;
   padding: 0;
+  margin: 0;
 }
 
-.filelist li, ul li {
+ul li {
+  padding: 12px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  background: #f9f9f9;
+  font-size: 15px;
+}
+
+/* ===== File Manager ===== */
+.file-container {
   padding: 10px;
-  border-bottom: 1px solid #ddd;
+}
+
+/* Folder Row */
+.folder-row {
+  padding: 14px;
+  margin-bottom: 8px;
+  background: #ffffff;
+  border-radius: 12px;
+  font-size: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+/* Image Card */
+.image-card {
+  background: #ffffff;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.image-card img {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: #000;
+}
+
+/* File Actions */
+.file-actions {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+}
+
+.fname {
+  font-size: 13px;
+  color: #333;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== Fullscreen Image Preview ===== */
+#preview {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.92);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+#preview img {
+  max-width: 96%;
+  max-height: 96%;
+  border-radius: 8px;
+}
+
+/* ===== Text Helpers ===== */
+p {
+  margin-top: 8px;
+  font-size: 14px;
 }
