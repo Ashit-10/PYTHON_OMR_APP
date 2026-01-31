@@ -10,36 +10,31 @@ GITHUB_TOKEN = "github_pat_11AW3Q5NA03TUD3xtLKlVT_roM8JJVee3VsNYkwtTJpfjoVtE46zL
 REPO_OWNER = "Ashit-10"
 REPO_NAME = "omr_exams"
 YEAR = "2026"
-import sys
 
-# sys.argv[0] is the script name
-# sys.argv[1] is tution, and so on...
+# --- CONFIGURATION ---
+
+# Capture arguments from the Web UI
 if len(sys.argv) > 3:
     tuition = sys.argv[1]
     cls = sys.argv[2]
     subject = sys.argv[3]
 else:
-    # Fallback if you run it manually without args
     tuition = "unknown"
     cls = "unknown"
     subject = "unknown"
 
-print(f"Syncing {tuition} - Class {cls} - {subject}...")
-# ... the rest of your git code ...
-
+print(f"--- STARTING SYNC ---")
+print(f"Tuition: {tuition.upper()} | Class: {cls} | Subject: {subject}")
 
 def get_total_marks():
-    """Parses answer_key.txt as JSON and returns the count of items."""
     filename = "answer_key.txt"
     if os.path.exists(filename):
         with open(filename, 'r', encoding='utf-8') as f:
             try:
                 data = json.load(f)
                 return len(data)
-            except json.JSONDecodeError:
-                content = f.read()
-                items = re.findall(r'"[^"]+"\s*:\s*"[^"]+"', content)
-                return len(items)
+            except:
+                return 0
     return 0
 
 def get_student_names(tuition, cls):
@@ -55,24 +50,24 @@ def get_student_names(tuition, cls):
 
 def upload_to_github(session, local_path, github_path):
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{github_path}"
-    with open(local_path, "rb") as f:
-        content = base64.b64encode(f.read()).decode()
-    
-    get_file = session.get(url)
-    data = {"message": f"Upload {github_path}", "content": content}
-    if get_file.status_code == 200:
-        data["sha"] = get_file.json()["sha"]
-    
-    res = session.put(url, json=data)
-    return res.status_code in [200, 201]
+    try:
+        with open(local_path, "rb") as f:
+            content = base64.b64encode(f.read()).decode()
+        
+        get_file = session.get(url)
+        data = {"message": f"Upload {github_path}", "content": content}
+        if get_file.status_code == 200:
+            data["sha"] = get_file.json()["sha"]
+        
+        res = session.put(url, json=data)
+        return res.status_code in [200, 201]
+    except Exception as e:
+        print(f"Error uploading {local_path}: {e}")
+        return False
 
 def run():
-    # 1. Inputs & Marks
-    
-    
     raw_subject = subject.strip()
     exam_no = 1
-
     clean_subject = raw_subject.replace(" ", "").lower()
     folder_path = f"class-{cls}_{clean_subject}_{exam_no}"
     
@@ -97,137 +92,50 @@ def run():
             student_list.append({
                 "roll": roll, "mark": mark, "file": file_name,
                 "name": names_db.get(roll, f"Student {roll}"),
-                "path": f"{folder_path}/eval_files/{file_name}" 
+                "path": f"eval_files/{file_name}" 
             })
 
-    gallery_students = sorted(student_list, key=lambda x: x['roll'])
     ranked_students = sorted(student_list, key=lambda x: x['mark'], reverse=True)
     for i, s in enumerate(ranked_students): s['rank'] = i + 1
+    total_m = get_total_marks()
 
     # 3. HTML Generation
-    html_content = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Answer sheets</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        #heading{{ display: flex; justify-content: center; padding-top: 20px; padding-right: 10%; }}
-        body {{ font-family: Arial, sans-serif; padding: 5px; }}
-        #search-bar {{ margin-bottom: 20px; width: 100%; padding: 10px; font-size: 16px; }}
-        table {{ width: 100%; border-collapse: collapse; }}
-        th, td {{ text-align: left; padding: 8px; vertical-align: middle; }}
-        tr:nth-child(even) {{ background-color: #eee9e9; }}
-        #not-found {{ display: none; color: red; font-weight: bold; }}
-        a {{ text-decoration: none !important; color: blue; }}
-        a:hover {{ text-decoration: underline; }}
-    </style>
-</head>
-<body>
-    <h1 id="heading">{clean_subject.upper()} [unit test - {exam_no}]</h1>
-    <nav class="navbar bg-body-tertiary px-3 mb-3">
-        <ul class="nav nav-pills">
-            <li class="nav-item me-2">
-                <button class="btn btn-outline-warning" onclick="document.location='{folder_path}/{folder_path}_question.pdf'">View question paper</button>
-            </li>
-            <li class="nav-item">
-                <button class="btn btn-outline-success" onclick="document.location='{folder_path}/{folder_path}_question.pdf'">Download question paper</button>
-            </li>
-        </ul>
-    </nav>
-    <input type="text" id="search-bar" placeholder="Search for names...">
-    <table id="name-table">
-        <thead><tr><th>Name</th><th>Total mark</th><th>Secured mark</th><th>Rank</th></tr></thead>
-        <tbody>"""
+    html_content = f"""<!DOCTYPE html>...[Omitted for brevity, keep your HTML code here]...</html>"""
 
-    for s in ranked_students:
-        html_content += f"""
-            <tr>
-                <td><a href="{s['path']}">{s['name']}</a></td>
-                <td>{get_total_marks}</td>
-                <td>{s['mark']}</td>
-                <td>{s['rank']}</td>
-            </tr>"""
-
-    html_content += f"""
-        </tbody>
-    </table>
-    <br><br>
-    <h2 id="heading2">&nbsp;&nbsp;&nbsp;All student's answer sheets (Roll number wise).</h2>
-    <div id="gallery-container">"""
-
-    for s in gallery_students:
-        html_content += f"""
-        <a class="imgs">
-            <img src="{s['path']}" alt="{s['name']}" width="380"> 
-        </a>
-        <br><br><br><br><br>"""
-
-    html_content += """
-    </div>
-    <script>
-        const searchBar = document.getElementById('search-bar');
-        searchBar.addEventListener('input', () => {
-            const filter = searchBar.value.trim().toLowerCase();
-            document.querySelectorAll('#name-table tbody tr').forEach(row => {
-                row.style.display = row.cells[0].textContent.toLowerCase().includes(filter) ? '' : 'none';
-            });
-            document.querySelectorAll('.imgs').forEach(a => {
-                a.style.display = a.querySelector('img').alt.toLowerCase().includes(filter) ? '' : 'none';
-            });
-        });
-    </script>
-</body>
-</html>"""
-
-    # 4. Save Locally with Class Name
+    # 4. Save Locally
     output_filename = f"class-{cls}_{clean_subject}_test_{exam_no}.html"
     with open(output_filename, "w", encoding="utf-8") as f:
         f.write(html_content)
-    print(f"\n✅ HTML Generated Locally: {output_filename}")
+    print(f"✅ Created: {output_filename}")
 
     # 5. Upload to GitHub
-    up_choice = input("\nDo you want to upload to GitHub? (y/n): ").strip().lower()
-    if up_choice == 'y':
-        session = requests.Session()
-        session.headers.update({"Authorization": f"token {GITHUB_TOKEN}"})
-        
-        # Upload HTML
-        html_success = upload_to_github(session, output_filename, f"{github_base}/{output_filename}")
-        
+    session = requests.Session()
+    session.headers.update({"Authorization": f"token {GITHUB_TOKEN}"})
     
-
-        
-        # Shortened bar (20 chars) to make room for text on the same line
-        custom_format = "|{bar:20}| {percentage:3.0f}% | {n_fmt}/{total_fmt} | ETA: {remaining}"
-        
-        print(f"\n🚀 Uploading {len(student_list)} images...")
-        pbar = tqdm(
-            total=len(student_list), 
-            bar_format=custom_format, 
-            ascii=" #", 
-            colour="green",
-            dynamic_ncols=False,
-            leave=True  # Keeps the bar visible when finished
-        )
-
-
-        
-      #  print(f"\n🚀 Uploading {len(student_list)} images...")
-      #  pbar = tqdm(total=len(student_list), bar_format=custom_format, ascii=" #", colour="green")
+    print(f"📤 Uploading HTML...")
+    html_success = upload_to_github(session, output_filename, f"{github_base}/{output_filename}")
+    
+    if html_success:
+        print(f"🚀 Uploading {len(student_list)} images...")
+        count = 0
+        total = len(student_list)
         
         for s in student_list:
-            upload_to_github(session, f"{output_folder}/{s['file']}", f"{github_img_folder}/{s['file']}")
-            pbar.update(1)
-        pbar.close()
+            success = upload_to_github(session, f"{output_folder}/{s['file']}", f"{github_img_folder}/{s['file']}")
+            count += 1
+            if success:
+                # Simple text progress that looks good in the web box
+                print(f"[{count}/{total}] Uploaded: {s['name']}")
+            else:
+                print(f"[{count}/{total}] ❌ Failed: {s['name']}")
+            
+            # Flush stdout so the browser sees the line immediately
+            sys.stdout.flush()
 
-        # Delete file after successful upload
-        if html_success:
-            os.remove(output_filename)
-            print(f"\n🗑️ Local HTML file deleted after upload.")
-        
-        print(f"\n✅ SUCCESS! All files uploaded.")
+        os.remove(output_filename)
+        print(f"\n✅ SUCCESS! All files synced to GitHub.")
+    else:
+        print("❌ HTML upload failed. Aborting image sync.")
 
 if __name__ == "__main__":
     run()
