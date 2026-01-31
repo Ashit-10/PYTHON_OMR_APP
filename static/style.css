@@ -1,207 +1,259 @@
-/* ===== RESET ===== */
+/* =====================
+   GLOBAL RESET
+===================== */
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
+  margin: 0;
+  padding: 0;
 }
 
 html, body {
-  margin: 0;
-  padding: 0;
+  width: 100%;
   height: 100%;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #0e0e11;
-  color: #eaeaea;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f5f5f5;
+  color: #111;
 }
 
-/* ===== LAYOUT ===== */
-.page {
-  padding: 12px;
-}
-
-/* ===== SECTION TITLES ===== */
-.section-title {
-  font-size: 15px;
-  font-weight: 600;
-  margin: 14px 6px 8px;
-  color: #cfcfcf;
-}
-
-/* ===== FOLDER GRID ===== */
-.folder-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 12px;
-}
-
-/* ===== FOLDER CARD ===== */
-.folder {
-  background: #1a1a1f;
-  border-radius: 10px;
-  padding: 14px 8px;
+/* =====================
+   HEADER
+===================== */
+header {
+  background: #111;
+  color: #fff;
+  padding: 14px;
   text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 100;
   cursor: pointer;
-  user-select: none;
+}
+
+/* =====================
+   ACTION BUTTONS
+===================== */
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px;
+}
+
+.actions button {
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.actions button:active {
+  background: #1e40af;
+}
+
+/* =====================
+   PROJECT FOLDERS
+===================== */
+#folders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.folder-card {
+  background: #fff;
+  padding: 14px;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
   position: relative;
+  cursor: pointer;
+  flex: 1 1 45%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: transform 0.1s;
 }
 
-.folder:active {
-  transform: scale(0.97);
+.folder-card:hover {
+  transform: scale(1.02);
 }
 
-/* folder icon */
-.folder-icon {
-  font-size: 28px;
-  margin-bottom: 6px;
-}
-
-/* folder name */
-.folder-name {
-  font-size: 13px;
-  word-break: break-word;
-}
-
-/* ===== LONG PRESS DELETE (HIDDEN BY DEFAULT) ===== */
-.folder .delete-folder {
-  display: none;
+.folder-card .delete-folder {
   position: absolute;
   top: 6px;
   right: 6px;
-  background: #c62828;
-  border: none;
-  border-radius: 50%;
-  width: 26px;
-  height: 26px;
-  color: #fff;
-  font-size: 14px;
-  cursor: pointer;
+  display: none;
 }
 
-/* JS MUST ADD THIS CLASS ON LONG PRESS */
-.folder.show-delete .delete-folder {
-  display: block;
+/* =====================
+   MODAL POPUP
+===================== */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right:0;
+  bottom:0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
 }
 
-/* ===== IMAGE GRID ===== */
-.image-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 10px;
+.modal.hidden { display: none; }
+
+.modal-content {
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-/* ===== IMAGE CARD ===== */
-.image-card {
-  background: #16161a;
-  border-radius: 10px;
-  overflow: hidden;
-  position: relative;
+.modal-content input {
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
 }
 
-/* IMAGE FITS SCREEN (MOBILE SAFE) */
-.image-card img {
-  width: 100%;
-  height: auto;
-  display: block;
-  object-fit: contain;
-  background: #000;
-}
-
-/* ===== IMAGE ACTION BAR ===== */
-.image-actions {
+.modal-buttons {
   display: flex;
   justify-content: space-between;
-  padding: 6px;
-  gap: 6px;
+  gap: 8px;
 }
 
-.image-actions button {
+.modal-buttons button {
   flex: 1;
-  font-size: 12px;
-  padding: 6px;
+  padding: 10px;
   border-radius: 6px;
   border: none;
   cursor: pointer;
 }
 
-.btn-edit {
-  background: #2e7d32;
-  color: #fff;
-}
+.modal-buttons button:first-child { background: #2563eb; color:#fff; }
+.modal-buttons button:first-child:active { background: #1e40af; }
 
-.btn-delete {
-  background: #c62828;
-  color: #fff;
-}
+.modal-buttons button:last-child { background:#ccc; }
+.modal-buttons button:last-child:active { background:#999; }
 
-/* ===== SEARCH BAR (OUTPUT FOLDER) ===== */
-.search-bar {
-  width: 100%;
+/* =====================
+   IMAGE CARDS
+===================== */
+.file-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
   padding: 10px;
-  margin: 8px 0 12px;
-  border-radius: 8px;
-  border: none;
-  font-size: 14px;
 }
 
-/* ===== MODAL / ALERT BANNER ===== */
-.modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.65);
-  display: none;
+.image-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  z-index: 999;
 }
 
-.modal.show {
-  display: flex;
-}
-
-.modal-box {
-  background: #1c1c22;
-  width: 90%;
-  max-width: 360px;
-  border-radius: 12px;
-  padding: 16px;
-}
-
-.modal-box h3 {
-  margin: 0 0 10px;
-  font-size: 16px;
-}
-
-.modal-box input {
-  width: 100%;
-  padding: 10px;
-  border-radius: 8px;
-  border: none;
-  margin-bottom: 12px;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.modal-actions button {
-  flex: 1;
-  padding: 10px;
-  border-radius: 8px;
-  border: none;
+.image-card img {
+  max-width: 100%;
+  max-height: 120px;
+  object-fit: contain;
+  border-radius: 4px;
   cursor: pointer;
 }
 
-.btn-cancel {
-  background: #444;
+.file-actions {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.fname {
+  font-size: 0.8em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* =====================
+   FULLSCREEN PREVIEW
+===================== */
+#preview {
+  position: fixed;
+  top:0; left:0; right:0; bottom:0;
+  background: rgba(0,0,0,0.8);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+}
+
+#preview img {
+  max-width: 95%;
+  max-height: 95%;
+}
+
+/* =====================
+   ROTATE INPUT IMAGES
+===================== */
+.rotate-left {
+  transform: rotate(-90deg);
+}
+
+/* =====================
+   SEARCH BAR
+===================== */
+.search-bar {
+  padding: 6px;
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+
+.search-bar input {
+  flex: 1;
+  padding: 6px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+.search-bar button {
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+
+/* =====================
+   MINI BUTTONS
+===================== */
+button.mini {
+  width: auto;
+  padding: 4px 8px;
+  font-size: 13px;
+  border-radius: 6px;
+  margin-left: 6px;
+}
+
+button.danger {
+  background: #c00;
   color: #fff;
 }
 
-.btn-confirm {
-  background: #1976d2;
-  color: #fff;
+/* =====================
+   RESPONSIVE ADJUSTMENTS
+===================== */
+@media screen and (max-width: 500px){
+  .folder-card { flex:1 1 100%; }
+  .file-container { grid-template-columns: repeat(auto-fill, minmax(90px,1fr)); }
 }
-
-/* ===== IMPORTANT ===== */
-/* NOTHING here blocks pointer events */
-/* NO overlays intercept clicks */
-/* Folder click & long-press are JS-only */
