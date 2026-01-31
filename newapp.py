@@ -123,6 +123,34 @@ def get_project_folders():
 
 # --- MAIN ROUTES ---
 import json
+import os
+
+
+@app.route("/edit_rolls")
+def edit_rolls():
+    filename = request.args.get('file')
+    students = []
+    if os.path.exists(filename):
+        with open(filename, 'r') as f:
+            for line in f:
+                if ':' in line:
+                    roll, name = line.strip().split(':', 1)
+                    students.append({'roll': roll, 'name': name})
+    return render_template("rolls_editor.html", students=students, filename=filename)
+
+@app.route("/save_rolls", methods=["POST"])
+def save_rolls():
+    data = request.json
+    filename = data.get('filename')
+    students = data.get('students')
+    
+    try:
+        with open(filename, 'w') as f:
+            for s in students:
+                f.write(f"{s['roll']}:{s['name']}\n")
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/update_config", methods=["POST"])
 def update_config():
