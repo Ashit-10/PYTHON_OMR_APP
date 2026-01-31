@@ -20,11 +20,9 @@
   <h3>Project Folders</h3>
   <div id="folders">
     {% for f in folders %}
-      <div class="folder-card" 
-           oncontextmenu="showDeleteOption(event,'{{ f }}');return false;" 
-           onclick="openFolder('{{ f }}')">
+      <div class="folder-card">
         📁 {{ f }}
-        <button class="mini danger delete-folder hidden" onclick="deleteFolder('{{ f }}')">🗑</button>
+        <button class="mini danger delete-folder" onclick="deleteFolder('{{ f }}')">🗑</button>
       </div>
     {% endfor %}
   </div>
@@ -44,45 +42,42 @@
 </div>
 
 <script>
+const foldersDiv = document.getElementById("folders");
+
 function openFolder(f){ location.href="/browse?path="+f }
 
 function showModal(){ document.getElementById("modal").classList.remove("hidden") }
 function closeModal(){ document.getElementById("modal").classList.add("hidden") }
 
 function createFolder(){
-  let clsVal = cls.value.trim()
-  let subVal = sub.value.trim()
-  if(!clsVal || !subVal){
-    alert("Class and Subject required")
-    return
-  }
+  const clsVal = cls.value.trim()
+  const subVal = sub.value.trim()
+  if(!clsVal || !subVal){ alert("Class and Subject required"); return; }
   fetch("/create_folder",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
     body:JSON.stringify({class:clsVal, subject:subVal})
   }).then(r=>r.json()).then(d=>{
-    const foldersDiv=document.getElementById("folders")
     foldersDiv.innerHTML=""
     d.folders.forEach(f=>{
-      const div=document.createElement("div")
+      const div = document.createElement("div")
       div.className="folder-card"
       div.innerText="📁 "+f
       div.onclick=()=>openFolder(f)
-      if(f.startsWith("class")) div.oncontextmenu=(e)=>{showDeleteOption(e,f); return false;}
+      const btn = document.createElement("button")
+      btn.className="mini danger delete-folder"
+      btn.innerText="🗑"
+      btn.style.display="none"
+      btn.onclick=(e)=>{ e.stopPropagation(); deleteFolder(f); }
+      div.appendChild(btn)
       foldersDiv.appendChild(div)
+      attachLongPress(div, f)
     })
     closeModal()
   })
 }
 
-function showDeleteOption(e,f){
-  e.stopPropagation()
-  const btns=document.querySelectorAll(".delete-folder")
-  btns.forEach(b=>b.classList.add("hidden"))
-  const parent=e.currentTarget
-  const btn=parent.querySelector(".delete-folder")
-  if(btn) btn.classList.remove("hidden")
-}
+function openAnswerKey(){ location.href="https://theomr.shop/50?filename=answer_key.txt&data=save" }
 
 function deleteFolder(f){
   if(!confirm("Delete folder "+f+"?")) return
@@ -93,9 +88,27 @@ function deleteFolder(f){
   }).then(()=>location.reload())
 }
 
-function openAnswerKey(){
-  location.href="https://theomr.shop/50?filename=answer_key.txt&data=save"
+/* =====================
+   LONG PRESS DETECTION
+===================== */
+let longPressTimer;
+function attachLongPress(el, folderName){
+    el.addEventListener("touchstart", function(e){
+        if(!folderName.startsWith("class")) return;
+        longPressTimer = setTimeout(()=>{
+            const btn = el.querySelector(".delete-folder");
+            if(btn) btn.style.display="inline-block";
+        }, 600); // 600ms long press
+    });
+    el.addEventListener("touchend", function(e){ clearTimeout(longPressTimer); });
+    el.addEventListener("touchmove", function(e){ clearTimeout(longPressTimer); });
 }
+
+/* attach long press to existing folders */
+foldersDiv.childNodes.forEach(div=>{
+    const name = div.innerText.replace("📁 ","");
+    attachLongPress(div,name)
+});
 </script>
 
 </body>
