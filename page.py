@@ -6,9 +6,12 @@ BASE = os.getcwd()
 STATIC_FOLDERS = ["input", "output", "duplicates", "error_images"]
 
 def get_project_folders():
+    # Only show folders that exist in the BASE directory
     out = []
+    if not os.path.exists(BASE): return out
     for f in os.listdir(BASE):
-        if os.path.isdir(f) and (f.startswith("class") or f in STATIC_FOLDERS):
+        full_path = os.path.join(BASE, f)
+        if os.path.isdir(full_path) and (f.startswith("class") or f in STATIC_FOLDERS):
             out.append(f)
     return sorted(out)
 
@@ -19,45 +22,67 @@ def index():
 @app.route("/create_folder", methods=["POST"])
 def create_folder():
     data = request.json
-    cls = data.get("class", "").strip()
-    sub = data.get("subject", "").strip()
-    if not cls or not sub:
-        return jsonify({"error": "Class and Subject required"}), 400
-    folder_name = f"class-{cls}_{sub}_1".lower()
-    os.makedirs(folder_name, exist_ok=True)
+    # Clean up name: remove spaces/special chars
+    cls = re.sub(r'[^a-zA-Z0-9]', '-', data.get("class", "NA"))
+    sub = re.sub(r'[^a-zA-Z0-9]', '-', data.get("subject", "NA"))
+    
+    # Logic to prevent overwriting: find the next available number
+    counter = 1
+    while True:
+        folder_name = f"class-{cls}_{sub}_{counter}".lower()
+        if not os.path.exists(os.path.join(BASE, folder_name)):
+            os.makedirs(os.path.join(BASE, folder_name))
+            break
+        counter += 1
+        
     return jsonify(folders=get_project_folders())
 
 @app.route("/browse")
 def browse():
     path = request.args.get("path")
+    if not path:
+        return "No path provided", 400
+        
     full_path = os.path.join(BASE, path)
+    if not os.path.exists(full_path):
+        return f"Folder '{path}' not found", 404
+
     items = []
     for f in os.listdir(full_path):
         fp = os.path.join(full_path, f)
         items.append({"name": f, "is_dir": os.path.isdir(fp)})
 
+    # Robust sorting: handles '123_name.jpg' or just 'name.jpg'
     def sort_key(x):
-        m = re.match(r"(\d+)_", x["name"])
-        return int(m.group(1)) if m else 999999
+        if x["is_dir"]: return (0, x["name"])
+        m = re.search(r"(\d+)", x["name"])
+        return (1, int(m.group(1)) if m else 999999)
 
     items.sort(key=sort_key)
     return render_template("browser.html", items=items, path=path)
 
 @app.route("/file")
 def file():
-    return send_file(os.path.join(BASE, request.args["path"]))
+    target = os.path.join(BASE, request.args.get("path", ""))
+    if os.path.exists(target):
+        return send_file(target)
+    return "File not found", 404
 
 @app.route("/rename", methods=["POST"])
 def rename():
     data = request.json
     old = os.path.join(BASE, data["old"])
     new = os.path.join(BASE, data["new"])
-    os.rename(old, new)
-    return jsonify(ok=True)
+    if os.path.exists(old):
+        os.rename(old, new)
+        return jsonify(ok=True)
+    return jsonify(ok=False), 404
 
 @app.route("/delete", methods=["POST"])
 def delete():
     path = os.path.join(BASE, request.json["path"])
+    if not os.path.exists(path): return jsonify(ok=False), 404
+    
     if os.path.isdir(path):
         shutil.rmtree(path)
     else:
@@ -65,4 +90,4 @@ def delete():
     return jsonify(ok=True)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)
