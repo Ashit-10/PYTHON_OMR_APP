@@ -1,173 +1,138 @@
-/* ===== Global Reset ===== */
-* {
-  box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
+/* GENERAL */
+body {
+  font-family: sans-serif;
+  margin:0;
+  padding:0;
+  background:#f5f5f5;
 }
 
-html, body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  height: 100%;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #f2f2f2;
-  color: #111;
-}
-
-/* ===== Header ===== */
 header {
-  background: #111;
-  color: #fff;
-  text-align: center;
-  padding: 14px;
-  font-size: 18px;
-  font-weight: 600;
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  background:#111;
+  color:#fff;
+  padding:12px;
+  text-align:center;
+  font-size:1.2em;
 }
 
-/* ===== Layout Sections ===== */
-section,
-.card {
-  background: #ffffff;
-  margin: 12px;
-  padding: 14px;
-  border-radius: 12px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-}
-
-/* ===== Buttons ===== */
 button {
-  width: 100%;
-  padding: 12px;
-  margin-top: 8px;
-  border: none;
-  border-radius: 10px;
-  background: #2563eb;
-  color: #ffffff;
-  font-size: 16px;
-  font-weight: 500;
-  cursor: pointer;
+  padding:8px 12px;
+  border:none;
+  border-radius:6px;
+  background:#333;
+  color:#fff;
+  cursor:pointer;
 }
 
-button:active {
-  background: #1e40af;
+button.mini { padding:4px 6px; font-size:0.8em; }
+button.danger { background:#c00; }
+
+.card {
+  margin:10px;
+  background:#fff;
+  padding:10px;
+  border-radius:8px;
 }
 
-button.mini {
-  width: auto;
-  padding: 4px 8px;
-  font-size: 14px;
-  border-radius: 6px;
-  margin-left: 6px;
-}
-
-button.danger {
-  background: #dc2626;
-}
-
-button.danger:active {
-  background: #991b1b;
-}
-
-/* ===== Inputs ===== */
-input {
-  width: 100%;
-  padding: 10px;
-  margin-top: 8px;
-  font-size: 15px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-}
-
-input:focus {
-  outline: none;
-  border-color: #2563eb;
-}
-
-/* ===== Folder List ===== */
-ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-ul li {
-  padding: 12px;
-  margin-bottom: 6px;
-  border-radius: 10px;
-  background: #f9f9f9;
-  font-size: 15px;
-}
-
-/* ===== File Manager ===== */
 .file-container {
-  padding: 10px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  padding:10px;
 }
 
-/* Folder Row */
-.folder-row {
-  padding: 14px;
-  margin-bottom: 8px;
-  background: #ffffff;
-  border-radius: 12px;
-  font-size: 16px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-}
-
-/* Image Card */
 .image-card {
-  background: #ffffff;
-  margin-bottom: 14px;
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  background:#fff;
+  border-radius:6px;
+  padding:6px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  width:100px;
 }
 
 .image-card img {
-  width: 100%;
-  height: auto;
-  display: block;
-  background: #000;
+  max-width:100%;
+  max-height:120px;
+  object-fit:contain;
+  border-radius:4px;
+  cursor:pointer;
 }
 
-/* File Actions */
 .file-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
+  display:flex;
+  justify-content:space-between;
+  width:100%;
+  margin-top:4px;
 }
 
 .fname {
-  font-size: 13px;
-  color: #333;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size:0.8em;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 
-/* ===== Fullscreen Image Preview ===== */
 #preview {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.92);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
+  position:fixed;
+  top:0; left:0; right:0; bottom:0;
+  background:rgba(0,0,0,0.8);
+  display:none;
+  justify-content:center;
+  align-items:center;
+  z-index:999;
 }
 
 #preview img {
-  max-width: 96%;
-  max-height: 96%;
-  border-radius: 8px;
+  max-width:95%;
+  max-height:95%;
 }
 
-/* ===== Text Helpers ===== */
-p {
-  margin-top: 8px;
-  font-size: 14px;
+.rotate-left {
+  transform: rotate(-90deg);
+}
+
+.banner {
+  position:fixed;
+  top:0;
+  left:0;
+  right:0;
+  background:#111;
+  padding:10px;
+  display:flex;
+  gap:6px;
+  z-index:999;
+}
+
+.banner input {
+  flex:1;
+  padding:6px;
+  border-radius:4px;
+  border:none;
+}
+
+.banner button {
+  padding:6px 10px;
+  border-radius:4px;
+}
+
+.hidden {
+  display:none;
+}
+
+.search-bar {
+  padding:6px;
+  display:flex;
+  gap:4px;
+  justify-content:center;
+}
+
+.search-bar input {
+  flex:1;
+  padding:6px;
+  border-radius:4px;
+  border:1px solid #ccc;
+}
+
+.search-bar button {
+  padding:6px 10px;
+  border-radius:4px;
 }
