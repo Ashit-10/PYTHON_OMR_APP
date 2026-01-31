@@ -8,23 +8,23 @@
 
 <header onclick="history.back()">⬅ {{ path }}</header>
 
-<div class="file-container">
+{% if path == "output" %}
+<div class="search-bar">
+  <input id="rollSearch" placeholder="Enter roll number">
+  <button onclick="searchRoll()">Search</button>
+</div>
+{% endif %}
+
+<div class="file-container" id="fileBox">
 
 {% for i in items %}
-  {% if i.is_dir %}
-    <div class="folder-row">
-      📁 {{ i.name }}
-      {% if i.name.startswith("class") %}
-        <button class="mini danger" onclick="askDelete('{{path}}/{{i.name}}')">🗑</button>
-      {% endif %}
-    </div>
-  {% else %}
-    <div class="image-card">
+  {% if not i.is_dir %}
+    <div class="image-card" data-name="{{ i.name }}">
       <img src="/file?path={{path}}/{{i.name}}" onclick="viewImage(this.src)">
       <div class="file-actions">
         <span class="fname">{{ i.name }}</span>
         <button class="mini" onclick="renameFile('{{path}}/{{i.name}}')">✏</button>
-        <button class="mini danger" onclick="askDelete('{{path}}/{{i.name}}')">🗑</button>
+        <button class="mini danger" onclick="deleteFile('{{path}}/{{i.name}}')">🗑</button>
       </div>
     </div>
   {% endif %}
@@ -32,42 +32,25 @@
 
 </div>
 
-<!-- DELETE CONFIRM MODAL -->
-<div id="deleteModal" class="modal">
-  <div class="modal-box">
-    <p>Are you sure you want to delete?</p>
-    <button onclick="doDelete()">Yes</button>
-    <button class="danger" onclick="closeDelete()">Cancel</button>
-  </div>
-</div>
-
-<!-- IMAGE PREVIEW -->
 <div id="preview" onclick="this.style.display='none'">
   <img id="previewImg">
 </div>
 
 <script>
-let deletePath=""
-
-function askDelete(p){
-  deletePath=p
-  deleteModal.style.display="flex"
-}
-function closeDelete(){
-  deleteModal.style.display="none"
-}
-function doDelete(){
-  fetch("/delete",{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({ path: deletePath })
-  }).then(()=>location.reload())
+function deleteFile(p){
+  if(confirm("Delete this file?")){
+    fetch("/delete",{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({ path:p })
+    }).then(()=>location.reload())
+  }
 }
 
 function renameFile(oldPath){
-  let base=oldPath.split('/').pop().replace('.jpg','')
-  let folder=oldPath.split('/').slice(0,-1).join('/')
-  let n=prompt("New name:",base)
+  let base = oldPath.split('/').pop().replace('.jpg','')
+  let folder = oldPath.split('/').slice(0,-1).join('/')
+  let n = prompt("New name", base)
   if(!n) return
   fetch("/rename",{
     method:"POST",
@@ -82,6 +65,13 @@ function renameFile(oldPath){
 function viewImage(src){
   previewImg.src=src
   preview.style.display="flex"
+}
+
+function searchRoll(){
+  let r = rollSearch.value.trim()
+  document.querySelectorAll(".image-card").forEach(c=>{
+    c.style.display = c.dataset.name.startsWith(r+"_") ? "block" : "none"
+  })
 }
 </script>
 
