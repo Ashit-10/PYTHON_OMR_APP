@@ -126,6 +126,27 @@ def get_project_folders():
 def dashboard():
     """Main landing page with folder manager."""
     return render_template("index.html", folders=get_project_folders())
+import subprocess
+from flask import Response
+
+@app.route('/run_gitup')
+def run_gitup():
+    def generate():
+        # Execute the gitup.py script
+        process = subprocess.Popen(
+            ['python', 'gitup.py'], 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.STDOUT,
+            text=True
+        )
+        
+        # Stream output line by line to the browser
+        for line in process.stdout:
+            yield line
+        
+        process.wait()
+
+    return Response(generate(), mimetype='text/plain')
 
 @app.route("/scan")
 def scan_ui():
