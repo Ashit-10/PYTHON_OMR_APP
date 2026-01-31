@@ -150,103 +150,45 @@
   </style>
   <script>
     document.addEventListener('DOMContentLoaded', (event) => {
-      const userInput = [];
-      let entryCount = 1;
-      let questionCount = 100;
-      const questionContainer = document.getElementById('questionContainer');
-      const setButton = document.getElementById('setButon');
-      const saveButton = document.getElementById('saveButton');
-      const copyButton = document.getElementById('copyButon');
-      const loadingOverlay = document.getElementById('loadingOverlay');
-      const filenameDisplay = document.getElementById('filenameDisplay');
+    const userInput = [];
+    let questionCount = 100; // Always 100
+    const questionContainer = document.getElementById('questionContainer');
+    const saveButton = document.getElementById('saveButton');
+    const copyButton = document.getElementById('copyButon');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const filenameDisplay = document.getElementById('filenameDisplay');
 
-      function getQueryParameter(name) {
+    function getQueryParameter(name) {
         const urlParams = new URLSearchParams(window.location.search);
         return urlParams.get(name);
-      }
+    }
 
-      const filename = getQueryParameter('filename');
-      const dataSave = getQueryParameter('data') === 'save';
-      filenameDisplay.textContent = filename || "New OMR Sheet";
-      const showTopButtons = getQueryParameter('user');
-      const subjectName = getQueryParameter('subject');
+    const filename = getQueryParameter('filename');
+    const dataSave = getQueryParameter('data') === 'save';
+    const showTopButtons = getQueryParameter('user');
+    const subjectName = getQueryParameter('subject');
 
-      if (showTopButtons === 'student') {
+    filenameDisplay.textContent = subjectName || filename || "New OMR Sheet";
+
+    if (showTopButtons === 'student') {
         document.querySelector('.topButtons').style.display = 'none';
-      }
-      if (subjectName) {
-        filenameDisplay.textContent = subjectName;
-        document.getElementById('questionContainer').style.pointerEvents = 'none';
-      }
+    }
+    if (subjectName) {
+        questionContainer.style.pointerEvents = 'none';
+    }
 
-      if (filename) {
-        fetch(filename)
-          .then(response => {
-            if (!response.ok) throw new Error('Network error');
-            return response.json();
-          })
-          .then(data => {
-            setSet();
-            questionCount = Array.isArray(data) ? data.length : Object.keys(data).length;
-            processJSON(data);
-          })
-          .catch(error => {
-            setSet();
-            displayNewOMRSheet();
-          });
-      } else {
-        setSet();
-        displayNewOMRSheet();
-      }
-
-      function setSet() {
-        if (filename) {
-          let select = document.getElementById('setValue');
-          let fname = filename.split('_ans_key.txt')[0];
-          select.value = ['A', 'B', 'C', 'D'].includes(fname.slice(-1)) ? fname.slice(-1) : 'none';
-        }
-      }
-
-      function displayNewOMRSheet() {
+    // --- 1. ALWAYS DISPLAY 100 QUESTIONS FIRST ---
+    function displayQuestions() {
         questionContainer.innerHTML = '';
-        for (let i = 1; i <= questionCount; i++) {
-          const questionDiv = createQuestionElement(i, []);
-          questionContainer.appendChild(questionDiv);
+        for (let i = 1; i <= 100; i++) {
+            const options = userInput[i - 1] || []; 
+            const questionDiv = createQuestionElement(i, options);
+            questionContainer.appendChild(questionDiv);
         }
-
-        if (dataSave) {
-          loadFromLocalStorage();
-        }
-
         updateQuestionColors();
-      }
-
-      function processJSON(data) {
-    // Instead of rebuilding the array based on data length, 
-    // just map the data into our existing 100-slot structure
-    for (const key in data) {
-        if (data.hasOwnProperty(key)) {
-            // Ensure the key maps correctly to the 1-100 index
-            userInput[parseInt(key) - 1] = data[key];
-        }
     }
-    displayQuestions();
-}
 
-function displayQuestions() {
-    questionContainer.innerHTML = '';
-    // ALWAYS loop 1 to 100
-    for (let i = 1; i <= 100; i++) {
-        // Get options from userInput if they exist, otherwise empty array
-        const options = userInput[i - 1] || []; 
-        const questionDiv = createQuestionElement(i, options);
-        questionContainer.appendChild(questionDiv);
-    }
-    updateQuestionColors();
-}
-
-
-      function createQuestionElement(index, selectedOptions = []) {
+    function createQuestionElement(index, selectedOptions = []) {
         const questionDiv = document.createElement('div');
         questionDiv.className = 'question';
         questionDiv.innerHTML = `<span>Question - ${index}:</span>`;
@@ -254,261 +196,140 @@ function displayQuestions() {
         optionsDiv.className = 'options';
 
         ['A', 'B', 'C', 'D'].forEach((option) => {
-          const optionDiv = document.createElement('div');
-          optionDiv.className = 'option';
-          const checkboxId = `question${index}_${option}`;
-          optionDiv.innerHTML = `
-            <input type="checkbox" id="${checkboxId}" name="question${index}" value="${option}" ${selectedOptions.includes(option) ? 'checked' : ''}>
-            <label for="${checkboxId}" data-text="${option}"></label>
-          `;
-          optionsDiv.appendChild(optionDiv);
+            const optionDiv = document.createElement('div');
+            optionDiv.className = 'option';
+            const checkboxId = `question${index}_${option}`;
+            optionDiv.innerHTML = `
+                <input type="checkbox" id="${checkboxId}" name="question${index}" value="${option}" ${selectedOptions.includes(option) ? 'checked' : ''}>
+                <label for="${checkboxId}" data-text="${option}"></label>
+            `;
+            optionsDiv.appendChild(optionDiv);
         });
-
         questionDiv.appendChild(optionsDiv);
         return questionDiv;
-      }
+    }
 
-      function updateQuestionColors() {
+    function processJSON(data) {
+        for (const key in data) {
+            if (data.hasOwnProperty(key)) {
+                userInput[parseInt(key) - 1] = data[key];
+            }
+        }
+        displayQuestions();
+    }
+
+    // --- 2. ADD RESET BUTTON (ALWAYS VISIBLE) ---
+    const topButtonsContainer = document.querySelector('.topButtons');
+    const resetBtn = document.createElement('button');
+    resetBtn.textContent = 'Reset';
+    resetBtn.className = 'action-button';
+    resetBtn.style.backgroundColor = '#999';
+    resetBtn.style.marginLeft = '10px'; 
+    resetBtn.addEventListener('click', (e) => {
+        e.preventDefault(); 
+        if (confirm('Clear all answers on this screen?')) {
+            localStorage.removeItem('omr_saved_data');
+            location.reload();
+        }
+    });
+    topButtonsContainer.appendChild(resetBtn);
+
+    // --- 3. LOADING DATA ---
+    displayQuestions(); // Initialize blank 100 questions immediately
+
+    if (filename) {
+        fetch(filename)
+            .then(response => response.json())
+            .then(data => processJSON(data))
+            .catch(err => console.log("New file, starting blank."));
+    }
+
+    const existingContent = `{{ content|safe }}`; 
+    if (existingContent && existingContent.trim() !== "" && existingContent !== "None") {
+        try {
+            processJSON(JSON.parse(existingContent)); 
+        } catch (e) {
+            console.error("Jinja content error");
+        }
+    }
+
+    if (dataSave) loadFromLocalStorage();
+
+    // --- 4. SAVING DATA (SAVES ONLY MARKED QUESTIONS) ---
+    async function saveData(e) {
+        e.preventDefault();
+        const jsonOutput = {};
+        const questions = document.querySelectorAll('.question');
+
+        questions.forEach((question, i) => {
+            const selected = Array.from(question.querySelectorAll('input[type="checkbox"]:checked'))
+                                 .map(input => input.value);
+            if (selected.length > 0) {
+                jsonOutput[i + 1] = selected;
+            }
+        });
+
+        const jsonString = JSON.stringify(jsonOutput, null, 2);
+        loadingOverlay.style.display = 'block';
+
+        try {
+            const response = await fetch("/save_answer_key", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ folder: "{{ folder }}", content: jsonString })
+            });
+            if (response.ok) alert("✅ Saved successfully!");
+        } catch (error) {
+            alert("❌ Save failed.");
+        } finally {
+            loadingOverlay.style.display = 'none';
+        }
+    }
+
+    // Event Listeners
+    saveButton.addEventListener('click', saveData);
+    copyButton.addEventListener('click', copyJSONData);
+    questionContainer.addEventListener('change', updateQuestionColors);
+
+    // Helper functions (updateQuestionColors, copyJSONData, etc.) remain as you had them...
+    function updateQuestionColors() {
         const questions = document.querySelectorAll('.question');
         questions.forEach(question => {
-          const checkboxes = question.querySelectorAll('input[type="checkbox"]');
-          const selectedOptions = Array.from(checkboxes).filter(c => c.checked);
-          question.className = 'question';
-          if (selectedOptions.length === 1) question.classList.add('green');
-          else if (selectedOptions.length > 1) question.classList.add('blue');
-          else question.classList.add('red');
+            const checkboxes = question.querySelectorAll('input[type="checkbox"]');
+            const selectedOptions = Array.from(checkboxes).filter(c => c.checked);
+            question.className = 'question';
+            if (selectedOptions.length === 1) question.classList.add('green');
+            else if (selectedOptions.length > 1) question.classList.add('blue');
+            else question.classList.add('red');
         });
-
         if (dataSave) saveToLocalStorage();
-      }
+    }
 
-      function saveToLocalStorage() {
+    function saveToLocalStorage() {
         const answerObj = {};
-        const questions = document.querySelectorAll('.question');
-        questions.forEach((question, i) => {
-          const selected = Array.from(question.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
-          if (selected.length > 0) {
-            answerObj[i + 1] = selected;
-          }
+        document.querySelectorAll('.question').forEach((question, i) => {
+            const selected = Array.from(question.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
+            if (selected.length > 0) answerObj[i + 1] = selected;
         });
         localStorage.setItem('omr_saved_data', JSON.stringify(answerObj));
-      }
+    }
 
-      function loadFromLocalStorage() {
+    function loadFromLocalStorage() {
         const saved = localStorage.getItem('omr_saved_data');
-        if (!saved) return;
-        const data = JSON.parse(saved);
-        for (const q in data) {
-          const opts = data[q];
-          opts.forEach(option => {
-            const checkbox = document.getElementById(`question${q}_${option}`);
-            if (checkbox) checkbox.checked = true;
-          });
-        }
-      }
+        if (saved) processJSON(JSON.parse(saved));
+    }
 
-            // ... existing event listeners ...
-      saveButton.addEventListener('click', saveData);
-      copyButton.addEventListener('click', copyJSONData);
-      questionContainer.addEventListener('change', updateQuestionColors);
-
-      // --- ADD THE RESET BUTTON LOGIC HERE ---
-      const topButtonsContainer = document.querySelector('.topButtons');
-      // I removed the "if (dataSave)" check so it ALWAYS shows up for you now
-      const resetBtn = document.createElement('button');
-      resetBtn.textContent = 'Reset';
-      resetBtn.className = 'action-button';
-      resetBtn.style.backgroundColor = '#999';
-      resetBtn.style.marginLeft = '10px'; 
-      resetBtn.addEventListener('click', (e) => {
-          e.preventDefault(); 
-          if (confirm('Clear all saved answers?')) {
-              localStorage.removeItem('omr_saved_data');
-              location.reload();
-          }
-      });
-      topButtonsContainer.appendChild(resetBtn);
-      // ----------------------------------------
-
-      
-      
-                async function saveData(e) {
-    e.preventDefault();
-
-    const questions = document.querySelectorAll('.question');
-    const jsonOutput = {};
-
-    // 1. Collect all checked options
-    questions.forEach((question, i) => {
-    const selected = Array.from(question.querySelectorAll('input[type="checkbox"]:checked'))
-                         .map(input => input.value);
-    // This 'if' ensures only questions with data get added to the JSON
-    if (selected.length > 0) {
-        jsonOutput[i + 1] = selected;
+    async function copyJSONData() {
+        const jsonOutput = {};
+        document.querySelectorAll('.question').forEach((q, i) => {
+            const sel = Array.from(q.querySelectorAll('input[type="checkbox"]:checked')).map(n => n.value);
+            if (sel.length > 0) jsonOutput[i+1] = sel;
+        });
+        await navigator.clipboard.writeText(JSON.stringify(jsonOutput, null, 2));
+        alert('Copied!');
     }
 });
 
-
-    const jsonString = JSON.stringify(jsonOutput, null, 2);
-    const currentFolder = "{{ folder }}"; 
-
-    loadingOverlay.style.display = 'block';
-
-    try {
-        // 2. Send the data to your Flask backend instead of Telegram
-        const response = await fetch("/save_answer_key", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                folder: currentFolder,
-                content: jsonString
-            })
-        });
-
-        if (response.ok) {
-            alert("✅ Answer key updated in: " + currentFolder);
-        } else {
-            alert("❌ Server error: Could not save file.");
-        }
-    } catch (error) {
-        alert("❌ Connection error: Is Flask running?");
-    } finally {
-        loadingOverlay.style.display = 'none';
-    }
-}
-
-
-            async function copyJSONData() {
-    const jsonOutput = {};
-    const questions = document.querySelectorAll('.question');
-
-    questions.forEach((question, i) => {
-        const selected = Array.from(question.querySelectorAll('input[type="checkbox"]:checked'))
-                             .map(input => input.value);
-        if (selected.length > 0) {
-            jsonOutput[i + 1] = selected;
-        }
-    });
-
-    
-
-                const jsonString = JSON.stringify(jsonOutput, null, 2);
-                try {
-                    await navigator.clipboard.writeText(jsonString);
-                    alert('JSON data copied to clipboard!');
-                } catch (err) {
-                    console.error('Failed to copy text: ', err);
-                }
-            }
-
-            async function sendToTelegram(jsonString, filename) {
-                var newFilename = filename;
-                var select = document.getElementById('setValue');
-                var selectedSet = select.value;
-                if (selectedSet != 'none') {
-                    let parts = filename.split('_ans_key.txt');
-                    let fname = parts[0];
-                    if (fname.endsWith("A")) {
-                        fname = fname.slice(0, -2);
-                    } else if (fname.endsWith("B")) {
-                        fname = fname.slice(0, -2);
-
-                    } else if (fname.endsWith("C")) {
-                        fname = fname.slice(0, -2);
-
-                    } else if (fname.endsWith("D")) {
-                        fname = fname.slice(0, -2);
-                    }
-                    newFilename = fname + "_" + selectedSet + "_ans_key.txt";
-                }
-                console.log(newFilename);
-                const telegramBotToken = '1848113090:AAHt8IFMRQ5JD4DjKe-AihZJuiD48u-uyp0'; // Replace with your Telegram bot token
-                const chatId = '-1001774957665'; // Replace wit
-
-                const formData = new FormData();
-                formData.append('chat_id', chatId);
-                formData.append('caption', newFilename);
-                formData.append('document', new Blob([jsonString], { type: 'application/json' }), newFilename);
-
-              //  try {
-                   // const response = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendDocument`, {
-              //          method: 'POST',
-                //        body: formData
-              //      });
-
-               //     if (response.ok) {
-                  //      alert('JSON data saved and sent to Telegram successfully!');
-               //     } else {
-                 //       alert('Failed to send JSON data to Telegram.');
-                 //   }
-            //    } catch (error) {
-                  //  console.error('Error sending JSON data to Telegram:', error);
-                 //   alert('An error occurred while sending JSON data to Telegram.');
-             //   } finally {
-                  //  loadingOverlay.style.display = 'none';
-             //   }
-                try {
-    const response = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendDocument`, {
-        method: 'POST',
-        body: formData
-    });
-
-    if (response.ok) {
-        alert('JSON data sent to Telegram successfully!');
-
-        const shouldDownload = confirm('Do you want to download the file too?');
-        if (shouldDownload) {
-            const originalFile = formData.get('document'); // your uploaded file
-            const blob = new Blob([await originalFile.text()], { type: originalFile.type });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'answer_key.txt'; // Now it will download exactly as 'answer_key.txt'
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-    } else {
-        alert('Failed to send JSON data to Telegram.');
-    }
-} catch (error) {
-    console.error('Error sending JSON data to Telegram:', error);
-    alert('An error occurred while sending JSON data to Telegram.');
-} finally {
-    loadingOverlay.style.display = 'none';
-}
-
-
-            }
-
-      // ✅ Add Reset button dynamically if ?data=save
-      if (dataSave) {
-        const resetBtn = document.createElement('button');
-        resetBtn.textContent = 'Reset';
-        resetBtn.className = 'action-button';
-        resetBtn.style.backgroundColor = '#999';
-        resetBtn.addEventListener('click', () => {
-          if (confirm('Clear all saved answers?')) {
-            localStorage.removeItem('omr_saved_data');
-            location.reload();
-          }
-        });
-        document.querySelector('.topButtons').appendChild(resetBtn);
-      }
-            // --- PASTE THIS HERE ---
-      const existingContent = `{{ content|safe }}`; 
-      if (existingContent && existingContent.trim() !== "") {
-          try {
-              processJSON(JSON.parse(existingContent)); 
-          } catch (e) {
-              displayNewOMRSheet();
-          }
-      } else {
-          displayNewOMRSheet();
-      }
-      // -----------------------
-    }); 
   </script>
 </head>
 
