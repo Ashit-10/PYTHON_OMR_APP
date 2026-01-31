@@ -462,7 +462,19 @@
         });
         document.querySelector('.topButtons').appendChild(resetBtn);
       }
-    });
+            // --- PASTE THIS HERE ---
+      const existingContent = `{{ content|safe }}`; 
+      if (existingContent && existingContent.trim() !== "") {
+          try {
+              processJSON(JSON.parse(existingContent)); 
+          } catch (e) {
+              displayNewOMRSheet();
+          }
+      } else {
+          displayNewOMRSheet();
+      }
+      // -----------------------
+    }); 
   </script>
 </head>
 
