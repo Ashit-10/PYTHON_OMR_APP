@@ -1,12 +1,12 @@
 from flask import Flask, render_template, request, jsonify, send_file
-import os, shutil, re, requests
+import os, shutil, re
 
 app = Flask(__name__)
 BASE = os.getcwd()
 
 STATIC_FOLDERS = ["input", "output", "duplicates", "error_images"]
 
-def project_folders():
+def get_project_folders():
     out = []
     for f in os.listdir(BASE):
         if os.path.isdir(f) and (f.startswith("class") or f in STATIC_FOLDERS):
@@ -15,14 +15,14 @@ def project_folders():
 
 @app.route("/")
 def index():
-    return render_template("index.html", folders=project_folders())
+    return render_template("index.html", folders=get_project_folders())
 
 @app.route("/create_folder", methods=["POST"])
 def create_folder():
     d = request.json
     name = f"class-{d['class']}_{d['subject']}_1".lower()
     os.makedirs(name, exist_ok=True)
-    return jsonify(folders=project_folders())
+    return jsonify(folders=get_project_folders())
 
 @app.route("/browse")
 def browse():
@@ -37,7 +37,7 @@ def browse():
             "is_dir": os.path.isdir(fp)
         })
 
-    # sort images by roll number
+    # sort jpg by roll number
     def sort_key(x):
         m = re.match(r"(\d+)_", x["name"])
         return int(m.group(1)) if m else 999999
@@ -52,24 +52,17 @@ def file():
 @app.route("/rename", methods=["POST"])
 def rename():
     d = request.json
-    os.rename(os.path.join(BASE, d["old"]), os.path.join(BASE, d["new"]))
+    os.rename(os.path.join(BASE, d["old"]),
+              os.path.join(BASE, d["new"]))
     return jsonify(ok=True)
 
 @app.route("/delete", methods=["POST"])
 def delete():
     p = os.path.join(BASE, request.json["path"])
-    shutil.rmtree(p) if os.path.isdir(p) else os.remove(p)
-    return jsonify(ok=True)
-
-@app.route("/save_answer_key", methods=["POST"])
-def save_answer_key():
-    folder = request.json["folder"]
-    content = request.json["content"]
-
-    path = os.path.join(BASE, folder, "answer_key.txt")
-    with open(path, "w") as f:
-        f.write(content)
-
+    if os.path.isdir(p):
+        shutil.rmtree(p)
+    else:
+        os.remove(p)
     return jsonify(ok=True)
 
 if __name__ == "__main__":
