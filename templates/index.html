@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OMR Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="container">
+  <h1>📄 OMR Scanner</h1>
+
+  <div class="card">
+    <button onclick="location.href='/camera'">📷 Open Camera Scanner</button>
+  </div>
+
+  <div class="card">
+    <h3>Create New Folder</h3>
+    <input id="cls" placeholder="Class (e.g. 10)">
+    <input id="subject" placeholder="Subject (e.g. odia)">
+    <input id="set" placeholder="Set (default 1)">
+    <button onclick="createFolder()">Create Folder</button>
+    <p id="msg"></p>
+  </div>
+
+  <div class="card">
+    <button onclick="location.href='#'">🗝 Create Answer Key</button>
+  </div>
+
+  <div class="card">
+    <h3>Project Folders</h3>
+    <ul>
+      {% for f in folders %}
+        <li>📁 {{ f }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+<script>
+function createFolder() {
+  fetch("/create_folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      class: document.getElementById("cls").value,
+      subject: document.getElementById("subject").value,
+      set: document.getElementById("set").value || "1"
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById("msg").innerText =
+      data.status === "ok"
+      ? "✅ Folder created: " + data.folder
+      : "⚠ Folder already exists";
+  });
+}
+</script>
+
+</body>
+</html>
