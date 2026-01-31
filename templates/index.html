@@ -80,6 +80,18 @@
   </div>
 </section>
 
+<section class="card" style="margin: 12px;">
+  <h3>Student Roll Files</h3>
+  <div id="rolls-files">
+    {% for file in rolls_files %}
+      {# This only displays the name of the file #}
+      <div class="folder-card" onclick="location.href='/edit_rolls?file={{ file }}'">
+        📄 {{ file }}
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
 
 
 <div id="modal" class="modal hidden">
