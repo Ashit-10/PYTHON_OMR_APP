@@ -15,9 +15,28 @@
   <button onclick="showModal()">➕ Create Project Folder</button>
   <button onclick="openAnswerKey()">🗝 Answer Key</button>
   
-<button onclick="uploadToGithub()" style="background-color: #24292e; color: white;">
-  🐙 Upload to GitHub
-</button>
+<button onclick="showGitModal()" style="background-color: #24292e; color: white;">🐙 Upload to GitHub</button>
+
+<div id="gitModal" class="modal hidden">
+  <div class="modal-content">
+    <h3>GitHub Upload Details</h3>
+    
+    <label>Tuition:</label>
+    <div style="margin: 10px 0;">
+      <input type="radio" id="mvm" name="tuition" value="mvm" checked> <label for="mvm">MVM</label>
+      <input type="radio" id="wsc" name="tuition" value="wsc"> <label for="wsc">WSC</label>
+    </div>
+
+    <input id="gitCls" placeholder="Class (e.g. 10)">
+    <input id="gitSub" placeholder="Subject (e.g. Physics)">
+
+    <div class="modal-buttons">
+      <button onclick="submitGitUpload()">Upload</button>
+      <button onclick="closeGitModal()" style="background:#666;">Cancel</button>
+    </div>
+  </div>
+</div>
+
 
 <section id="log-section" class="card hidden" style="margin: 12px; background: #1e1e1e; color: #00ff00; border-radius: 8px; overflow: hidden;">
   <div style="background: #333; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;">
@@ -61,42 +80,50 @@
 </div>
 
 <script>
-  function uploadToGithub() {
-    const logSection = document.getElementById("log-section");
-    const logContainer = document.getElementById("terminal-logs");
-    
-    // 1. Reveal the tray
-    logSection.classList.remove("hidden");
-    logContainer.innerHTML = "<span style='color: #888;'>[System]: Initializing gitup.py...</span><br>";
-
-    // 2. Stream the output from Flask
-    fetch('/run_gitup')
-        .then(response => {
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-
-            function read() {
-                return reader.read().then(({ done, value }) => {
-                    if (done) {
-                        logContainer.innerHTML += "<br><span style='color: #5fb3b3;'>[Finished]</span>";
-                        return;
-                    }
-                    
-                    const chunk = decoder.decode(value, { stream: true });
-                    // Append text and auto-scroll to the bottom
-                    logContainer.innerHTML += chunk.replace(/\n/g, "<br>");
-                    logContainer.scrollTop = logContainer.scrollHeight;
-                    
-                    return read();
-                });
-            }
-            return read();
-        })
-        .catch(err => {
-            logContainer.innerHTML += `<br><span style='color: #ec5f67;'>Error: ${err}</span>`;
-        });
+  function showGitModal() { 
+    document.getElementById("gitModal").classList.remove("hidden"); 
 }
 
+function closeGitModal() { 
+    document.getElementById("gitModal").classList.add("hidden"); 
+}
+
+function submitGitUpload() {
+    const tution = document.querySelector('input[name="tuition"]:checked').value;
+    const cls = document.getElementById("gitCls").value.trim();
+    const sub = document.getElementById("gitSub").value.trim();
+
+    if(!cls || !sub) { alert("Please fill all fields"); return; }
+
+    closeGitModal();
+    
+    // Show the log tray
+    const logSection = document.getElementById("log-section");
+    const logContainer = document.getElementById("terminal-logs");
+    logSection.classList.remove("hidden");
+    logContainer.innerHTML = "Starting GitHub sync...<br>";
+
+    // Send to Python
+    const url = `/run_gitup?tution=${tution}&class=${cls}&subject=${sub}`;
+    
+    fetch(url).then(response => {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        function read() {
+            return reader.read().then(({ done, value }) => {
+                if (done) return;
+                logContainer.innerHTML += decoder.decode(value).replace(/\n/g, "<br>");
+                logContainer.scrollTop = logContainer.scrollHeight;
+                return read();
+            });
+        }
+        return read();
+    });
+}
+
+  
+            
 
 const foldersDiv = document.getElementById("folders");
 
