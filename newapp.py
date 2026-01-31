@@ -129,13 +129,19 @@ import os
 @app.route("/edit_rolls")
 def edit_rolls():
     filename = request.args.get('file')
+    # Security check: ensure the file is within the BASE directory
+    file_path = os.path.join(BASE, filename)
     students = []
-    if os.path.exists(filename):
-        with open(filename, 'r') as f:
+    
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as f:
             for line in f:
                 if ':' in line:
-                    roll, name = line.strip().split(':', 1)
-                    students.append({'roll': roll, 'name': name})
+                    # Split by first colon only
+                    parts = line.strip().split(':', 1)
+                    if len(parts) == 2:
+                        students.append({'roll': parts[0], 'name': parts[1]})
+    
     return render_template("rolls_editor.html", students=students, filename=filename)
 
 @app.route("/save_rolls", methods=["POST"])
@@ -143,10 +149,12 @@ def save_rolls():
     data = request.json
     filename = data.get('filename')
     students = data.get('students')
+    file_path = os.path.join(BASE, filename)
     
     try:
-        with open(filename, 'w') as f:
+        with open(file_path, 'w') as f:
             for s in students:
+                # Writes format: 1:John Doe
                 f.write(f"{s['roll']}:{s['name']}\n")
         return jsonify({"status": "success"})
     except Exception as e:
@@ -175,13 +183,17 @@ def update_config():
 
 @app.route("/")
 def dashboard():
-    """Main landing page with folder manager."""
-    return render_template("index.html", folders=get_project_folders())
-import subprocess
-from flask import Response
+    """Main landing page with folder manager and roll lists."""
+    # Find all files ending with _rolls.txt in the current directory
+    all_files = os.listdir(BASE)
+    rolls_files = [f for f in all_files if f.endswith('_rolls.txt')]
+    
+    return render_template("index.html", 
+                           folders=get_project_folders(), 
+                           rolls_files=rolls_files)
 
-from flask import request, Response
 import subprocess
+
 
 @app.route('/run_gitup')
 def run_gitup():
