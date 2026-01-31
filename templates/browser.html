@@ -6,8 +6,8 @@
 <title>File Browser</title>
 <link rel="stylesheet" href="/static/style.css">
 <style>
-  body { background: #fff; color: #111; margin: 0; padding: 0; }
-  header { background: #111; color: #fff; padding: 15px; position: sticky; top: 0; z-index: 100; text-align: center; }
+  body { background: #fff; color: #111; margin: 0; padding: 0; font-family: sans-serif; }
+  header { background: #111; color: #fff; padding: 15px; position: sticky; top: 0; z-index: 100; text-align: center; cursor: pointer; }
 
   .search-bar { padding: 10px; display: flex; gap: 8px; background: #fff; border-bottom: 1px solid #ddd; }
   .search-bar input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }
@@ -17,16 +17,15 @@
 
   .image-card {
     background: #fff;
-    width: 98%; /* Maximum width */
+    width: 98%; 
     border-radius: 4px;
     border: 1px solid #ddd;
     overflow: hidden;
     margin-bottom: 5px;
   }
 
-  /* --- THE DYNAMIC BOX --- */
   .img-wrapper {
-    width: 105%;
+    width: 100%;
     background: #fff;
     overflow: hidden;
     position: relative;
@@ -34,45 +33,34 @@
     justify-content: center;
   }
 
-  /* OUTPUT FOLDER (NORMAL) */
   .img-wrapper img {
     width: 100%;
     height: auto;
     display: block;
-    object-fit; cover;
-    max-width: none !important; /* Prevents the browser from forced shrinking */
-  max-height: none !important; 
+    object-fit: cover;
   }
 
-/* 1. This container controls the 'window' you see the image through */
-.rotate-box {
-  width: 120%;
-  height: 25vh;      /* This controls how "tall" the strip looks on your screen */
-  position: relative;
-  background: #fff;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
+  /* INPUT FOLDER SPECIFIC ROTATION */
+  .rotate-box {
+    width: 100%;
+    height: 30vh;
+    position: relative;
+    background: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+  }
 
-/* 2. This forces the image to be huge so it fills the screen after rotation */
-.rotate-box img {
-  /* We make the image's height match your screen width (100vw) */
-  height: 140% !important; 
-  width: auto !important;
-  
-  /* We scale it up (zoom) to remove the centering 'smallness' */
-  /* If it's still too small, increase 1.5 to 1.8 */
-  transform: translate(-50%, -50%) rotate(-90deg) scale(1.5);
-  
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  object-fit: contain;
-  max-width: none !important; /* Prevents the browser from forced shrinking */
-  max-height: none !important; 
-}
-
+  .rotate-box img {
+    height: 150% !important;
+    width: auto !important;
+    transform: translate(-50%, -50%) rotate(-90deg) scale(1.2);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    object-fit: contain;
+  }
 
   .file-actions {
     padding: 8px 12px;
@@ -84,6 +72,25 @@
 
   .fname { font-size: 12px; font-weight: bold; color: #333; }
   #noMatch { display: none; padding: 20px; text-align: center; color: red; font-weight: bold; }
+
+  /* Delete All Section */
+  .batch-actions {
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  .btn-delete-all {
+    width: 95%;
+    padding: 15px;
+    background-color: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+  .btn-delete-all:active { background-color: #b91c1c; }
 </style>
 </head>
 <body>
@@ -118,6 +125,14 @@
 {% endfor %}
 </div>
 
+{% if items %}
+<div class="batch-actions">
+    <button class="btn-delete-all" onclick="deleteAllFiles()">
+        🗑️ DELETE ALL IN THIS FOLDER
+    </button>
+</div>
+{% endif %}
+
 <div id="preview" onclick="this.style.display='none'" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:1000; justify-content:center; align-items:center;">
   <img id="previewImg" style="max-width:98%; max-height:98%;">
 </div>
@@ -145,14 +160,70 @@ function openPreview(src){
 }
 
 function deleteFile(p){
-    if(confirm("Delete?")) fetch("/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:p})}).then(()=>location.reload());
+    if(confirm("Delete this file?")) {
+        fetch("/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path: p })
+        }).then(() => location.reload());
+    }
+}
+
+async function deleteAllFiles() {
+    // Confirmation Dialog
+    const confirmed = confirm("⚠️ WARNING: This will delete EVERY file in this folder. This cannot be undone. Proceed?");
+    
+    if (confirmed) {
+        const cards = document.querySelectorAll(".image-card");
+        const folderPath = "{{ path }}";
+        
+        // Disable button to prevent double clicks
+        const btn = document.querySelector(".btn-delete-all");
+        btn.innerText = "Deleting... Please wait";
+        btn.disabled = true;
+
+        let deletePromises = [];
+
+        cards.forEach(card => {
+            const fileName = card.getAttribute("data-name");
+            const fullPath = folderPath + "/" + fileName;
+            
+            // Push each delete fetch into an array
+            const p = fetch("/delete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ path: fullPath })
+            });
+            deletePromises.push(p);
+        });
+
+        if (deletePromises.length === 0) {
+            alert("No files found to delete.");
+            return;
+        }
+
+        try {
+            // Wait for all deletions to finish
+            await Promise.all(deletePromises);
+            alert("Folder cleared successfully.");
+            location.reload();
+        } catch (err) {
+            console.error(err);
+            alert("Some files might not have been deleted. Refreshing...");
+            location.reload();
+        }
+    }
 }
 
 function renameFile(oldPath){
     let n = prompt("New name", oldPath.split('/').pop().replace('.jpg',''));
     if(!n) return;
     let folder = oldPath.split('/').slice(0,-1).join('/');
-    fetch("/rename",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({old:oldPath,new:folder+"/"+n+".jpg"})}).then(()=>location.reload());
+    fetch("/rename",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({old:oldPath,new:folder+"/"+n+".jpg"})
+    }).then(()=>location.reload());
 }
 </script>
 </body>
