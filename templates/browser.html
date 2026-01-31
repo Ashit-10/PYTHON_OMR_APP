@@ -6,7 +6,7 @@
 <title>File Browser</title>
 <link rel="stylesheet" href="/static/style.css">
 <style>
-  body { background: #f5f5f5; margin: 0; padding: 0; font-family: sans-serif; }
+  body { background: #fff; color: #111; margin: 0; padding: 0; font-family: sans-serif; }
   header { background: #111; color: #fff; padding: 15px; position: sticky; top: 0; z-index: 100; text-align: center; }
 
   .search-bar {
@@ -29,9 +29,9 @@
 
   .image-card {
     background: #fff;
-    width: 94%;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    width: 95%; /* 95% screen width */
+    border-radius: 8px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.1);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -48,33 +48,37 @@
     position: relative;
   }
 
-  /* NORMAL IMAGES (Output Folder) */
+  /* OUTPUT FOLDER (NORMAL) */
   .img-wrapper img {
     width: 100%;
     height: auto;
     display: block;
   }
 
-  /* ROTATED IMAGES (Input Folder) */
+  /* INPUT FOLDER (THE FIX) */
   .rotate-box {
-    height: 130vw; /* Forces the box to be tall */
+    /* Height must be large to fill the vertical gap */
+    height: 140vw; 
   }
 
   .rotate-box img {
-    /* Scale it up significantly so it fits after rotation */
-    width: 130vw !important; 
-    height: 94vw !important;
+    /* We make the image's "width" huge (140% of screen) */
+    /* When rotated -90deg, this "width" becomes the "height" */
+    width: 140vw !important; 
+    height: 95vw !important;
     position: absolute;
-    transform: rotate(-90deg);
-    object-fit: cover; /* Ensures it fills the space */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    object-fit: cover;
   }
 
   .file-actions {
-    padding: 12px 15px;
+    padding: 10px 15px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #fff;
+    background: #f9f9f9;
     border-top: 1px solid #eee;
   }
 
@@ -82,17 +86,10 @@
 
   #noMatch {
     display: none;
-    padding: 40px;
+    padding: 30px;
     text-align: center;
-    color: #888;
+    color: #d32f2f;
     font-weight: bold;
-  }
-
-  /* Preview */
-  #preview {
-    position: fixed; top:0; left:0; width:100%; height:100%;
-    background: rgba(0,0,0,0.9); z-index: 9999;
-    display: none; justify-content: center; align-items: center;
   }
 </style>
 </head>
@@ -102,12 +99,12 @@
 
 {% if path == "output" or "class" in path %}
 <div class="search-bar">
-  <input id="rollSearch" placeholder="Enter roll number..." oninput="searchRoll()">
-  <button onclick="searchRoll()">Search</button>
+  <input id="rollSearch" placeholder="Search Roll Number..." oninput="searchRoll()">
+  <button onclick="searchRoll()">🔍</button>
 </div>
 {% endif %}
 
-<div id="noMatch">❌ No results found</div>
+<div id="noMatch">❌ Roll Number Not Found</div>
 
 <div class="file-container" id="fileBox">
 {% for item in items %}
@@ -128,7 +125,7 @@
 {% endfor %}
 </div>
 
-<div id="preview" onclick="this.style.display='none'">
+<div id="preview" onclick="this.style.display='none'" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:1000; justify-content:center; align-items:center;">
   <img id="previewImg" style="max-width:98%; max-height:98%;">
 </div>
 
@@ -136,19 +133,17 @@
 function searchRoll(){
   let val = document.getElementById("rollSearch").value.toLowerCase();
   let cards = document.querySelectorAll(".image-card");
-  let foundCount = 0;
-
+  let found = 0;
   cards.forEach(card => {
     let name = card.getAttribute("data-name").toLowerCase();
     if(name.includes(val)){
       card.style.display = "flex";
-      foundCount++;
+      found++;
     } else {
       card.style.display = "none";
     }
   });
-
-  document.getElementById("noMatch").style.display = (foundCount === 0) ? "block" : "none";
+  document.getElementById("noMatch").style.display = (found === 0 && val !== "") ? "block" : "none";
 }
 
 function openPreview(src){
@@ -157,7 +152,7 @@ function openPreview(src){
 }
 
 function deleteFile(p){
-    if(confirm("Delete?")) fetch("/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:p})}).then(()=>location.reload());
+    if(confirm("Delete this image?")) fetch("/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:p})}).then(()=>location.reload());
 }
 
 function renameFile(oldPath){
