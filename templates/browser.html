@@ -8,38 +8,72 @@
 
 <header onclick="history.back()">⬅ {{ path or "root" }}</header>
 
-<ul class="filelist">
+<div class="file-container">
+
 {% for i in items %}
-<li>
-{% if i.is_dir %}
-  📁 <a href="/browse?path={{ path }}/{{ i.name }}">{{ i.name }}</a>
-{% else %}
-  🖼 <a href="/file?path={{ path }}/{{ i.name }}">{{ i.name }}</a>
-{% endif %}
-<button onclick="rename('{{ path }}/{{ i.name }}')">✏</button>
-<button onclick="del('{{ path }}/{{ i.name }}')">🗑</button>
-</li>
+  {% if i.is_dir %}
+    <div class="folder-row" onclick="openFolder('{{ i.name }}')">
+      📁 {{ i.name }}
+    </div>
+  {% else %}
+    <div class="image-card">
+      <img src="/file?path={{ path }}/{{ i.name }}" onclick="viewImage(this.src)">
+
+      <div class="file-actions">
+        <span class="fname">{{ i.name }}</span>
+
+        <button class="mini" onclick="renameFile('{{ path }}/{{ i.name }}')">✏</button>
+        <button class="mini danger" onclick="confirmDelete('{{ path }}/{{ i.name }}', this)">🗑</button>
+      </div>
+    </div>
+  {% endif %}
 {% endfor %}
-</ul>
+
+</div>
+
+<!-- Fullscreen preview -->
+<div id="preview" onclick="this.style.display='none'">
+  <img id="previewImg">
+</div>
 
 <script>
-function rename(p){
-  const n = prompt("New name:")
-  if(!n) return
+function openFolder(name){
+  location.href = "/browse?path={{ path }}/" + name
+}
+
+function renameFile(oldPath){
+  let base = oldPath.split('/').pop().replace('.jpg','')
+  let folder = oldPath.split('/').slice(0,-1).join('/')
+
+  let newName = prompt("New file name (without .jpg):", base)
+  if(!newName) return
+
   fetch("/rename",{
     method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({old:p,new:p.split('/').slice(0,-1).join('/')+'/'+n})
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({
+      old: oldPath,
+      new: folder + "/" + newName + ".jpg"
+    })
   }).then(()=>location.reload())
 }
 
-function del(p){
-  if(!confirm("Delete?")) return
+function confirmDelete(path, btn){
+  btn.innerText = "✔"
+  btn.onclick = () => deleteFile(path)
+}
+
+function deleteFile(path){
   fetch("/delete",{
     method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({path:p})
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({ path })
   }).then(()=>location.reload())
+}
+
+function viewImage(src){
+  document.getElementById("previewImg").src = src
+  document.getElementById("preview").style.display = "flex"
 }
 </script>
 
