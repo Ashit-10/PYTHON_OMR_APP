@@ -5,7 +5,7 @@ GITHUB_TOKEN = "github_pat_11AW3Q5NA03TUD3xtLKlVT_roM8JJVee3VsNYkwtTJpfjoVtE46zL
 REPO_OWNER = "Ashit-10"
 REPO_NAME = "omr_exams"
 YEAR = "2026"
-
+site_link = "https://theomr.shop"
 import os
 import re
 import json
@@ -78,6 +78,7 @@ def run():
     
     github_tuition = tuition.upper()
     github_base = f"{github_tuition}/{YEAR}/class-{cls}"
+    
     github_img_folder = f"{github_base}/{folder_path}/eval_files"
     
     output_folder = "./output"
@@ -97,7 +98,7 @@ def run():
             student_list.append({
                 "roll": roll, "mark": mark, "file": file_name,
                 "name": names_db.get(roll, f"Student {roll}"),
-                "path": f"eval_files/{file_name}" 
+                "path": f"{folder_path}/eval_files/{file_name}" 
             })
 
     gallery_students = sorted(student_list, key=lambda x: x['roll'])
@@ -180,7 +181,7 @@ def run():
 </html>"""
 
     # 4. Save Locally
-    output_filename = f"class-{cls}_{clean_subject}_test_{exam_no}.html"
+    output_filename = f"class-{cls}_{clean_subject}_{exam_no}.html"
     with open(output_filename, "w", encoding="utf-8") as f:
         f.write(html_content)
     print(f"✅ HTML Generated: {output_filename}")
@@ -204,8 +205,14 @@ def run():
 
         os.remove(output_filename)
         print(f"\n✅ SYNC COMPLETE: Files available in {github_base}")
+        print()
+        print(f"The webpage will be available in 5 minutes: {site_link}/{github_base}/{output_filename}")
+        print()
+        print()
+        print()
     else:
         print("❌ FAILED: Could not upload HTML file to GitHub.")
+        print()
 
 if __name__ == "__main__":
     run()
