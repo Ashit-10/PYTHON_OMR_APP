@@ -95,11 +95,9 @@ import json
 
 @app.route("/answer_key")
 def answer_key():
-    # This gets the 'folder' from the URL (e.g., /answer_key?folder=input)
-    folder = request.args.get("folder", "input") 
-    
+   
     # Path to the specific answer_key.txt in THAT folder
-    file_path = os.path.join(BASE, folder, "answer_key.txt")
+    file_path = os.path.join(BASE, "answer_key.txt")
     
     content = ""
     if os.path.exists(file_path):
@@ -118,7 +116,7 @@ def save_answer_key():
     if not folder:
         return jsonify(ok=False, error="No folder specified"), 400
         
-    file_path = os.path.join(BASE, folder, "answer_key.txt")
+    file_path = os.path.join(BASE, "answer_key.txt")
     
     try:
         with open(file_path, "w") as f:
