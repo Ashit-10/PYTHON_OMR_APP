@@ -9,8 +9,9 @@
 <header>OMR Scanner</header>
 
 <section>
-<button onclick="location.href='/camera'">📷 Camera Scanner</button>
-<button onclick="openCreate()">➕ Create Folder</button>
+  <button onclick="location.href='/camera'">📷 Camera Scanner</button>
+  <button onclick="openCreate()">➕ Create Folder</button>
+  <button onclick="openAnswerKey()">🗝 Answer Key</button>
 </section>
 
 <section class="card">
@@ -22,12 +23,12 @@
 </ul>
 </section>
 
-<!-- CREATE FOLDER POPUP -->
-<div id="modal" class="modal">
+<!-- CREATE FOLDER MODAL -->
+<div id="createModal" class="modal">
   <div class="modal-box">
     <h3>Create Folder</h3>
-    <input id="cls" placeholder="Class">
-    <input id="sub" placeholder="Subject">
+    <input id="cls" placeholder="Class (required)">
+    <input id="sub" placeholder="Subject (required)">
     <button onclick="createFolder()">Create</button>
     <button class="danger" onclick="closeCreate()">Cancel</button>
   </div>
@@ -36,8 +37,8 @@
 <script>
 function openFolder(f){ location.href="/browse?path="+f }
 
-function openCreate(){ modal.style.display="flex" }
-function closeCreate(){ modal.style.display="none" }
+function openCreate(){ createModal.style.display="flex" }
+function closeCreate(){ createModal.style.display="none" }
 
 function createFolder(){
   fetch("/create_folder",{
@@ -59,6 +60,10 @@ function createFolder(){
     })
     closeCreate()
   })
+}
+
+function openAnswerKey(){
+  location.href="https://theomr.shop/50?filename=answer_key.txt&data=save"
 }
 </script>
 
