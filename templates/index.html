@@ -12,32 +12,42 @@
 
 <section class="actions">
   <button onclick="location.href='camera_ui.html'">📷 Scan OMR Sheet</button>
-  <button onclick="toggleBanner()">➕ Create Project Folder</button>
+  <button onclick="showModal()">➕ Create Project Folder</button>
   <button onclick="openAnswerKey()">🗝 Answer Key</button>
 </section>
 
-<!-- Banner alert create folder -->
-<div id="createBanner" class="banner hidden">
-  <input id="cls" placeholder="Class">
-  <input id="sub" placeholder="Subject">
-  <button onclick="createFolder()">Create</button>
-</div>
-
 <section class="card">
   <h3>Project Folders</h3>
-  <ul id="folders">
+  <div id="folders">
     {% for f in folders %}
-      <li onclick="openFolder('{{ f }}')">📁 {{ f }}</li>
+      <div class="folder-card" 
+           oncontextmenu="showDeleteOption(event,'{{ f }}');return false;" 
+           onclick="openFolder('{{ f }}')">
+        📁 {{ f }}
+        <button class="mini danger delete-folder hidden" onclick="deleteFolder('{{ f }}')">🗑</button>
+      </div>
     {% endfor %}
-  </ul>
+  </div>
 </section>
+
+<!-- Modal popup -->
+<div id="modal" class="modal hidden">
+  <div class="modal-content">
+    <h3>Create Project Folder</h3>
+    <input id="cls" placeholder="Class">
+    <input id="sub" placeholder="Subject">
+    <div class="modal-buttons">
+      <button onclick="createFolder()">Create</button>
+      <button onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <script>
 function openFolder(f){ location.href="/browse?path="+f }
 
-function toggleBanner(){
-  document.getElementById("createBanner").classList.toggle("hidden")
-}
+function showModal(){ document.getElementById("modal").classList.remove("hidden") }
+function closeModal(){ document.getElementById("modal").classList.add("hidden") }
 
 function createFolder(){
   let clsVal = cls.value.trim()
@@ -51,16 +61,36 @@ function createFolder(){
     headers:{ "Content-Type":"application/json" },
     body:JSON.stringify({class:clsVal, subject:subVal})
   }).then(r=>r.json()).then(d=>{
-    folders.innerHTML=""
+    const foldersDiv=document.getElementById("folders")
+    foldersDiv.innerHTML=""
     d.folders.forEach(f=>{
-      let li=document.createElement("li")
-      li.innerText="📁 "+f
-      li.onclick=()=>openFolder(f)
-      folders.appendChild(li)
+      const div=document.createElement("div")
+      div.className="folder-card"
+      div.innerText="📁 "+f
+      div.onclick=()=>openFolder(f)
+      if(f.startsWith("class")) div.oncontextmenu=(e)=>{showDeleteOption(e,f); return false;}
+      foldersDiv.appendChild(div)
     })
-    alert("Folder created")
-    cls.value=sub.value=""
+    closeModal()
   })
+}
+
+function showDeleteOption(e,f){
+  e.stopPropagation()
+  const btns=document.querySelectorAll(".delete-folder")
+  btns.forEach(b=>b.classList.add("hidden"))
+  const parent=e.currentTarget
+  const btn=parent.querySelector(".delete-folder")
+  if(btn) btn.classList.remove("hidden")
+}
+
+function deleteFolder(f){
+  if(!confirm("Delete folder "+f+"?")) return
+  fetch("/delete",{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({path:f})
+  }).then(()=>location.reload())
 }
 
 function openAnswerKey(){
