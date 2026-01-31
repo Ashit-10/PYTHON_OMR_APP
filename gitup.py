@@ -101,7 +101,7 @@ def run():
     raw_subject = subject.strip()
     exam_no = 1
     clean_subject = raw_subject.replace(" ", "").lower()
-    folder_path = f"class-{cls}_{clean_subject}_{exam_no}"
+    
     github_tuition = tuition.upper()
     github_base = f"{github_tuition}/{YEAR}/class-{cls}"
     
@@ -111,6 +111,8 @@ def run():
     print(f"📈 Setting Exam Number to: {exam_no}")
     
     
+    
+    folder_path = f"class-{cls}_{clean_subject}_{exam_no}"
     github_img_folder = f"{github_base}/{folder_path}/eval_files"
     
     output_folder = "./output"
