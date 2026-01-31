@@ -27,7 +27,34 @@ else:
 
 print(f"--- INITIALIZING GITHUB SYNC ---")
 print(f"Target: {tuition.upper()} | Class: {cls} | Subject: {subject}")
-
+def get_next_exam_no(session, github_base, cls, clean_subject):
+    """Checks GitHub to see how many exams exist and returns the next number."""
+    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{github_base}"
+    res = session.get(url)
+    
+    exam_no = 1
+    if res.status_code == 200:
+        contents = res.json()
+        # Look for folders like "class-10_math_1", "class-10_math_2"
+        pattern = f"class-{cls}_{clean_subject}_"
+        existing_exams = [
+            item['name'] for item in contents 
+            if item['type'] == 'dir' and item['name'].startswith(pattern)
+        ]
+        
+        if existing_exams:
+            # Find the highest number currently in use
+            numbers = []
+            for name in existing_exams:
+                try:
+                    num = int(name.split('_')[-1])
+                    numbers.append(num)
+                except ValueError:
+                    continue
+            if numbers:
+                exam_no = max(numbers) + 1
+    
+    return exam_no
 def get_total_marks():
     """Parses answer_key.txt as JSON and returns the count of items."""
     filename = "answer_key.txt"
@@ -75,9 +102,14 @@ def run():
     exam_no = 1
     clean_subject = raw_subject.replace(" ", "").lower()
     folder_path = f"class-{cls}_{clean_subject}_{exam_no}"
-    
     github_tuition = tuition.upper()
     github_base = f"{github_tuition}/{YEAR}/class-{cls}"
+    
+    session = requests.Session()
+    session.headers.update({"Authorization": f"token {GITHUB_TOKEN}"})
+    exam_no = get_next_exam_no(session, github_base, cls, clean_subject)
+    print(f"📈 Setting Exam Number to: {exam_no}")
+    
     
     github_img_folder = f"{github_base}/{folder_path}/eval_files"
     
