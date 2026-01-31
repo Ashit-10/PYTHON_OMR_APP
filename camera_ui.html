@@ -384,12 +384,28 @@ Just click Capture – it will process in background and show result here.
     refreshBtn.onclick = () => location.reload();
     flashBtn.onclick = toggleFlash;
 
-    document.getElementById('exitBtn').onclick = function () {
-      try {
-        if (stream) stream.getTracks().forEach(t => t.stop());
-      } catch (e) {}
-      window.close();
+        document.getElementById('exitBtn').onclick = function () {
+      // 1. Stop all camera tracks safely
+      if (stream) {
+        stream.getTracks().forEach(track => {
+          track.stop();
+          console.log("Camera track stopped:", track.label);
+        });
+      }
+
+      // 2. Clear the video source to ensure memory is released
+      video.srcObject = null;
+
+      // 3. Go back to the previous page
+      // If there is no history, it will stay on the current page
+      if (document.referrer !== "") {
+        window.location.href = document.referrer;
+      } else {
+        // Fallback: Change '/' to your actual home page URL if needed
+        window.location.href = '/'; 
+      }
     };
+
 
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
