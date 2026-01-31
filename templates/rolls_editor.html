@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Managing {{ filename }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .student-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: white;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .roll-box {
+            font-weight: bold;
+            color: #5d4037;
+            width: 40px;
+        }
+        input.name-edit {
+            flex-grow: 1;
+            border: 1px solid #ddd;
+            padding: 8px;
+            border-radius: 4px;
+        }
+        .delete-btn {
+            background: #ffeded;
+            color: #d32f2f;
+            border: none;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <button onclick="history.back()" style="float: left; background: none; color: white; border: none; font-size: 1.2rem;">←</button>
+        {{ filename }}
+    </header>
+
+    <div id="student-container" style="padding: 15px; margin-bottom: 100px;">
+        {% for s in students %}
+        <div class="student-item">
+            <span class="roll-box">{{ s.roll }}</span>
+            <input type="text" class="name-edit" value="{{ s.name }}" data-roll="{{ s.roll }}">
+            <button class="delete-btn" onclick="this.parentElement.remove()">🗑</button>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div style="position: fixed; bottom: 0; width: 100%; background: #eee; padding: 15px; display: flex; gap: 10px; box-sizing: border-box;">
+        <button onclick="addNewRow()" style="flex: 1; background: #444; color: white;">➕ Add New</button>
+        <button onclick="saveData()" style="flex: 2; background: #2e7d32; color: white;">💾 Save Changes</button>
+    </div>
+
+    <script>
+        function addNewRow() {
+            const container = document.getElementById('student-container');
+            const lastRoll = container.lastElementChild ? parseInt(container.lastElementChild.querySelector('.roll-box').innerText || 0) : 0;
+            const newRoll = lastRoll + 1;
+
+            const div = document.createElement('div');
+            div.className = 'student-item';
+            div.innerHTML = `
+                <span class="roll-box">${newRoll}</span>
+                <input type="text" class="name-edit" placeholder="Enter Name" data-roll="${newRoll}">
+                <button class="delete-btn" onclick="this.parentElement.remove()">🗑</button>
+            `;
+            container.appendChild(div);
+        }
+
+        function saveData() {
+            const items = document.querySelectorAll('.student-item');
+            const students = Array.from(items).map(item => ({
+                roll: item.querySelector('.roll-box').innerText,
+                name: item.querySelector('.name-edit').value
+            }));
+
+            fetch('/save_rolls', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: "{{ filename }}", students: students })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if(data.status === 'success') alert('Changes saved to {{ filename }}');
+                else alert('Error: ' + data.message);
+            });
+        }
+    </script>
+</body>
+</html>
