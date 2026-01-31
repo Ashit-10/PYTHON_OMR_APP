@@ -1,49 +1,52 @@
+* { box-sizing: border-box; }
+
 body {
-  font-family: system-ui, sans-serif;
-  background: #f4f6f8;
   margin: 0;
+  font-family: system-ui;
+  background: #f2f2f2;
 }
 
-.container {
-  max-width: 420px;
-  margin: auto;
-  padding: 16px;
-}
-
-h1 {
-  text-align: center;
-}
-
-.card {
-  background: #fff;
+header {
+  background: #111;
+  color: #fff;
   padding: 14px;
-  margin: 12px 0;
+  text-align: center;
+  font-size: 18px;
+}
+
+section, .card {
+  margin: 12px;
+  background: #fff;
+  padding: 12px;
   border-radius: 10px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
 button {
   width: 100%;
   padding: 12px;
-  font-size: 16px;
+  margin-top: 8px;
   border: none;
   border-radius: 8px;
   background: #2563eb;
   color: white;
-}
-
-button:active {
-  background: #1e40af;
+  font-size: 16px;
 }
 
 input {
   width: 100%;
   padding: 10px;
-  margin: 6px 0;
-  border-radius: 6px;
-  border: 1px solid #ccc;
+  margin-top: 6px;
 }
 
 ul {
-  padding-left: 18px;
+  list-style: none;
+  padding: 0;
+}
+
+.filelist li, ul li {
+  padding: 10px;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
