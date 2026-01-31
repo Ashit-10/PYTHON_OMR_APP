@@ -10,60 +10,54 @@
 
 <section>
 <button onclick="location.href='/camera'">📷 Camera Scanner</button>
-</section>
-
-<section class="card">
-<h3>Create New Folder</h3>
-
-<input id="cls" placeholder="Class (required)">
-<input id="sub" placeholder="Subject (required)">
-
-<button onclick="createFolder()">Create</button>
-<p id="msg"></p>
+<button onclick="openCreate()">➕ Create Folder</button>
 </section>
 
 <section class="card">
 <h3>Project Folders</h3>
 <ul id="folders">
 {% for f in folders %}
-  <li onclick="openFolder('{{ f }}')">📁 {{ f }}</li>
+<li onclick="openFolder('{{f}}')">📁 {{f}}</li>
 {% endfor %}
 </ul>
 </section>
 
+<!-- CREATE FOLDER POPUP -->
+<div id="modal" class="modal">
+  <div class="modal-box">
+    <h3>Create Folder</h3>
+    <input id="cls" placeholder="Class">
+    <input id="sub" placeholder="Subject">
+    <button onclick="createFolder()">Create</button>
+    <button class="danger" onclick="closeCreate()">Cancel</button>
+  </div>
+</div>
+
 <script>
-function openFolder(f){
-  location.href = "/browse?path=" + f
-}
+function openFolder(f){ location.href="/browse?path="+f }
+
+function openCreate(){ modal.style.display="flex" }
+function closeCreate(){ modal.style.display="none" }
 
 function createFolder(){
-  const cls = document.getElementById("cls").value.trim()
-  const sub = document.getElementById("sub").value.trim()
-  const msg = document.getElementById("msg")
-
-  if(!cls || !sub){
-    msg.innerText = "Class and Subject are required"
-    return
-  }
-
   fetch("/create_folder",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({ class: cls, subject: sub })
-  })
-  .then(r => r.json())
-  .then(data => {
-    msg.innerText = "Folder created"
-
-    const ul = document.getElementById("folders")
-    ul.innerHTML = ""
-
-    data.folders.forEach(f => {
-      const li = document.createElement("li")
-      li.innerText = "📁 " + f
-      li.onclick = () => openFolder(f)
-      ul.appendChild(li)
+    body:JSON.stringify({
+      class: cls.value.trim(),
+      subject: sub.value.trim()
     })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    folders.innerHTML=""
+    d.folders.forEach(f=>{
+      let li=document.createElement("li")
+      li.innerText="📁 "+f
+      li.onclick=()=>openFolder(f)
+      folders.appendChild(li)
+    })
+    closeCreate()
   })
 }
 </script>
