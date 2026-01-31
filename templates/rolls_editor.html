@@ -3,95 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Managing {{ filename }}</title>
+    <title>{{ filename }}</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
+        body { background: #121212; color: #e0e0e0; font-family: sans-serif; }
         .student-item {
-            display: flex; align-items: center; gap: 10px;
-            background: #2c2c2c; color: white; padding: 12px;
-            margin-bottom: 8px; border-radius: 8px;
+            display: flex; align-items: center; gap: 15px;
+            background: #1e1e1e; padding: 12px;
+            margin: 8px; border-radius: 10px;
+            border: 1px solid #333;
         }
-        .roll-box { font-weight: bold; color: #00ff00; width: 40px; }
-        input.name-edit {
-            flex-grow: 1; border: 1px solid #444; background: #1e1e1e;
-            color: white; padding: 8px; border-radius: 4px;
+        .roll-number {
+            font-family: monospace; font-size: 1.1rem;
+            color: #00ffaa; min-width: 30px; font-weight: bold;
         }
-        .delete-btn { background: #441111; color: #ff5555; border: 1px solid #662222; padding: 8px; border-radius: 4px; cursor: pointer; }
+        input.name-input {
+            flex-grow: 1; background: transparent; border: none;
+            color: white; font-size: 1rem; border-bottom: 1px solid #444;
+            padding: 5px;
+        }
+        input.name-input:focus { border-bottom: 1px solid #00ffaa; outline: none; }
+        .delete-btn { background: none; border: none; color: #ff5555; cursor: pointer; font-size: 1.2rem; }
     </style>
 </head>
 <body>
-    <header style="background: #333; padding: 15px; text-align: center; color: white;">
-        <button onclick="window.location.href='/'" style="float: left; background: none; color: white; border: none; font-size: 1.2rem; cursor: pointer;">←</button>
-        {{ filename }}
+    <header style="padding: 15px; background: #222; display: flex; align-items: center; gap: 20px;">
+        <button onclick="window.location.href='/'" style="background:none; border:none; color:white; font-size: 1.5rem;">←</button>
+        <h3 style="margin:0;">{{ filename }}</h3>
     </header>
 
-    <div id="student-container" style="padding: 15px; margin-bottom: 100px;">
+    <div id="list-container" style="padding-bottom: 100px;">
         {% for s in students %}
         <div class="student-item">
-            <span class="roll-box">{{ s.roll }}</span>
-            <input type="text" class="name-edit" value="{{ s.name }}" data-roll="{{ s.roll }}">
+            <span class="roll-number">{{ s.roll }}</span>
+            <input type="text" class="name-input" value="{{ s.name }}">
             <button class="delete-btn" onclick="this.parentElement.remove()">🗑</button>
         </div>
         {% endfor %}
     </div>
 
-    <div style="position: fixed; bottom: 0; width: 100%; background: #111; padding: 15px; display: flex; gap: 10px; box-sizing: border-box; border-top: 2px solid #333;">
-        <button onclick="addNewStudent()" style="flex: 1; background: #5d4037; color: white; padding: 12px; border: none; border-radius: 5px;">➕ Add Student</button>
-        <button onclick="saveData()" style="flex: 2; background: #2e7d32; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold;">💾 Save Changes</button>
+    <div style="position: fixed; bottom: 0; width: 100%; background: #1a1a1a; padding: 20px; display: flex; gap: 10px; box-sizing: border-box;">
+        <button onclick="addNewStudent()" style="flex: 1; padding: 12px; border-radius: 8px; border: none; background: #333; color: white;">➕ Add Student</button>
+        <button onclick="saveChanges()" style="flex: 2; padding: 12px; border-radius: 8px; border: none; background: #00897b; color: white; font-weight: bold;">💾 Save to File</button>
     </div>
 
     <script>
         function addNewStudent() {
-            const container = document.getElementById('student-container');
-            
-            // 1. Ask for the Name via Popup
-            const studentName = prompt("Enter Student Name:");
-            if (!studentName || studentName.trim() === "") return;
+            const name = prompt("Enter Student Name:");
+            if (!name) return;
 
-            // 2. Automatically find the next Roll Number
-            const items = document.querySelectorAll('.roll-box');
+            const container = document.getElementById('list-container');
+            const rolls = document.querySelectorAll('.roll-number');
+            
+            // Calculate next roll number
             let maxRoll = 0;
-            items.forEach(item => {
-                const val = parseInt(item.innerText);
+            rolls.forEach(el => {
+                let val = parseInt(el.innerText);
                 if (val > maxRoll) maxRoll = val;
             });
             const nextRoll = maxRoll + 1;
 
-            // 3. Add to UI
             const div = document.createElement('div');
             div.className = 'student-item';
             div.innerHTML = `
-                <span class="roll-box">${nextRoll}</span>
-                <input type="text" class="name-edit" value="${studentName}" data-roll="${nextRoll}">
+                <span class="roll-number">${nextRoll}</span>
+                <input type="text" class="name-input" value="${name}">
                 <button class="delete-btn" onclick="this.parentElement.remove()">🗑</button>
             `;
             container.appendChild(div);
+            window.scrollTo(0, document.body.scrollHeight);
         }
 
-        function saveData() {
+        function saveChanges() {
             const items = document.querySelectorAll('.student-item');
-            
-            // Map the rows back into a list of objects
             const students = Array.from(items).map(item => ({
-                roll: item.querySelector('.roll-box').innerText,
-                name: item.querySelector('.name-edit').value
+                roll: item.querySelector('.roll-number').innerText,
+                name: item.querySelector('.name-input').value
             }));
 
             fetch('/save_rolls', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    filename: "{{ filename }}", 
-                    students: students 
+                body: JSON.stringify({
+                    filename: "{{ filename }}",
+                    students: students
                 })
             })
             .then(r => r.json())
             .then(data => {
-                if(data.status === 'success') {
-                    alert('Successfully saved to {{ filename }}');
-                } else {
-                    alert('Error: ' + data.message);
-                }
+                if (data.status === 'success') alert("Saved successfully!");
+                else alert("Error: " + data.message);
             });
         }
     </script>
