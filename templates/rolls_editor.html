@@ -49,15 +49,16 @@
         {% for s in students %}
         <div class="student-item">
             <span class="roll-number">{{ s.roll }}</span>
-            <input type="text" class="name-input" value="{{ s.name }}" onchange="saveChanges()">
-            <button type="button" class="delete-btn" onclick="this.parentElement.remove(); saveChanges();">🗑</button>
+            <input type="text" class="name-input" value="{{ s.name }}">
+            <button type="button" class="delete-btn" onclick="this.parentElement.remove(); saveChanges(true);">🗑</button>
         </div>
         {% endfor %}
     </div>
 
     <div class="footer-actions">
-        <button type="button" onclick="addNewStudent()" style="flex: 1; background: #333;">➕ Add Student</button>
-        <button type="button" id="gitBtn" onclick="syncToGithub()" style="flex: 1; background: #24292e;">🐙 Upload GitHub</button>
+        <button type="button" onclick="addNewStudent()" style="flex: 1; background: #333;">➕ Add</button>
+        <button type="button" onclick="saveChanges()" style="flex: 1.5; background: #00897b;">💾 Save Changes</button>
+        <button type="button" id="gitBtn" onclick="syncToGithub()" style="flex: 1; background: #24292e;">🐙 GitHub</button>
     </div>
 
 <script>
@@ -91,16 +92,16 @@ function addNewStudent() {
     div.className = 'student-item';
     div.innerHTML = `
         <span class="roll-number">${customRoll}</span>
-        <input type="text" class="name-input" value="${name}" onchange="saveChanges()">
-        <button type="button" class="delete-btn" onclick="this.parentElement.remove(); saveChanges();">🗑</button>
+        <input type="text" class="name-input" value="${name}">
+        <button type="button" class="delete-btn" onclick="this.parentElement.remove(); saveChanges(true);">🗑</button>
     `;
     
     container.appendChild(div);
     sortList(); 
     div.scrollIntoView({ behavior: 'smooth' });
 
-    // --- AUTO SAVE ---
-    saveChanges(true); // Passing true to silence the alert
+    // Auto-save when adding, but silently
+    saveChanges(true);
 }
 
 function sortList() {
@@ -125,16 +126,16 @@ function saveChanges(silent = false) {
     .then(r => r.json())
     .then(data => {
         if (data.status === 'success') {
-            if (!silent) console.log("Auto-saved");
+            if (!silent) alert("✅ Changes saved to local file!");
         } else {
-            alert("Save Error: " + data.message);
+            alert("❌ Save Error: " + data.message);
         }
     });
 }
 
 function syncToGithub() {
     const btn = document.getElementById('gitBtn');
-    if(!confirm("Push changes to GitHub?")) return;
+    if(!confirm("Push local file to GitHub?")) return;
     
     btn.innerText = "⏳ Pushing...";
     btn.disabled = true;
@@ -142,11 +143,11 @@ function syncToGithub() {
     fetch(`/sync_roll_github?file={{ filename }}`)
     .then(r => r.json())
     .then(data => {
-        if(data.status === 'success') alert("✅ Pushed to GitHub!");
-        else alert("❌ Error: " + JSON.stringify(data.message));
+        if(data.status === 'success') alert("🚀 Uploaded to GitHub successfully!");
+        else alert("❌ GitHub Error: " + JSON.stringify(data.message));
     })
     .finally(() => {
-        btn.innerText = "🐙 Upload GitHub";
+        btn.innerText = "🐙 GitHub";
         btn.disabled = false;
     });
 }
