@@ -129,21 +129,28 @@ def dashboard():
 import subprocess
 from flask import Response
 
+from flask import request, Response
+import subprocess
+
 @app.route('/run_gitup')
 def run_gitup():
+    # Get parameters from the URL
+    tution = request.args.get('tution')
+    cls = request.args.get('class')
+    sub = request.args.get('subject')
+
     def generate():
-        # Execute the gitup.py script
+        # Passing parameters to gitup.py
+        # This is like running: python gitup.py mvm 10 Physics
         process = subprocess.Popen(
-            ['python', 'gitup.py'], 
-            stdout=subprocess.PIPE, 
+            ['python', 'gitup.py', tution, cls, sub],
+            stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True
         )
         
-        # Stream output line by line to the browser
         for line in process.stdout:
             yield line
-        
         process.wait()
 
     return Response(generate(), mimetype='text/plain')
