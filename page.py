@@ -93,10 +93,10 @@ import json
 
 # Add these to your App.py file
 
+
 @app.route("/answer_key")
 def answer_key():
-   
-    # Path to the specific answer_key.txt in THAT folder
+    # Look directly in the current base directory
     file_path = os.path.join(BASE, "answer_key.txt")
     
     content = ""
@@ -104,16 +104,15 @@ def answer_key():
         with open(file_path, "r") as f:
             content = f.read()
             
-    # This sends the folder name and the file text into 50.html
-    return render_template("50.html", content=content, folder=folder)
+    # We still pass folder="." so the save function knows where to go
+    return render_template("50.html", content=content, folder=".")
 
 @app.route("/save_answer_key", methods=["POST"])
 def save_answer_key():
     data = request.json
-    
     content = data.get("content")
     
-    
+    # Save directly to the current base directory
     file_path = os.path.join(BASE, "answer_key.txt")
     
     try:
