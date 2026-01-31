@@ -36,6 +36,7 @@ current_filename = ""
 latest_output_filename = ""
 error_occurred = False
 
+
 # --- OMR BACKGROUND PROCESSING ---
 def open_chrome():
     os.system("am start -n com.android.chrome/com.google.android.apps.chrome.Main -a android.intent.action.VIEW -d https://127.0.0.1:7860")
@@ -121,6 +122,28 @@ def get_project_folders():
     return sorted(out)
 
 # --- MAIN ROUTES ---
+import json
+
+@app.route("/update_config", methods=["POST"])
+def update_config():
+    data = request.json
+    new_sign = data.get("signature")
+    
+    # Read existing lines, change the signature line, and write back
+    lines = []
+    try:
+        with open("config.cfg", "r") as f:
+            lines = f.readlines()
+            
+        with open("config.cfg", "w") as f:
+            for line in lines:
+                if line.startswith("signature="):
+                    f.write(f"signature={new_sign}\n")
+                else:
+                    f.write(line)
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/")
 def dashboard():
