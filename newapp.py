@@ -139,12 +139,18 @@ def results_page():
 
 @app.route('/upload', methods=['POST'])
 def upload():
-    global current_filename
+    global current_filename, processing
     file = request.files['image']
-    current_filename = f"OMR_{int(time.time())}.jpg"
+    
+    # Force a unique name that the watch_folder WILL recognize
+    current_filename = f"OMR_INSTANT_{int(time.time())}.jpg"
     path = os.path.join(download_folder, current_filename)
     file.save(path)
-    return jsonify({"message": "OK"})
+    
+    # OPTIONAL: Trigger processing immediately instead of waiting for the thread
+    # threading.Thread(target=move_and_process, args=(path,)).start()
+    
+    return jsonify({"message": "OK", "filename": current_filename})
 
 @app.route('/status')
 def status():
