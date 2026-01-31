@@ -60,6 +60,5 @@
     "59": "Suranjan Sahoo",
     "60": "Sushree Sangita Swain",
     "61": "Swagatika Samantaray",
-    "62": "Swayamshree Paikaray",
-    "63": "ok"
+    "62": "Swayamshree Paikaray"
 }
