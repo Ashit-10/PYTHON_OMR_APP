@@ -220,16 +220,30 @@
 
     // --- 2. ADD RESET BUTTON (ALWAYS VISIBLE) ---
     const topButtonsContainer = document.querySelector('.topButtons');
+        // Replace the previous resetBtn block with this:
     const resetBtn = document.createElement('button');
     resetBtn.textContent = 'Reset';
     resetBtn.className = 'action-button';
     resetBtn.style.backgroundColor = '#999';
     resetBtn.style.marginLeft = '10px'; 
+    
     resetBtn.addEventListener('click', (e) => {
         e.preventDefault(); 
-        if (confirm('Clear all answers on this screen?')) {
+        if (confirm('Clear all bubbles and saved data?')) {
+            // 1. Clear LocalStorage
             localStorage.removeItem('omr_saved_data');
-            location.reload();
+            
+            // 2. Uncheck every checkbox in the UI manually
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = false);
+            
+            // 3. Reset the userInput array
+            userInput.length = 0; 
+            
+            // 4. Refresh colors (turns everything back to red)
+            updateQuestionColors();
+            
+            alert("Sheet cleared!");
         }
     });
     topButtonsContainer.appendChild(resetBtn);
