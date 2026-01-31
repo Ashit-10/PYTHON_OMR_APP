@@ -197,18 +197,49 @@ def dashboard():
 
 import subprocess
 
+import base64
+import requests
+
 @app.route('/sync_roll_github')
 def sync_roll_github():
     filename = request.args.get('file')
-    # Use a simpler execution if you just want to run it and finish
+    file_path = os.path.join(BASE, filename)
+
+    # --- CONFIGURATION ---
+    TOKEN = "your_github_token_here"
+    OWNER = "Ashit-10"
+    REPO = "PYTHON_OMR_APP"
+    BRANCH = "main" # or 'master'
+    
+    if not os.path.exists(file_path):
+        return jsonify({"status": "error", "message": "File not found"}), 404
+
     try:
-        # This calls: python3 gitup.py <filename>
-        # Adjust the arguments based on how your gitup.py is written
-        result = subprocess.run(['python3', 'gitup.py', filename], capture_output=True, text=True)
-        if result.returncode == 0:
-            return jsonify({"status": "success", "log": result.stdout})
+        with open(file_path, "rb") as f:
+            content = base64.b64encode(f.read()).decode("utf-8")
+
+        # 1. Get the file SHA (required by GitHub to update existing files)
+        url = f"https://api.github.com/repos/{OWNER}/{REPO}/contents/{filename}"
+        headers = {"Authorization": f"token {TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        
+        get_res = requests.get(url, headers=headers)
+        sha = get_res.json().get("sha") if get_res.status_code == 200 else None
+
+        # 2. Upload/Update the file
+        data = {
+            "message": f"Update {filename} via OMR Dashboard",
+            "content": content,
+            "branch": BRANCH
+        }
+        if sha: data["sha"] = sha
+
+        put_res = requests.put(url, headers=headers, json=data)
+        
+        if put_res.status_code in [200, 201]:
+            return jsonify({"status": "success"})
         else:
-            return jsonify({"status": "error", "log": result.stderr}), 500
+            return jsonify({"status": "error", "message": put_res.json()}), 500
+
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
