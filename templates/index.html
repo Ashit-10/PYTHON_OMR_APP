@@ -16,24 +16,23 @@
   <button onclick="openAnswerKey()">🗝 Answer Key</button>
 </section>
 
-<section class="card">
+<section class="card" style="margin: 12px;">
   <h3>Project Folders</h3>
   <div id="folders">
     {% for f in folders %}
-      <div class="folder-card">
+      <div class="folder-card" onclick="openFolder('{{ f }}')">
         📁 {{ f }}
-        <button class="mini danger delete-folder" onclick="deleteFolder('{{ f }}')">🗑</button>
+        <button class="mini danger delete-folder" onclick="event.stopPropagation(); deleteFolder('{{ f }}')">🗑</button>
       </div>
     {% endfor %}
   </div>
 </section>
 
-<!-- Modal popup -->
 <div id="modal" class="modal hidden">
   <div class="modal-content">
     <h3>Create Project Folder</h3>
-    <input id="cls" placeholder="Class">
-    <input id="sub" placeholder="Subject">
+    <input id="clsInput" placeholder="Class (e.g. 10)">
+    <input id="subInput" placeholder="Subject (e.g. Math)">
     <div class="modal-buttons">
       <button onclick="createFolder()">Create</button>
       <button onclick="closeModal()">Cancel</button>
@@ -44,40 +43,30 @@
 <script>
 const foldersDiv = document.getElementById("folders");
 
-function openFolder(f){ location.href="/browse?path="+f }
+function openFolder(f){ 
+    window.location.href = "/browse?path=" + encodeURIComponent(f); 
+}
 
 function showModal(){ document.getElementById("modal").classList.remove("hidden") }
 function closeModal(){ document.getElementById("modal").classList.add("hidden") }
 
 function createFolder(){
-  const clsVal = cls.value.trim()
-  const subVal = sub.value.trim()
+  const clsVal = document.getElementById("clsInput").value.trim();
+  const subVal = document.getElementById("subInput").value.trim();
   if(!clsVal || !subVal){ alert("Class and Subject required"); return; }
+  
   fetch("/create_folder",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
     body:JSON.stringify({class:clsVal, subject:subVal})
-  }).then(r=>r.json()).then(d=>{
-    foldersDiv.innerHTML=""
-    d.folders.forEach(f=>{
-      const div = document.createElement("div")
-      div.className="folder-card"
-      div.innerText="📁 "+f
-      div.onclick=()=>openFolder(f)
-      const btn = document.createElement("button")
-      btn.className="mini danger delete-folder"
-      btn.innerText="🗑"
-      btn.style.display="none"
-      btn.onclick=(e)=>{ e.stopPropagation(); deleteFolder(f); }
-      div.appendChild(btn)
-      foldersDiv.appendChild(div)
-      attachLongPress(div, f)
-    })
-    closeModal()
   })
+  .then(r => r.json())
+  .then(d => {
+    location.reload(); // Simplest way to refresh the folder list properly
+  });
 }
 
-function openAnswerKey(){ location.href="https://theomr.shop/50?filename=answer_key.txt&data=save" }
+function openAnswerKey(){ window.location.href="https://theomr.shop/50?filename=answer_key.txt&data=save" }
 
 function deleteFolder(f){
   if(!confirm("Delete folder "+f+"?")) return
@@ -88,28 +77,23 @@ function deleteFolder(f){
   }).then(()=>location.reload())
 }
 
-/* =====================
-   LONG PRESS DETECTION
-===================== */
-let longPressTimer;
+// Long press for mobile to show delete button
 function attachLongPress(el, folderName){
+    let longPressTimer;
     el.addEventListener("touchstart", function(e){
-        if(!folderName.startsWith("class")) return;
         longPressTimer = setTimeout(()=>{
             const btn = el.querySelector(".delete-folder");
             if(btn) btn.style.display="inline-block";
-        }, 600); // 600ms long press
+        }, 600);
     });
-    el.addEventListener("touchend", function(e){ clearTimeout(longPressTimer); });
-    el.addEventListener("touchmove", function(e){ clearTimeout(longPressTimer); });
+    el.addEventListener("touchend", () => clearTimeout(longPressTimer));
+    el.addEventListener("touchmove", () => clearTimeout(longPressTimer));
 }
 
-/* attach long press to existing folders */
-foldersDiv.childNodes.forEach(div=>{
-    const name = div.innerText.replace("📁 ","");
-    attachLongPress(div,name)
+document.querySelectorAll(".folder-card").forEach(div => {
+    const name = div.innerText.replace("📁 ","").trim();
+    attachLongPress(div, name);
 });
 </script>
-
 </body>
 </html>
