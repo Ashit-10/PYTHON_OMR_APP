@@ -1,9 +1,4 @@
-import os
-import re
-import json
-import requests
-import base64
-from tqdm import tqdm
+
 
 # --- CONFIGURATION ---
 GITHUB_TOKEN = "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"
@@ -11,9 +6,16 @@ REPO_OWNER = "Ashit-10"
 REPO_NAME = "omr_exams"
 YEAR = "2026"
 
-# --- CONFIGURATION ---
+import os
+import re
+import json
+import requests
+import base64
+import sys
 
-# Capture arguments from the Web UI
+
+
+# Capture arguments from the Web UI (passed via subprocess)
 if len(sys.argv) > 3:
     tuition = sys.argv[1]
     cls = sys.argv[2]
@@ -23,18 +25,21 @@ else:
     cls = "unknown"
     subject = "unknown"
 
-print(f"--- STARTING SYNC ---")
-print(f"Tuition: {tuition.upper()} | Class: {cls} | Subject: {subject}")
+print(f"--- INITIALIZING GITHUB SYNC ---")
+print(f"Target: {tuition.upper()} | Class: {cls} | Subject: {subject}")
 
 def get_total_marks():
+    """Parses answer_key.txt as JSON and returns the count of items."""
     filename = "answer_key.txt"
     if os.path.exists(filename):
         with open(filename, 'r', encoding='utf-8') as f:
             try:
                 data = json.load(f)
                 return len(data)
-            except:
-                return 0
+            except json.JSONDecodeError:
+                content = f.read()
+                items = re.findall(r'"[^"]+"\s*:\s*"[^"]+"', content)
+                return len(items)
     return 0
 
 def get_student_names(tuition, cls):
@@ -62,7 +67,7 @@ def upload_to_github(session, local_path, github_path):
         res = session.put(url, json=data)
         return res.status_code in [200, 201]
     except Exception as e:
-        print(f"Error uploading {local_path}: {e}")
+        print(f"Error: {e}")
         return False
 
 def run():
@@ -95,47 +100,112 @@ def run():
                 "path": f"eval_files/{file_name}" 
             })
 
+    gallery_students = sorted(student_list, key=lambda x: x['roll'])
     ranked_students = sorted(student_list, key=lambda x: x['mark'], reverse=True)
     for i, s in enumerate(ranked_students): s['rank'] = i + 1
-    total_m = get_total_marks()
+    
+    total_possible_marks = get_total_marks()
 
     # 3. HTML Generation
-    html_content = f"""<!DOCTYPE html>...[Omitted for brevity, keep your HTML code here]...</html>"""
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Answer sheets</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        #heading{{ display: flex; justify-content: center; padding-top: 20px; padding-right: 10%; }}
+        body {{ font-family: Arial, sans-serif; padding: 5px; }}
+        #search-bar {{ margin-bottom: 20px; width: 100%; padding: 10px; font-size: 16px; }}
+        table {{ width: 100%; border-collapse: collapse; }}
+        th, td {{ text-align: left; padding: 8px; vertical-align: middle; }}
+        tr:nth-child(even) {{ background-color: #eee9e9; }}
+        a {{ text-decoration: none !important; color: blue; }}
+        a:hover {{ text-decoration: underline; }}
+    </style>
+</head>
+<body>
+    <h1 id="heading">{clean_subject.upper()} [unit test - {exam_no}]</h1>
+    <nav class="navbar bg-body-tertiary px-3 mb-3">
+        <ul class="nav nav-pills">
+            <li class="nav-item me-2">
+                <button class="btn btn-outline-warning">View question paper</button>
+            </li>
+        </ul>
+    </nav>
+    <input type="text" id="search-bar" placeholder="Search for names...">
+    <table id="name-table">
+        <thead><tr><th>Name</th><th>Total mark</th><th>Secured mark</th><th>Rank</th></tr></thead>
+        <tbody>"""
+
+    for s in ranked_students:
+        html_content += f"""
+            <tr>
+                <td><a href="{s['path']}">{s['name']}</a></td>
+                <td>{total_possible_marks}</td>
+                <td>{s['mark']}</td>
+                <td>{s['rank']}</td>
+            </tr>"""
+
+    html_content += f"""
+        </tbody>
+    </table>
+    <br><br>
+    <h2 id="heading2">&nbsp;&nbsp;&nbsp;All student's answer sheets (Roll number wise).</h2>
+    <div id="gallery-container">"""
+
+    for s in gallery_students:
+        html_content += f"""
+        <div class="imgs" style="text-align:center; margin-bottom:40px;">
+            <img src="{s['path']}" alt="{s['name']}" style="max-width:90%; height:auto; border:1px solid #ccc;"> 
+            <p>{s['name']} (Roll: {s['roll']})</p>
+        </div>"""
+
+    html_content += """
+    </div>
+    <script>
+        const searchBar = document.getElementById('search-bar');
+        searchBar.addEventListener('input', () => {
+            const filter = searchBar.value.trim().toLowerCase();
+            document.querySelectorAll('#name-table tbody tr').forEach(row => {
+                row.style.display = row.cells[0].textContent.toLowerCase().includes(filter) ? '' : 'none';
+            });
+            document.querySelectorAll('.imgs').forEach(div => {
+                div.style.display = div.querySelector('img').alt.toLowerCase().includes(filter) ? '' : 'none';
+            });
+        });
+    </script>
+</body>
+</html>"""
 
     # 4. Save Locally
     output_filename = f"class-{cls}_{clean_subject}_test_{exam_no}.html"
     with open(output_filename, "w", encoding="utf-8") as f:
         f.write(html_content)
-    print(f"✅ Created: {output_filename}")
+    print(f"✅ HTML Generated: {output_filename}")
 
-    # 5. Upload to GitHub
+    # 5. Upload to GitHub (Automatic)
     session = requests.Session()
     session.headers.update({"Authorization": f"token {GITHUB_TOKEN}"})
     
-    print(f"📤 Uploading HTML...")
+    print(f"📤 Uploading HTML to GitHub...")
     html_success = upload_to_github(session, output_filename, f"{github_base}/{output_filename}")
     
     if html_success:
         print(f"🚀 Uploading {len(student_list)} images...")
         count = 0
-        total = len(student_list)
-        
         for s in student_list:
-            success = upload_to_github(session, f"{output_folder}/{s['file']}", f"{github_img_folder}/{s['file']}")
+            img_success = upload_to_github(session, f"{output_folder}/{s['file']}", f"{github_img_folder}/{s['file']}")
             count += 1
-            if success:
-                # Simple text progress that looks good in the web box
-                print(f"[{count}/{total}] Uploaded: {s['name']}")
-            else:
-                print(f"[{count}/{total}] ❌ Failed: {s['name']}")
-            
-            # Flush stdout so the browser sees the line immediately
-            sys.stdout.flush()
+            status = "✅" if img_success else "❌"
+            print(f"[{count}/{len(student_list)}] {status} {s['name']}")
+            sys.stdout.flush() # Forces line to show in browser tray immediately
 
         os.remove(output_filename)
-        print(f"\n✅ SUCCESS! All files synced to GitHub.")
+        print(f"\n✅ SYNC COMPLETE: Files available in {github_base}")
     else:
-        print("❌ HTML upload failed. Aborting image sync.")
+        print("❌ FAILED: Could not upload HTML file to GitHub.")
 
 if __name__ == "__main__":
     run()
