@@ -14,18 +14,20 @@
   <button onclick="location.href='/scan'">📷 Scan OMR Sheet</button>
   <button onclick="showModal()">➕ Create Project Folder</button>
   <button onclick="openAnswerKey()">🗝 Answer Key</button>
-  <button onclick="uploadToGithub()" style="background-color: #24292e;">🐙 Upload to GitHub</button>
+  
+<button onclick="uploadToGithub()" style="background-color: #24292e; color: white;">
+  🐙 Upload to GitHub
+</button>
 
-</section>
-<section id="log-section" class="card hidden" style="margin: 12px; background: #1e1e1e; color: #00ff00; font-family: monospace; padding: 10px;">
-  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #444; margin-bottom: 5px; padding-bottom: 5px;">
-    <span>Terminal Logs</span>
+<section id="log-section" class="card hidden" style="margin: 12px; background: #1e1e1e; color: #00ff00; border-radius: 8px; overflow: hidden;">
+  <div style="background: #333; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;">
+    <span style="font-size: 0.8rem; font-family: monospace; color: #ccc;">termux_terminal_output</span>
     <button onclick="document.getElementById('log-section').classList.add('hidden')" style="background:none; border:none; color:white; cursor:pointer;">✕</button>
   </div>
-  <div id="terminal-logs" style="max-height: 200px; overflow-y: auto; font-size: 0.8rem; line-height: 1.4;">
-    Waiting for logs...
-  </div>
+  <div id="terminal-logs" style="padding: 10px; max-height: 250px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.85rem; line-height: 1.5;">
+    </div>
 </section>
+
 
 <section class="card" style="margin: 12px;">
   <h3>Project Folders</h3>
@@ -63,10 +65,11 @@
     const logSection = document.getElementById("log-section");
     const logContainer = document.getElementById("terminal-logs");
     
+    // 1. Reveal the tray
     logSection.classList.remove("hidden");
-    logContainer.innerHTML = "Starting gitup.py...<br>";
+    logContainer.innerHTML = "<span style='color: #888;'>[System]: Initializing gitup.py...</span><br>";
 
-    // We use a Fetch stream to read output line by line
+    // 2. Stream the output from Flask
     fetch('/run_gitup')
         .then(response => {
             const reader = response.body.getReader();
@@ -75,22 +78,25 @@
             function read() {
                 return reader.read().then(({ done, value }) => {
                     if (done) {
-                        logContainer.innerHTML += "<br><b>--- Sync Finished ---</b>";
+                        logContainer.innerHTML += "<br><span style='color: #5fb3b3;'>[Finished]</span>";
                         return;
                     }
+                    
                     const chunk = decoder.decode(value, { stream: true });
+                    // Append text and auto-scroll to the bottom
                     logContainer.innerHTML += chunk.replace(/\n/g, "<br>");
-                    // Auto-scroll to bottom
                     logContainer.scrollTop = logContainer.scrollHeight;
+                    
                     return read();
                 });
             }
             return read();
         })
         .catch(err => {
-            logContainer.innerHTML += "<br><span style='color:red;'>Error: " + err + "</span>";
+            logContainer.innerHTML += `<br><span style='color: #ec5f67;'>Error: ${err}</span>`;
         });
 }
+
 
 const foldersDiv = document.getElementById("folders");
 
