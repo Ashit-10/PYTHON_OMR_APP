@@ -8,9 +8,13 @@
 
 <header>OMR Scanner</header>
 
+<div class="banner">
+  <input id="cls" placeholder="Class">
+  <input id="sub" placeholder="Subject">
+  <button onclick="createFolder()">Create Folder</button>
+</div>
+
 <section>
-  <button onclick="location.href='/camera'">📷 Camera Scanner</button>
-  <button onclick="openCreate()">➕ Create Folder</button>
   <button onclick="openAnswerKey()">🗝 Answer Key</button>
 </section>
 
@@ -23,24 +27,14 @@
 </ul>
 </section>
 
-<!-- CREATE FOLDER MODAL -->
-<div id="createModal" class="modal">
-  <div class="modal-box">
-    <h3>Create Folder</h3>
-    <input id="cls" placeholder="Class (required)">
-    <input id="sub" placeholder="Subject (required)">
-    <button onclick="createFolder()">Create</button>
-    <button class="danger" onclick="closeCreate()">Cancel</button>
-  </div>
-</div>
-
 <script>
 function openFolder(f){ location.href="/browse?path="+f }
 
-function openCreate(){ createModal.style.display="flex" }
-function closeCreate(){ createModal.style.display="none" }
-
 function createFolder(){
+  if(!cls.value || !sub.value){
+    alert("Class and Subject required")
+    return
+  }
   fetch("/create_folder",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
@@ -58,7 +52,8 @@ function createFolder(){
       li.onclick=()=>openFolder(f)
       folders.appendChild(li)
     })
-    closeCreate()
+    alert("Folder created")
+    cls.value=sub.value=""
   })
 }
 
