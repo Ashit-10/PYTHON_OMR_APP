@@ -143,7 +143,7 @@ def upload():
     file = request.files['image']
     
     # Force a unique name that the watch_folder WILL recognize
-    current_filename = f"OMR_INSTANT_{int(time.time())}.jpg"
+    current_filename = f"OMR_sheet_{int(time.time())}.jpg"
     path = os.path.join(download_folder, current_filename)
     file.save(path)
     

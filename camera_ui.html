@@ -265,8 +265,7 @@ Just click Capture – it will process in background and show result here.
       return parts[parts.length - 1].split(".")[0];
     }
 
-    
-              captureBtn.onclick = () => {
+    captureBtn.onclick = () => {
       permanentToast = false;
       toast.style.display = 'none';
 
@@ -278,60 +277,78 @@ Just click Capture – it will process in background and show result here.
 
       c.toBlob(blob => {
         const formData = new FormData();
-        // Crucial: Use 'OMR_' prefix so watch_folder catches it if manual trigger fails
-        formData.append('image', blob, `OMR_CAPTURE_${Date.now()}.jpg`);
+        formData.append('image', blob, 'capture.jpg');
 
         if (!isInstant) {
           showToast('🔄 Processing...');
-          fetch('/upload', { method: 'POST', body: formData });
-          
-          const poll = setInterval(() => {
-            fetch('/status').then(r => r.json()).then(data => {
-              if (!data.processing && data.filename) {
+          fetch('/upload', { method: 'POST', body: formData }).then(() => {
+            const poll = setInterval(() => {
+              fetch('/status').then(r => r.json()).then(data => {
+                if (!data.processing) {
+                  clearInterval(poll);
+                  if (data.filename) {
+                    const corr = extractCorrect(data.filename);
+                    showToast(`✅ Correct: ${corr}`, true);
+                  } else {
+                    showToast('❌ Process failed', true);
+                  }
+                }
+              }).catch(() => {
                 clearInterval(poll);
-                const corr = extractCorrect(data.filename);
-                showToast(`✅ Correct: ${corr}`, true);
-              }
-            });
-          }, 1000);
-        } else {
-          // INSTANT MODE FIX: Create an overlay instead of clearing body
-          const overlay = document.createElement('div');
-          overlay.id = "loadingOverlay";
-          Object.assign(overlay.style, {
-            position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-            background: 'black', color: 'white', display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', fontSize: '20px', zIndex: 10000
+                showToast('❌ Error', true);
+              });
+            }, 1000);
+          }).catch(() => {
+            showToast('❌ Upload failed', true);
           });
-          overlay.innerHTML = `<img src="${URL.createObjectURL(blob)}" style="max-height:70vh; border:2px solid white;"><br>🔄 Processing...`;
-          document.body.appendChild(overlay);
+        } else {
+          stream.getTracks().forEach(t => t.stop());
+          const loading = document.createElement('div');
+          Object.assign(loading.style, {
+            position: 'fixed', top: 0, left: 0,
+            width: '100vw', height: '100vh',
+            background: 'black', color: 'white',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            fontSize: '20px', zIndex: 9999
+          });
+
+          const img = document.createElement('img');
+          img.src = URL.createObjectURL(blob);
+          img.style.maxHeight = '70vh';
+          loading.appendChild(img);
+
+          const procTxt = document.createElement('div');
+          procTxt.textContent = '🔄 Processing the file…';
+          loading.appendChild(procTxt);
+
+          document.body.innerHTML = '';
+          document.body.appendChild(loading);
 
           fetch('/upload', { method: 'POST', body: formData }).then(() => {
             const poll2 = setInterval(() => {
               fetch('/status').then(r => r.json()).then(data => {
-                // If it's not processing and we have a filename, it's done!
-                if (!data.processing && data.filename) {
+                if (!data.processing) {
                   clearInterval(poll2);
-                  const resultImg = document.createElement('img');
-                  resultImg.src = '/temp_output/' + data.filename + '?t=' + Date.now();
-                  resultImg.style.cssText = 'width:100vw;height:100vh;object-fit:contain;background:black;position:fixed;top:0;left:0;z-index:10001;';
-                  
-                  const nextBtn = document.createElement('button');
-                  nextBtn.textContent = 'Next Scan';
-                  nextBtn.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:10002;padding:15px 30px;font-size:18px;';
-                  nextBtn.onclick = () => location.reload();
-                  
-                  document.body.appendChild(resultImg);
-                  document.body.appendChild(nextBtn);
+                  if (data.filename) {
+                    const result = document.createElement('img');
+                    result.src = '/temp_output/' + data.filename + '?t=' + Date.now();
+                    result.style.cssText = 'width:100vw;height:100vh;object-fit:contain;background:black';
+
+                    refreshBtn.textContent = 'Next';
+                    setTimeout(() => {
+                      document.body.innerHTML = '';
+                      document.body.appendChild(result);
+                      document.body.appendChild(refreshBtn);
+                    }, 500);
+                  }
                 }
               });
             }, 1000);
           });
         }
-      }, 'image/jpeg', 0.8); // Higher quality for OMR accuracy
+      }, 'image/jpeg', 0.5);
     };
-
- 
 
     refreshBtn.onclick = () => location.reload();
     flashBtn.onclick = toggleFlash;
