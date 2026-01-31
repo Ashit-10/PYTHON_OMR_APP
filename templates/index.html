@@ -14,6 +14,17 @@
   <button onclick="location.href='/scan'">📷 Scan OMR Sheet</button>
   <button onclick="showModal()">➕ Create Project Folder</button>
   <button onclick="openAnswerKey()">🗝 Answer Key</button>
+  <button onclick="uploadToGithub()" style="background-color: #24292e;">🐙 Upload to GitHub</button>
+
+</section>
+<section id="log-section" class="card hidden" style="margin: 12px; background: #1e1e1e; color: #00ff00; font-family: monospace; padding: 10px;">
+  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #444; margin-bottom: 5px; padding-bottom: 5px;">
+    <span>Terminal Logs</span>
+    <button onclick="document.getElementById('log-section').classList.add('hidden')" style="background:none; border:none; color:white; cursor:pointer;">✕</button>
+  </div>
+  <div id="terminal-logs" style="max-height: 200px; overflow-y: auto; font-size: 0.8rem; line-height: 1.4;">
+    Waiting for logs...
+  </div>
 </section>
 
 <section class="card" style="margin: 12px;">
@@ -48,6 +59,39 @@
 </div>
 
 <script>
+  function uploadToGithub() {
+    const logSection = document.getElementById("log-section");
+    const logContainer = document.getElementById("terminal-logs");
+    
+    logSection.classList.remove("hidden");
+    logContainer.innerHTML = "Starting gitup.py...<br>";
+
+    // We use a Fetch stream to read output line by line
+    fetch('/run_gitup')
+        .then(response => {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            function read() {
+                return reader.read().then(({ done, value }) => {
+                    if (done) {
+                        logContainer.innerHTML += "<br><b>--- Sync Finished ---</b>";
+                        return;
+                    }
+                    const chunk = decoder.decode(value, { stream: true });
+                    logContainer.innerHTML += chunk.replace(/\n/g, "<br>");
+                    // Auto-scroll to bottom
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                    return read();
+                });
+            }
+            return read();
+        })
+        .catch(err => {
+            logContainer.innerHTML += "<br><span style='color:red;'>Error: " + err + "</span>";
+        });
+}
+
 const foldersDiv = document.getElementById("folders");
 
 function openFolder(f){ 
