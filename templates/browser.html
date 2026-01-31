@@ -6,74 +6,89 @@
 </head>
 <body>
 
-<header onclick="history.back()">⬅ {{ path or "root" }}</header>
+<header onclick="history.back()">⬅ {{ path }}</header>
 
 <div class="file-container">
 
 {% for i in items %}
   {% if i.is_dir %}
-    <div class="folder-row" onclick="openFolder('{{ i.name }}')">
+    <div class="folder-row">
       📁 {{ i.name }}
+      {% if i.name.startswith("class") %}
+        <button class="mini danger" onclick="askDelete('{{path}}/{{i.name}}')">🗑</button>
+      {% endif %}
     </div>
   {% else %}
-    <div class="image-card">
-      <img src="/file?path={{ path }}/{{ i.name }}" onclick="viewImage(this.src)">
-
-      <div class="file-actions">
-        <span class="fname">{{ i.name }}</span>
-
-        <button class="mini" onclick="renameFile('{{ path }}/{{ i.name }}')">✏</button>
-        <button class="mini danger" onclick="confirmDelete('{{ path }}/{{ i.name }}', this)">🗑</button>
+    {% if i.name == "answer_key.txt" %}
+      <div class="folder-row" onclick="openAnswerKey()">
+        🗝 {{ i.name }}
       </div>
-    </div>
+    {% else %}
+      <div class="image-card">
+        <img src="/file?path={{path}}/{{i.name}}" onclick="viewImage(this.src)">
+        <div class="file-actions">
+          <span class="fname">{{ i.name }}</span>
+          <button class="mini" onclick="renameFile('{{path}}/{{i.name}}')">✏</button>
+          <button class="mini danger" onclick="askDelete('{{path}}/{{i.name}}')">🗑</button>
+        </div>
+      </div>
+    {% endif %}
   {% endif %}
 {% endfor %}
 
 </div>
 
-<!-- Fullscreen preview -->
+<!-- DELETE POPUP -->
+<div id="confirm" class="modal">
+  <div class="modal-box">
+    <p>Delete this item?</p>
+    <button onclick="doDelete()">Yes</button>
+    <button class="danger" onclick="closeConfirm()">Cancel</button>
+  </div>
+</div>
+
+<!-- IMAGE PREVIEW -->
 <div id="preview" onclick="this.style.display='none'">
   <img id="previewImg">
 </div>
 
 <script>
-function openFolder(name){
-  location.href = "/browse?path={{ path }}/" + name
+let delPath=""
+
+function askDelete(p){
+  delPath=p
+  confirm.style.display="flex"
 }
-
-function renameFile(oldPath){
-  let base = oldPath.split('/').pop().replace('.jpg','')
-  let folder = oldPath.split('/').slice(0,-1).join('/')
-
-  let newName = prompt("New file name (without .jpg):", base)
-  if(!newName) return
-
-  fetch("/rename",{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({
-      old: oldPath,
-      new: folder + "/" + newName + ".jpg"
-    })
-  }).then(()=>location.reload())
+function closeConfirm(){
+  confirm.style.display="none"
 }
-
-function confirmDelete(path, btn){
-  btn.innerText = "✔"
-  btn.onclick = () => deleteFile(path)
-}
-
-function deleteFile(path){
+function doDelete(){
   fetch("/delete",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({ path })
+    body:JSON.stringify({path:delPath})
+  }).then(()=>location.reload())
+}
+
+function renameFile(oldPath){
+  let base=oldPath.split('/').pop().replace('.jpg','')
+  let folder=oldPath.split('/').slice(0,-1).join('/')
+  let n=prompt("New name:",base)
+  if(!n) return
+  fetch("/rename",{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({old:oldPath,new:folder+"/"+n+".jpg"})
   }).then(()=>location.reload())
 }
 
 function viewImage(src){
-  document.getElementById("previewImg").src = src
-  document.getElementById("preview").style.display = "flex"
+  previewImg.src=src
+  preview.style.display="flex"
+}
+
+function openAnswerKey(){
+  location.href="https://theomr.shop/50?filename=answer_key.txt&data=save"
 }
 </script>
 
