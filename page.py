@@ -3,8 +3,6 @@ import os, shutil, re
 
 app = Flask(__name__)
 BASE = os.getcwd()
-
-# Folders always present
 STATIC_FOLDERS = ["input", "output", "duplicates", "error_images"]
 
 def get_project_folders():
@@ -24,7 +22,7 @@ def create_folder():
     cls = data.get("class", "").strip()
     sub = data.get("subject", "").strip()
     if not cls or not sub:
-        return jsonify({"error":"Class and Subject required"}), 400
+        return jsonify({"error": "Class and Subject required"}), 400
     folder_name = f"class-{cls}_{sub}_1".lower()
     os.makedirs(folder_name, exist_ok=True)
     return jsonify(folders=get_project_folders())
@@ -33,16 +31,11 @@ def create_folder():
 def browse():
     path = request.args.get("path")
     full_path = os.path.join(BASE, path)
-
     items = []
     for f in os.listdir(full_path):
         fp = os.path.join(full_path, f)
-        items.append({
-            "name": f,
-            "is_dir": os.path.isdir(fp)
-        })
+        items.append({"name": f, "is_dir": os.path.isdir(fp)})
 
-    # Sort jpg files by roll number (number before _)
     def sort_key(x):
         m = re.match(r"(\d+)_", x["name"])
         return int(m.group(1)) if m else 999999
@@ -72,4 +65,4 @@ def delete():
     return jsonify(ok=True)
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000)
+    app.run(host="0.0.0.0", port=5000)
