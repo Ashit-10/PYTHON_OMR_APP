@@ -45,9 +45,63 @@
     <div style="position: fixed; bottom: 0; width: 100%; background: #1a1a1a; padding: 20px; display: flex; gap: 10px; box-sizing: border-box;">
         <button onclick="addNewStudent()" style="flex: 1; padding: 12px; border-radius: 8px; border: none; background: #333; color: white;">➕ Add Student</button>
         <button onclick="saveChanges()" style="flex: 2; padding: 12px; border-radius: 8px; border: none; background: #00897b; color: white; font-weight: bold;">💾 Save to File</button>
-    </div>
+    <button onclick="syncToGithub()" style="background: #24292e; color: white; padding: 12px; border: none; border-radius: 8px;">🐙 Sync GitHub</button>
+ </div>
+<script>
+function addNewStudent() {
+    // 1. Calculate the default "next" roll number
+    const rolls = document.querySelectorAll('.roll-number');
+    let maxRoll = 0;
+    rolls.forEach(el => {
+        let val = parseInt(el.innerText);
+        if (val > maxRoll) maxRoll = val;
+    });
+    const nextRollDefault = maxRoll + 1;
 
-    <script>
+    // 2. Ask for Roll Number (Defaults to nextRoll)
+    const customRoll = prompt("Confirm or change Roll Number:", nextRollDefault);
+    if (!customRoll) return;
+
+    // 3. Ask for Name
+    const name = prompt("Enter Student Name:");
+    if (!name) return;
+
+    const container = document.getElementById('list-container');
+    const div = document.createElement('div');
+    div.className = 'student-item';
+    div.innerHTML = `
+        <span class="roll-number">${customRoll}</span>
+        <input type="text" class="name-input" value="${name}">
+        <button class="delete-btn" onclick="this.parentElement.remove()">🗑</button>
+    `;
+    
+    container.appendChild(div);
+    
+    // Optional: Sort after adding to keep it organized
+    sortList(); 
+    window.scrollTo(0, document.body.scrollHeight);
+}
+
+// Function to sort list numerically by roll number
+function sortList() {
+    const container = document.getElementById('list-container');
+    const items = Array.from(container.getElementsByClassName('student-item'));
+    items.sort((a, b) => {
+        return parseInt(a.querySelector('.roll-number').innerText) - parseInt(b.querySelector('.roll-number').innerText);
+    });
+    items.forEach(item => container.appendChild(item));
+}
+
+function syncToGithub() {
+    if(!confirm("Upload {{ filename }} to GitHub?")) return;
+    
+    // Reuse your log tray logic if you want to see progress
+    const url = `/sync_roll_github?file={{ filename }}`;
+    fetch(url).then(response => {
+        alert("GitHub Sync Started! Check terminal logs for details.");
+    });
+}
+
         function addNewStudent() {
             const name = prompt("Enter Student Name:");
             if (!name) return;
