@@ -4,6 +4,7 @@ import os, shutil, re
 app = Flask(__name__)
 BASE = os.getcwd()
 
+# Folders always present
 STATIC_FOLDERS = ["input", "output", "duplicates", "error_images"]
 
 def get_project_folders():
@@ -19,25 +20,29 @@ def index():
 
 @app.route("/create_folder", methods=["POST"])
 def create_folder():
-    d = request.json
-    name = f"class-{d['class']}_{d['subject']}_1".lower()
-    os.makedirs(name, exist_ok=True)
+    data = request.json
+    cls = data.get("class", "").strip()
+    sub = data.get("subject", "").strip()
+    if not cls or not sub:
+        return jsonify({"error":"Class and Subject required"}), 400
+    folder_name = f"class-{cls}_{sub}_1".lower()
+    os.makedirs(folder_name, exist_ok=True)
     return jsonify(folders=get_project_folders())
 
 @app.route("/browse")
 def browse():
     path = request.args.get("path")
-    full = os.path.join(BASE, path)
+    full_path = os.path.join(BASE, path)
 
     items = []
-    for f in os.listdir(full):
-        fp = os.path.join(full, f)
+    for f in os.listdir(full_path):
+        fp = os.path.join(full_path, f)
         items.append({
             "name": f,
             "is_dir": os.path.isdir(fp)
         })
 
-    # sort jpg by roll number
+    # Sort jpg files by roll number (number before _)
     def sort_key(x):
         m = re.match(r"(\d+)_", x["name"])
         return int(m.group(1)) if m else 999999
@@ -51,18 +56,19 @@ def file():
 
 @app.route("/rename", methods=["POST"])
 def rename():
-    d = request.json
-    os.rename(os.path.join(BASE, d["old"]),
-              os.path.join(BASE, d["new"]))
+    data = request.json
+    old = os.path.join(BASE, data["old"])
+    new = os.path.join(BASE, data["new"])
+    os.rename(old, new)
     return jsonify(ok=True)
 
 @app.route("/delete", methods=["POST"])
 def delete():
-    p = os.path.join(BASE, request.json["path"])
-    if os.path.isdir(p):
-        shutil.rmtree(p)
+    path = os.path.join(BASE, request.json["path"])
+    if os.path.isdir(path):
+        shutil.rmtree(path)
     else:
-        os.remove(p)
+        os.remove(path)
     return jsonify(ok=True)
 
 if __name__ == "__main__":
