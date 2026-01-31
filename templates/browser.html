@@ -36,10 +36,12 @@
 
   /* OUTPUT FOLDER (NORMAL) */
   .img-wrapper img {
-    width: 91%;
+    width: 100%;
     height: auto;
     display: block;
     object-fit; cover;
+    max-width: none !important; /* Prevents the browser from forced shrinking */
+  max-height: none !important; 
   }
 
 /* 1. This container controls the 'window' you see the image through */
