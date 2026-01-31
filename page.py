@@ -89,23 +89,27 @@ def delete():
         os.remove(path)
     return jsonify(ok=True)
 
-@app.route("/answer_key")
-def answer_key():
-    # 1. Figure out which folder we are in
-    folder = request.args.get("folder", "input") 
+import json
+
+@app.route("/save_answer_key", methods=["POST"])
+def save_answer_key():
+    data = request.json
+    folder = data.get("folder")
+    content = data.get("content") # This will be the JSON string
     
-    # 2. Find the file answer_key.txt inside that folder
+    if not folder or not content:
+        return jsonify(ok=False, error="Missing data"), 400
+        
     file_path = os.path.join(BASE, folder, "answer_key.txt")
     
-    # 3. Read the text inside that file
-    content = ""
-    if os.path.exists(file_path):
-        with open(file_path, "r") as f:
-            content = f.read()
-            
-    # 4. Open 50.html and "STAMP" the text into it
-    return render_template("50.html", content=content, folder=folder)
+    try:
+        with open(file_path, "w") as f:
+            f.write(content)
+        return jsonify(ok=True)
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 500
 
+    
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
