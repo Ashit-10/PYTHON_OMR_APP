@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header onclick="history.back()">⬅ {{ path or "root" }}</header>
+
+<ul class="filelist">
+{% for i in items %}
+<li>
+{% if i.is_dir %}
+  📁 <a href="/browse?path={{ path }}/{{ i.name }}">{{ i.name }}</a>
+{% else %}
+  🖼 <a href="/file?path={{ path }}/{{ i.name }}">{{ i.name }}</a>
+{% endif %}
+<button onclick="rename('{{ path }}/{{ i.name }}')">✏</button>
+<button onclick="del('{{ path }}/{{ i.name }}')">🗑</button>
+</li>
+{% endfor %}
+</ul>
+
+<script>
+function rename(p){
+  const n = prompt("New name:")
+  if(!n) return
+  fetch("/rename",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({old:p,new:p.split('/').slice(0,-1).join('/')+'/'+n})
+  }).then(()=>location.reload())
+}
+
+function del(p){
+  if(!confirm("Delete?")) return
+  fetch("/delete",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({path:p})
+  }).then(()=>location.reload())
+}
+</script>
+
+</body>
+</html>
