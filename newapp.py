@@ -200,18 +200,17 @@ import subprocess
 @app.route('/sync_roll_github')
 def sync_roll_github():
     filename = request.args.get('file')
-    def generate():
-        # Using 'python3' to be safe, adjust to 'python' if on Windows
-        process = subprocess.Popen(
-            ['python3', 'gitup.py', 'sync_file', filename], 
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True
-        )
-        for line in process.stdout:
-            yield line
-        process.wait()
-    return Response(generate(), mimetype='text/plain')
+    # Use a simpler execution if you just want to run it and finish
+    try:
+        # This calls: python3 gitup.py <filename>
+        # Adjust the arguments based on how your gitup.py is written
+        result = subprocess.run(['python3', 'gitup.py', filename], capture_output=True, text=True)
+        if result.returncode == 0:
+            return jsonify({"status": "success", "log": result.stdout})
+        else:
+            return jsonify({"status": "error", "log": result.stderr}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route('/run_gitup')
