@@ -305,42 +305,50 @@
       copyButton.addEventListener('click', copyJSONData);
       questionContainer.addEventListener('change', updateQuestionColors);
 
-      async function saveData(e) {
-                e.preventDefault();
+      
+                async function saveData(e) {
+    e.preventDefault();
 
-                const questions = document.querySelectorAll('.question');
-                let lastSelectedIndex = -1;
+    const questions = document.querySelectorAll('.question');
+    const jsonOutput = {};
 
-                userInput.length = 0;
+    // 1. Collect all checked options
+    questions.forEach((question, i) => {
+        const selected = Array.from(question.querySelectorAll('input[type="checkbox"]:checked'))
+                             .map(input => input.value);
+        if (selected.length > 0) {
+            jsonOutput[i + 1] = selected;
+        }
+    });
 
-                for (let i = 0; i < questions.length; i++) {
-                    const question = questions[i];
-                    const selectedOptions = Array.from(question.querySelectorAll('input[type="checkbox"]:checked')).map(input => input.value);
-                    if (selectedOptions.length > 0) {
-                        lastSelectedIndex = i;
-                    }
-                    userInput[i] = selectedOptions;
-                }
+    const jsonString = JSON.stringify(jsonOutput, null, 2);
+    const currentFolder = "{{ folder }}"; 
 
-                for (let i = 0; i <= lastSelectedIndex; i++) {
-                    if (userInput[i].length === 0) {
-                        alert(`Please select at least one option for Question ${i + 1}.`);
-                        return;
-                    }
-                }
+    loadingOverlay.style.display = 'block';
 
-                const jsonOutput = {};
-                userInput.forEach((entry, index) => {
-                    if (entry.length > 0) {
-                        jsonOutput[index + 1] = entry;
-                    }
-                });
+    try {
+        // 2. Send the data to your Flask backend instead of Telegram
+        const response = await fetch("/save_answer_key", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                folder: currentFolder,
+                content: jsonString
+            })
+        });
 
-                const jsonString = JSON.stringify(jsonOutput, null, 2);
-                loadingOverlay.style.display = 'block';
+        if (response.ok) {
+            alert("✅ Answer key updated in: " + currentFolder);
+        } else {
+            alert("❌ Server error: Could not save file.");
+        }
+    } catch (error) {
+        alert("❌ Connection error: Is Flask running?");
+    } finally {
+        loadingOverlay.style.display = 'none';
+    }
+}
 
-                await sendToTelegram(jsonString, filename || 'OMR_Sheet.json');
-            }
 
             async function copyJSONData() {
                 const jsonOutput = {};
