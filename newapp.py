@@ -196,6 +196,22 @@ def dashboard():
 
 import subprocess
 
+@app.route('/sync_roll_github')
+def sync_roll_github():
+    filename = request.args.get('file')
+    # This assumes your gitup.py can handle a filename or 
+    # you just want to run the general sync logic
+    def generate():
+        process = subprocess.Popen(
+            ['python', 'gitup.py', 'sync_file', filename], # Adjust args as per your gitup.py
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
+        for line in process.stdout:
+            yield line
+        process.wait()
+    return Response(generate(), mimetype='text/plain')
 
 @app.route('/run_gitup')
 def run_gitup():
