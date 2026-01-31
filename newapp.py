@@ -285,14 +285,7 @@ RESULTS_HTML = """
 """
 
 if __name__ == '__main__':
-    # Initialize background threads
     threading.Thread(target=watch_folder, daemon=True).start()
-    
-    # Run server on port 7860 with SSL (mandatory for camera access in Chrome)
-    app.run(
-        host='0.0.0.0', 
-        port=7860, 
-        ssl_context=('certs/cert.pem', 'certs/key.pem'), 
-        threaded=True,
-        debug=False # Set to False for production/camera stability
-    )
+    threading.Timer(0.1, open_chrome).start()
+    app.run(host='0.0.0.0', port=7860, ssl_context=('certs/cert.pem', 'certs/key.pem'), threaded=True)
+
