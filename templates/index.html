@@ -14,7 +14,21 @@
   <button onclick="location.href='/scan'">📷 Scan OMR Sheet</button>
   <button onclick="showModal()" style="display: none;">➕ Create Project Folder</button>
   <button onclick="openAnswerKey()">🗝 Answer Key</button>
-  
+  <button onclick="openAnswerKey()">🗝 Answer Key</button>
+<button onclick="showSignModal()" style="background-color: #5d4037; color: white;">✍️ Change Signature</button>
+
+<div id="signModal" class="modal hidden">
+  <div class="modal-content">
+    <h3>Select Signature</h3>
+    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">
+      <button onclick="updateSignature('ashit_sign.png')" style="background: #444;">Ashit</button>
+      <button onclick="updateSignature('rupa_sign.png')" style="background: #444;">Rupa</button>
+      <button onclick="updateSignature('lakhia_sign.png')" style="background: #444;">Lakhia Bhai</button>
+      <button onclick="closeSignModal()" style="background: #cc0000; margin-top: 10px;">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <button onclick="showGitModal()" style="background-color: #24292e; color: white;">🐙 Upload to GitHub</button>
 
 <div id="gitModal" class="modal hidden">
@@ -80,6 +94,30 @@
 </div>
 
 <script>
+  function showSignModal() {
+    document.getElementById("signModal").classList.remove("hidden");
+}
+
+function closeSignModal() {
+    document.getElementById("signModal").classList.add("hidden");
+}
+
+function updateSignature(filename) {
+    fetch("/update_config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signature: filename })
+    })
+    .then(response => {
+        if (response.ok) {
+            alert("Signature updated to: " + filename);
+            closeSignModal();
+        } else {
+            alert("Failed to update signature.");
+        }
+    });
+}
+
   function showGitModal() { 
     document.getElementById("gitModal").classList.remove("hidden"); 
 }
