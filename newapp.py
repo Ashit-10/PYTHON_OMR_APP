@@ -126,36 +126,38 @@ import json
 import os
 
 
+
 @app.route("/edit_rolls")
 def edit_rolls():
     filename = request.args.get('file')
-    # Security check: ensure the file is within the BASE directory
     file_path = os.path.join(BASE, filename)
     students = []
     
     if os.path.exists(file_path):
-        with open(file_path, 'r') as f:
-            for line in f:
-                if ':' in line:
-                    # Split by first colon only
-                    parts = line.strip().split(':', 1)
-                    if len(parts) == 2:
-                        students.append({'roll': parts[0], 'name': parts[1]})
-    
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)  # Read as JSON dictionary
+                # Convert dictionary to a sorted list for the UI
+                for roll in sorted(data.keys(), key=lambda x: int(x)):
+                    students.append({'roll': roll, 'name': data[roll]})
+        except Exception as e:
+            print(f"Error loading JSON: {e}")
+            
     return render_template("rolls_editor.html", students=students, filename=filename)
 
 @app.route("/save_rolls", methods=["POST"])
 def save_rolls():
     data = request.json
     filename = data.get('filename')
-    students = data.get('students')
+    student_list = data.get('students')
     file_path = os.path.join(BASE, filename)
+    
+    # Convert list back into the JSON dictionary format: {"1": "Name"}
+    json_data = {str(s['roll']): s['name'] for s in student_list}
     
     try:
         with open(file_path, 'w') as f:
-            for s in students:
-                # Writes format: 1:John Doe
-                f.write(f"{s['roll']}:{s['name']}\n")
+            json.dump(json_data, f, indent=4) # Save as pretty JSON
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
