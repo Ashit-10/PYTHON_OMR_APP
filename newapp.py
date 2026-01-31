@@ -37,6 +37,9 @@ latest_output_filename = ""
 error_occurred = False
 
 # --- OMR BACKGROUND PROCESSING ---
+def open_chrome():
+    os.system("am start -n com.android.chrome/com.google.android.apps.chrome.Main -a android.intent.action.VIEW -d https://127.0.0.1:7860")
+
 
 def move_and_process(file_path):
     global processing, current_filename, latest_output_filename, error_occurred
