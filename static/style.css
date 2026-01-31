@@ -1,138 +1,131 @@
-/* GENERAL */
-body {
-  font-family: sans-serif;
-  margin:0;
-  padding:0;
+/* =====================
+   GLOBAL RESET
+===================== */
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+html, body {
+  margin:0; padding:0;
+  width:100%; height:100%;
+  font-family: system-ui, sans-serif;
   background:#f5f5f5;
+  color:#111;
 }
 
+/* =====================
+   HEADER
+===================== */
 header {
   background:#111;
   color:#fff;
-  padding:12px;
+  padding:14px;
   text-align:center;
-  font-size:1.2em;
-}
-
-button {
-  padding:8px 12px;
-  border:none;
-  border-radius:6px;
-  background:#333;
-  color:#fff;
+  font-size:18px;
+  font-weight:600;
+  position:sticky;
+  top:0; z-index:100;
   cursor:pointer;
 }
 
-button.mini { padding:4px 6px; font-size:0.8em; }
-button.danger { background:#c00; }
-
-.card {
-  margin:10px;
-  background:#fff;
-  padding:10px;
-  border-radius:8px;
+/* =====================
+   BUTTONS
+===================== */
+button {
+  width:100%;
+  padding:12px;
+  margin-top:6px;
+  border:none;
+  border-radius:10px;
+  background:#2563eb;
+  color:#fff;
+  font-size:16px;
+  font-weight:500;
+  cursor:pointer;
 }
 
+button:active { background:#1e40af; }
+button.mini { width:auto; padding:4px 8px; font-size:13px; border-radius:6px; margin-left:6px; }
+button.danger { background:#c00; }
+
+/* =====================
+   SECTIONS & CARDS
+===================== */
+section, .card {
+  background:#fff;
+  margin:12px;
+  padding:14px;
+  border-radius:12px;
+  box-shadow:0 2px 6px rgba(0,0,0,0.08);
+}
+
+h3 { margin-top:0; }
+
+/* =====================
+   IMAGE CARDS
+===================== */
 .file-container {
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px;
-  padding:10px;
+  display:flex; flex-wrap:wrap; gap:8px; padding:10px;
 }
 
 .image-card {
-  background:#fff;
-  border-radius:6px;
-  padding:6px;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
+  background:#fff; border-radius:8px; padding:6px;
+  display:flex; flex-direction:column; align-items:center;
   width:100px;
 }
 
 .image-card img {
-  max-width:100%;
-  max-height:120px;
-  object-fit:contain;
-  border-radius:4px;
+  max-width:100%; max-height:120px;
+  object-fit:contain; border-radius:4px;
   cursor:pointer;
 }
 
 .file-actions {
-  display:flex;
-  justify-content:space-between;
-  width:100%;
-  margin-top:4px;
+  display:flex; justify-content:space-between; width:100%; margin-top:4px;
 }
 
 .fname {
   font-size:0.8em;
-  overflow:hidden;
-  text-overflow:ellipsis;
+  overflow:hidden; text-overflow:ellipsis;
 }
 
+/* =====================
+   FULLSCREEN PREVIEW
+===================== */
 #preview {
-  position:fixed;
-  top:0; left:0; right:0; bottom:0;
+  position:fixed; top:0; left:0; right:0; bottom:0;
   background:rgba(0,0,0,0.8);
-  display:none;
-  justify-content:center;
-  align-items:center;
+  display:none; justify-content:center; align-items:center;
   z-index:999;
 }
 
-#preview img {
-  max-width:95%;
-  max-height:95%;
-}
+#preview img { max-width:95%; max-height:95%; }
 
-.rotate-left {
-  transform: rotate(-90deg);
-}
+/* =====================
+   ROTATE INPUT IMAGES
+===================== */
+.rotate-left { transform:rotate(-90deg); }
 
+/* =====================
+   BANNER ALERT
+===================== */
 .banner {
-  position:fixed;
-  top:0;
-  left:0;
-  right:0;
-  background:#111;
-  padding:10px;
-  display:flex;
-  gap:6px;
-  z-index:999;
+  position:fixed; top:0; left:0; right:0;
+  background:#111; padding:10px;
+  display:flex; gap:6px; z-index:999;
 }
 
 .banner input {
-  flex:1;
-  padding:6px;
-  border-radius:4px;
-  border:none;
+  flex:1; padding:6px; border-radius:4px; border:none;
 }
 
-.banner button {
-  padding:6px 10px;
-  border-radius:4px;
-}
+.banner button { padding:6px 10px; border-radius:4px; }
 
-.hidden {
-  display:none;
-}
+.hidden { display:none; }
 
-.search-bar {
-  padding:6px;
-  display:flex;
-  gap:4px;
-  justify-content:center;
-}
-
-.search-bar input {
-  flex:1;
-  padding:6px;
-  border-radius:4px;
-  border:1px solid #ccc;
-}
-
-.search-bar button {
-  padding:6px 10px;
-  border-radius:4px;
-}
+/* =====================
+   SEARCH BAR
+===================== */
+.search-bar { padding:6px; display:flex; gap:4px; justify-content:center; }
+.search-bar input { flex:1; padding:6px; border-radius:4px; border:1px solid #ccc; }
+.search-bar button { padding:6px 10px; border-radius:4px; }
