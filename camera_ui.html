@@ -278,156 +278,156 @@ Just click Capture – it will process in background and show result here.
       return parts[parts.length - 1].split(".")[0];
     }
 
-  captureBtn.onclick = () => {
-  permanentToast = false;
-  toast.style.display = 'none';
-  const isInstant = instantToggle.checked;
+    captureBtn.onclick = () => {
+      permanentToast = false;
+      toast.style.display = 'none';
 
-  // 1. IMMEDIATELY STOP CAMERA (First thing!)
-  // This frees up the device's RAM so the 'fetch' doesn't crash.
-  if (stream) {
-    stream.getTracks().forEach(t => {
-      t.stop();
-      t.enabled = false;
-    });
-  }
+      const isInstant = instantToggle.checked;
+      const c = document.createElement('canvas');
+      c.width = video.videoWidth;
+      c.height = video.videoHeight;
+      c.getContext('2d').drawImage(video, 0, 0);
 
-  // 2. Draw to canvas AFTER stopping camera
-  const c = document.createElement('canvas');
-  const scale = 0.6; // Smaller scale for high stability
-  c.width = video.videoWidth * scale;
-  c.height = video.videoHeight * scale;
-  const ctx = c.getContext('2d');
-  ctx.drawImage(video, 0, 0, c.width, c.height);
-
-  // 3. Process the Blob
-  c.toBlob(blob => {
+      // ... existing code inside captureBtn.onclick ...
+c.toBlob(blob => {
     const formData = new FormData();
     formData.append('image', blob, 'capture.jpg');
+    
+    // ADD THIS LINE: Get roll number and append to form
     const rollNum = document.getElementById('rollInput').value;
     formData.append('roll', rollNum); 
 
     if (!isInstant) {
-      // Background Mode
-      showToast('🔄 Uploading...');
-      fetch('/upload', { method: 'POST', body: formData })
-        .then(() => {
-          document.getElementById('rollInput').value = '';
-          const poll = setInterval(() => {
-            fetch('/status').then(r => r.json()).then(data => {
-              if (!data.processing) {
-                clearInterval(poll);
-                if (data.filename) showToast(`✅ Correct: ${extractCorrect(data.filename)}`, true);
-              }
-            }).catch(() => clearInterval(poll));
-          }, 1000);
-        }).catch(err => showToast('❌ Error: ' + err.message));
-               
-    } else {
-      // Instant Mode
-      const loadingContainer = document.createElement('div');
-      Object.assign(loadingContainer.style, {
-        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-        background: 'black', color: 'white', display: 'flex', flexDirection: 'column',
-        alignItems: 'center', zIndex: 10000, padding: '10px'
-      });
-      
-      const previewImg = document.createElement('img');
-      const previewUrl = URL.createObjectURL(blob);
-      previewImg.src = previewUrl;
-      previewImg.style.cssText = 'width:80%; max-height:40vh; object-fit:contain; margin-top: 40px; border:1px solid #444; transform: rotate(-90deg);';
-      
-      const procTxt = document.createElement('div');
-      procTxt.style.cssText = 'margin: 30px 0; font-size: 18px; text-align: center;';
-      procTxt.textContent = '📤 Sending...';
-      
-      loadingContainer.appendChild(previewImg);
-      loadingContainer.appendChild(procTxt);
-      document.body.appendChild(loadingContainer);
+// ... rest of the fetch logic ...
 
-      // The 1-second delay is crucial for Termux + Browser on same device
-      setTimeout(() => {
-        fetch('/upload', { 
-          method: 'POST', 
-          body: formData,
-          // No-cache prevents the "instant fail" on many Android browsers
-          cache: 'no-store',
-          mode: 'cors'
-        })
-        .then(response => {
-          if (!response.ok) throw new Error("Server rejected request");
-          procTxt.textContent = '🔄 Processing OMR...';
-          
-          let attempts = 0;
-          const poll2 = setInterval(() => {
-            attempts++;
-            fetch('/status').then(r => r.json()).then(data => {
-              if (data.processing === false) {
-                clearInterval(poll2);
-                loadingContainer.innerHTML = ''; 
-                if (data.filename) {
-                  const resultImg = document.createElement('img');
-                  resultImg.src = '/temp_output/' + data.filename + '?t=' + Date.now();
-                  resultImg.style.cssText = 'width:80%; max-height:55vh; object-fit:contain; margin-top:50px; transform: rotate(-90deg);';
-                  
-                  const infoDiv = document.createElement('div');
-                  infoDiv.style.cssText = 'text-align:center; margin: 20px 0;';
-                  infoDiv.innerHTML = `<b style="color:limegreen; font-size:24px;">✅ Done!</b><br>Correct: ${extractCorrect(data.filename)}`;
-
-                  const nextBtn = document.createElement('button');
-                  nextBtn.textContent = 'Next Scan';
-                  nextBtn.style.cssText = 'padding: 15px 40px; background: white; color: black; border-radius: 30px; font-weight: bold; border: none;';
-                  nextBtn.onclick = () => {
-                    URL.revokeObjectURL(previewUrl);
-                    location.reload();
-                  };
-
-                  loadingContainer.appendChild(resultImg);
-                  loadingContainer.appendChild(infoDiv);
-                  loadingContainer.appendChild(nextBtn);
+          showToast('🔄 Processing...');
+          fetch('/upload', { method: 'POST', body: formData }).then(() => {
+  document.getElementById('rollInput').value = ''; // <--- Add this line
+  const poll = setInterval(() => {
+              fetch('/status').then(r => r.json()).then(data => {
+                if (!data.processing) {
+                  clearInterval(poll);
+                  if (data.filename) {
+                    const corr = extractCorrect(data.filename);
+                    showToast(`✅ Correct: ${corr}`, true);
+                  } else {
+                    showToast('❌ Process failed', true);
+                  }
                 }
-              }
-            });
-            if (attempts > 50) clearInterval(poll2);
-          }, 1000);
-        })
-        .catch(err => {
-          procTxt.innerHTML = `<div style="color:red">Upload Failed</div>
-                               <div style="font-size:12px; margin:5px;">${err.message}</div>
-                               <button onclick="location.reload()" style="margin-top:10px; padding:10px;">Retry</button>`;
-        });
-      }, 1000);
-    }
-  }, 'image/jpeg', 0.3); // Very low quality for maximum network stability
-};
+              }).catch(() => {
+                clearInterval(poll);
+                showToast('❌ Error', true);
+              });
+            }, 1000);
+          }).catch(() => {
+            showToast('❌ Upload failed', true);
+          });
+              } else {
+          // --- START OF REPLACEMENT ---
+          stream.getTracks().forEach(t => t.stop());
+          const loading = document.createElement('div');
+          Object.assign(loading.style, {
+            position: 'fixed', top: 0, left: 0,
+            width: '100vw', height: '100vh',
+            background: 'black', color: 'white',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            fontSize: '20px', zIndex: 9999,
+            textAlign: 'center', padding: '20px'
+          });
 
-             
+          const img = document.createElement('img');
+          img.src = URL.createObjectURL(blob);
+          img.style.maxHeight = '60vh';
+          img.style.marginBottom = '20px';
+          loading.appendChild(img);
+
+          const procTxt = document.createElement('div');
+          procTxt.textContent = '🔄 Processing the file...';
+          loading.appendChild(procTxt);
+
+          document.body.innerHTML = '';
+          document.body.appendChild(loading);
+
+          fetch('/upload', { method: 'POST', body: formData }).then(() => {
+  document.getElementById('rollInput').value = ''; // <--- Add this line
+  let attempts = 0;
+  
+            const poll2 = setInterval(() => {
+              attempts++;
+              fetch('/status').then(r => r.json()).then(data => {
+                if (!data.processing) {
+                  clearInterval(poll2);
+                  if (data.filename && data.filename.trim() !== "") {
+                    // SUCCESS PATH
+                    const result = document.createElement('img');
+                    result.src = '/temp_output/' + data.filename + '?t=' + Date.now();
+                    result.style.cssText = 'width:100vw;height:100vh;object-fit:contain;background:black';
+
+                    refreshBtn.textContent = 'Next';
+                    setTimeout(() => {
+                      document.body.innerHTML = '';
+                      document.body.appendChild(result);
+                      document.body.appendChild(refreshBtn);
+                    }, 500);
+                  } else {
+                    // SERVER FINISHED BUT FAILED TO EVALUATE
+                    procTxt.innerHTML = '<span style="color:#ff5555">❌ Evaluation Failed</span><br><small>Could not detect OMR markers.</small>';
+                    refreshBtn.textContent = 'Try Again';
+                    loading.appendChild(document.createElement('br'));
+                    loading.appendChild(refreshBtn);
+                  }
+                }
+              }).catch(() => {
+                clearInterval(poll2);
+                procTxt.textContent = '❌ Connection Error';
+                refreshBtn.textContent = 'Back';
+                loading.appendChild(refreshBtn);
+              });
+
+              // Safety Timeout (20 seconds)
+              if (attempts > 20) {
+                clearInterval(poll2);
+                procTxt.textContent = '⏱️ Request Timed Out';
+                refreshBtn.textContent = 'Try Again';
+                loading.appendChild(refreshBtn);
+              }
+            }, 1000);
+          }).catch(() => {
+            procTxt.textContent = '❌ Upload Failed';
+            refreshBtn.textContent = 'Back';
+            loading.appendChild(refreshBtn);
+          });
+          // --- END OF REPLACEMENT ---
+        }
+      }, 'image/jpeg', 0.5);
+    };
 
 
     refreshBtn.onclick = () => location.reload();
     flashBtn.onclick = toggleFlash;
 
         document.getElementById('exitBtn').onclick = function () {
-  // 1. Stop all camera tracks safely
-  if (stream) {
-    stream.getTracks().forEach(track => {
-      track.stop();
-      console.log("Camera track stopped:", track.label);
-    });
-  }
+      // 1. Stop all camera tracks safely
+      if (stream) {
+        stream.getTracks().forEach(track => {
+          track.stop();
+          console.log("Camera track stopped:", track.label);
+        });
+      }
 
-  // 2. Clear the video element source (optional but recommended)
-  const videoElement = document.getElementById('yourVideoElementId'); 
-  if (videoElement) {
-    videoElement.srcObject = null;
-  }
+      // 2. Clear the video source to ensure memory is released
+      video.srcObject = null;
 
-  // 3. Redirect to the home page
-  window.location.href = '/';
-};
-
-
-      
+      // 3. Go back to the previous page
+      // If there is no history, it will stay on the current page
+      if (document.referrer !== "") {
+        window.location.href = document.referrer;
+      } else {
+        // Fallback: Change '/' to your actual home page URL if needed
+        window.location.href = '/'; 
+      }
+    };
 
 
     document.addEventListener('visibilitychange', () => {
