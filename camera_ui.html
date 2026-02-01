@@ -275,7 +275,7 @@ Just click Capture – it will process in background and show result here.
       return parts[parts.length - 1].split(".")[0];
     }
 
-    captureBtn.onclick = async () => {
+        captureBtn.onclick = async () => {
     const isInstant = instantToggle.checked;
     const rollNum = document.getElementById('rollInput').value;
     
@@ -286,15 +286,13 @@ Just click Capture – it will process in background and show result here.
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0);
 
-    // FIX: Preview data for display
+    // High quality for analysis, but lower quality for UI preview
     const previewDataUrl = canvas.toDataURL('image/jpeg', 0.5);
 
-    // Stop camera only for Instant Mode
     if (isInstant && stream) {
         stream.getTracks().forEach(t => t.stop());
     }
 
-    // Convert to Blob
     canvas.toBlob(async (blob) => {
         if (!blob) return alert("Capture failed");
 
@@ -305,17 +303,16 @@ Just click Capture – it will process in background and show result here.
         let loadingScreen = null;
         if (isInstant) {
             loadingScreen = document.createElement('div');
-            loadingScreen.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:black;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;";
+            loadingScreen.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:black;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;padding:20px;box-sizing:border-box;";
+            // FIX: Removed rotation and scale. Added object-fit contain to prevent cropping.
             loadingScreen.innerHTML = `
-                <img id="procImg" src="${previewDataUrl}" style="max-width:80%; max-height:50%; transform: rotate(-90deg) scale(1.4); margin-bottom:40px; border:1px solid #444;">
-                <h3 id="procStatus">Processing...</h3>
-                <p id="statusMsg">Uploading to Server...</p>`;
+                <img id="procImg" src="${previewDataUrl}" style="max-width:100%; max-height:70%; object-fit:contain; margin-bottom:20px; border:2px solid #444;">
+                <h3 id="procStatus" style="margin:10px 0;">Processing...</h3>
+                <p id="statusMsg" style="margin:5px 0;">Uploading to Server...</p>`;
             document.body.appendChild(loadingScreen);
         } else {
             showToast("Uploading & Analyzing...", false);
         }
-
-        await new Promise(r => setTimeout(r, 100));
 
         try {
             const response = await fetch(`${window.location.origin}/upload`, {
@@ -328,7 +325,6 @@ Just click Capture – it will process in background and show result here.
 
             if (isInstant) document.getElementById('statusMsg').textContent = "Analyzing OMR...";
 
-            // Polling Logic
             let attempts = 0;
             const checkStatus = setInterval(async () => {
                 attempts++;
@@ -340,25 +336,27 @@ Just click Capture – it will process in background and show result here.
                         clearInterval(checkStatus);
                         if (data.filename) {
                             if (isInstant) {
+                                // The evaluated image displays normally here
                                 document.getElementById('procImg').src = `/temp_output/${data.filename}?t=${Date.now()}`;
-                                document.getElementById('procStatus').textContent = "Done";
-                                document.getElementById('statusMsg').textContent = `Correct: ${extractCorrect(data.filename)}`;
+                                document.getElementById('procStatus').textContent = "Analysis Complete";
+                                document.getElementById('statusMsg').innerHTML = `<b style="font-size:24px; color:limegreen;">Correct: ${extractCorrect(data.filename)}</b>`;
+                                
                                 const btn = document.createElement('button');
-                                btn.textContent = "Next";
-                                btn.style = "margin-top:20px; padding:15px 30px; font-size:20px;";
+                                btn.textContent = "Scan Next";
+                                btn.style = "margin-top:20px; padding:15px 40px; font-size:18px; background:white; color:black; border-radius:8px; border:none; font-weight:bold;";
                                 btn.onclick = () => location.reload();
                                 loadingScreen.appendChild(btn);
                             } else {
                                 showToast(`✅ Correct: ${extractCorrect(data.filename)}`, true);
                             }
                         } else {
-                            throw new Error();
+                            throw new Error("No filename returned");
                         }
                     }
-                    if (attempts > 30) throw new Error("Timeout");
+                    if (attempts > 30) throw new Error("Timeout: Server took too long");
                 } catch (e) {
                     clearInterval(checkStatus);
-                    if (isInstant) handleProcError(loadingScreen, checkStatus, "Processing error.");
+                    if (isInstant) handleProcError(loadingScreen, checkStatus, e.message);
                     else showToast("Error processing result.");
                 }
             }, 1000);
@@ -367,7 +365,7 @@ Just click Capture – it will process in background and show result here.
             if (isInstant) handleProcError(loadingScreen, null, err.message);
             else showToast("Upload Failed.");
         }
-    }, 'image/jpeg', 0.5);
+    }, 'image/jpeg', 0.8); // Slightly higher quality for the server
 };
 
 function handleProcError(overlay, interval, msg) {
@@ -375,18 +373,19 @@ function handleProcError(overlay, interval, msg) {
     const statusEl = document.getElementById('procStatus');
     const detailEl = document.getElementById('statusMsg');
     
-    if (statusEl) statusEl.innerHTML = `<span style="color:red">Error</span>`;
-    if (detailEl) detailEl.textContent = msg; // Overwrites Analyzing OMR...
+    if (statusEl) statusEl.innerHTML = `<span style="color:#ff4444">Error Occurred</span>`;
+    if (detailEl) detailEl.textContent = msg;
 
     if (!document.getElementById('retryBtn')) {
         const rb = document.createElement('button');
         rb.id = "retryBtn";
         rb.textContent = "Try Again";
-        rb.style = "margin-top:20px; padding:10px 20px; background:white; color:black; border-radius:5px;";
+        rb.style = "margin-top:20px; padding:12px 25px; background:#ff4444; color:white; border-radius:5px; border:none; font-weight:bold;";
         rb.onclick = () => location.reload();
         overlay.appendChild(rb);
     }
 }
+
 
     refreshBtn.onclick = () => location.reload();
     flashBtn.onclick = toggleFlash;
