@@ -314,36 +314,42 @@ Just click Capture – it will process in background and show result here.
           }, 1000);
         }).catch(err => showToast('❌ Fetch Error: ' + err.message));
                
-    } else {
-      // --- INSTANT ON: SAME-DEVICE STABILITY FIX ---
+ 
+                      } else {
+      // --- INSTANT ON: PREVIEW FIX ---
       
-      // 1. Kill Camera immediately
+      // 1. Kill Camera immediately to free resources
       if (stream) {
         stream.getTracks().forEach(t => t.stop());
       }
 
-      // 2. Show UI
+      // 2. Setup the Overlay
       const loadingContainer = document.createElement('div');
       Object.assign(loadingContainer.style, {
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
         background: 'black', color: 'white', display: 'flex', flexDirection: 'column',
-        alignItems: 'center', zIndex: 10000, padding: '10px'
+        alignItems: 'center', zIndex: 10000, padding: '10px', overflowY: 'auto'
       });
       
+      // 3. Create and show the Preview Image immediately
+      const previewImg = document.createElement('img');
+      const imageUrl = URL.createObjectURL(blob); // Create the link
+      previewImg.src = imageUrl;
+      previewImg.style.cssText = 'width:90%; max-height:45vh; object-fit:contain; margin-top: 40px; border:1px solid #333; transform: rotate(-90deg);';
+      
       const procTxt = document.createElement('div');
-      procTxt.style.cssText = 'margin-top: 50px; font-size: 20px;';
+      procTxt.style.cssText = 'margin: 20px 0; font-size: 18px; text-align: center;';
       procTxt.textContent = '📤 Sending to Server...';
+      
+      loadingContainer.appendChild(previewImg);
       loadingContainer.appendChild(procTxt);
       document.body.appendChild(loadingContainer);
 
-      // 3. THE MAGIC FIX: Use a slightly longer delay (800ms) 
-      // This allows the mobile OS to finish releasing the camera hardware 
-      // so the Network antenna is fully available for the upload.
+      // 4. Delayed Upload
       setTimeout(() => {
         fetch('/upload', { 
           method: 'POST', 
           body: formData,
-          // Force no-cache to prevent Termux/Browser hanging
           cache: 'no-cache' 
         })
         .then(response => {
@@ -356,7 +362,10 @@ Just click Capture – it will process in background and show result here.
             fetch('/status').then(r => r.json()).then(data => {
               if (data.processing === false) {
                 clearInterval(poll2);
+                
+                // Keep the same container but swap content for result
                 loadingContainer.innerHTML = ''; 
+                
                 if (data.filename) {
                   const resultImg = document.createElement('img');
                   resultImg.src = '/temp_output/' + data.filename + '?t=' + Date.now();
@@ -368,8 +377,11 @@ Just click Capture – it will process in background and show result here.
 
                   const nextBtn = document.createElement('button');
                   nextBtn.textContent = 'Next Scan';
-                  nextBtn.style.cssText = 'padding: 15px 40px; background: white; border-radius: 30px; font-weight: bold;';
-                  nextBtn.onclick = () => location.reload();
+                  nextBtn.style.cssText = 'padding: 15px 40px; background: white; color: black; border-radius: 30px; font-weight: bold; border: none; cursor: pointer; margin-bottom: 40px;';
+                  nextBtn.onclick = () => {
+                    URL.revokeObjectURL(imageUrl); // Clean up memory
+                    location.reload();
+                  };
 
                   loadingContainer.appendChild(resultImg);
                   loadingContainer.appendChild(infoDiv);
@@ -377,16 +389,19 @@ Just click Capture – it will process in background and show result here.
                 }
               }
             });
-            if (attempts > 40) clearInterval(poll2);
+            if (attempts > 40) {
+                clearInterval(poll2);
+                procTxt.textContent = "❌ Timeout";
+            }
           }, 1000);
         })
         .catch(err => {
-          procTxt.innerHTML = `<div style="color:red">❌ Failed to fetch</div>
-                               <div style="font-size:14px; margin:10px;">${err.message}</div>
-                               <button onclick="location.reload()" style="padding:10px 20px; background:white; color:black; border:none; border-radius:5px; margin-top:20px;">Try Again</button>`;
+          procTxt.innerHTML = `<div style="color:red">❌ Error</div><div style="font-size:14px;">${err.message}</div>
+                               <button onclick="location.reload()" style="margin-top:20px; padding:10px 20px;">Back</button>`;
         });
       }, 800); 
     }
+
   }, 'image/jpeg', 0.5);
 };
 
