@@ -224,7 +224,6 @@ async function deleteAllFiles() {
 
 function renameFile(oldPath) {
     const currentPath = "{{ path }}";
-    // Checks if we are in 'output' or 'class' folders
     const isOutput = currentPath.includes("output") || currentPath.includes("class");
     
     let filename = oldPath.split('/').pop();
@@ -235,27 +234,22 @@ function renameFile(oldPath) {
     let newName = "";
 
     if (isOutput) {
-        // 1. Handle the roll_marks_duplicate logic
-        // Splits "23_99_1" into ["23", "99", "1"]
         let nameParts = baseName.split('_');
         let oldRoll = nameParts[0] || "";
         let oldMarks = nameParts[1] || "";
 
-        // 2. Prompt User
         let newRoll = prompt("Enter Roll Number:", oldRoll);
         if (newRoll === null) return; 
 
-        // Strip leading zeros
         let strippedRoll = parseInt(newRoll, 10).toString();
         if (isNaN(strippedRoll)) strippedRoll = "0"; 
 
         let newMarks = prompt("Enter Marks:", oldMarks);
         if (newMarks === null) return;
 
-        // 3. Construct the clean "roll_mark" format (removes the _1)
+        // This removes the _1 by only using Roll and Marks
         newName = strippedRoll + "_" + newMarks;
     } else {
-        // Standard logic for other folders
         let n = prompt("New name", baseName);
         if (!n || n === baseName) return;
         newName = n;
@@ -264,26 +258,24 @@ function renameFile(oldPath) {
     let folder = oldPath.substring(0, oldPath.lastIndexOf('/'));
     let newPath = folder + "/" + newName + ext;
 
-    // 4. Check if the file already exists (Client-side safety)
-    // Note: This assumes you have access to a list of files in the current directory
-    // If you don't have a 'filesList' array, the server will need to handle the error.
-    if (typeof allFiles !== 'undefined' && allFiles.includes(newName + ext)) {
-        alert("Error: A file with the name " + newName + ext + " already exists.");
-        return;
-    }
+    // PREVENT SELF-RENAME: If name hasn't changed, just exit
+    if (newPath === oldPath) return;
 
     fetch("/rename", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ old: oldPath, new: newPath })
-    }).then(res => {
-        if (res.status === 409 || !res.ok) {
-            alert("Rename failed: File already exists or server error.");
+    }).then(async res => {
+        if (res.status === 409) {
+            alert("Error: A file with the name '" + newName + ext + "' already exists in this folder.");
+        } else if (!res.ok) {
+            alert("Rename failed. The server encountered an error.");
         } else {
-            location.reload();
+            location.reload(); // Only reload if successful
         }
     });
 }
+
 
 
 </script>
