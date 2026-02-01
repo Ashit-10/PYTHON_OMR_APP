@@ -365,13 +365,13 @@ Just click Capture – it will process in background and show result here.
                     if (isInstant) handleProcError(loadingScreen, checkStatus, e.message);
                     else showToast("Error processing result.");
                 }
-            }, 1000);
+            }, 500);
 
         } catch (err) {
             if (isInstant) handleProcError(loadingScreen, null, err.message);
             else showToast("Upload Failed.");
         }
-    }, 'image/jpeg', 0.8); // Slightly higher quality for the server
+    }, 'image/jpeg', 0.5); // Slightly higher quality for the server
 };
 
 function handleProcError(overlay, interval, msg) {
@@ -403,11 +403,11 @@ function handleProcError(overlay, interval, msg) {
         });
       }
       video.srcObject = null;
-      if (document.referrer !== "") {
-        window.location.href = document.referrer;
-      } else {
+    //  if (document.referrer !== "") {
+    // //   window.location.href = document.referrer;
+   //   } else {
         window.location.href = '/'; 
-      }
+   //   }
     };
 
     document.addEventListener('visibilitychange', () => {
