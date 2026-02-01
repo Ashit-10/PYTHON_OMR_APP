@@ -284,13 +284,18 @@ Just click Capture – it will process in background and show result here.
 
   const isInstant = instantToggle.checked;
   const c = document.createElement('canvas');
-  c.width = video.videoWidth;
-  c.height = video.videoHeight;
-  c.getContext('2d').drawImage(video, 0, 0);
+  
+  // --- STABILITY IMPROVEMENT: DOWNSCALE ---
+  // We reduce the resolution slightly for same-device processing
+  // This prevents the "Failed to Fetch" memory crash.
+  const scale = 0.7; 
+  c.width = video.videoWidth * scale;
+  c.height = video.videoHeight * scale;
+  
+  const ctx = c.getContext('2d');
+  ctx.drawImage(video, 0, 0, c.width, c.height);
 
-  // We capture at 0.5 quality to ensure the 'fetch' doesn't crash Termux memory
   c.toBlob(blob => {
-    // 1. Prepare Data
     const formData = new FormData();
     formData.append('image', blob, 'capture.jpg');
     const rollNum = document.getElementById('rollInput').value;
@@ -299,31 +304,28 @@ Just click Capture – it will process in background and show result here.
     if (!isInstant) {
       showToast('🔄 Processing...');
       fetch('/upload', { method: 'POST', body: formData })
-        .then(res => res.json())
         .then(() => {
           document.getElementById('rollInput').value = '';
           const poll = setInterval(() => {
             fetch('/status').then(r => r.json()).then(data => {
               if (!data.processing) {
                 clearInterval(poll);
-                if (data.filename) {
-                  showToast(`✅ Correct: ${extractCorrect(data.filename)}`, true);
-                }
+                if (data.filename) showToast(`✅ Correct: ${extractCorrect(data.filename)}`, true);
               }
-            });
+            }).catch(() => clearInterval(poll));
           }, 1000);
-        }).catch(err => showToast('❌ Fetch Error: ' + err.message));
+        }).catch(err => showToast('❌ Error: ' + err.message));
                
- 
-                      } else {
-      // --- INSTANT ON: PREVIEW FIX ---
-      
-      // 1. Kill Camera immediately to free resources
+    } else {
+      // 1. Kill Camera immediately
       if (stream) {
-        stream.getTracks().forEach(t => t.stop());
+        stream.getTracks().forEach(t => {
+          t.stop();
+          t.enabled = false;
+        });
       }
 
-      // 2. Setup the Overlay
+      // 2. Create UI Overlay
       const loadingContainer = document.createElement('div');
       Object.assign(loadingContainer.style, {
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
@@ -331,30 +333,30 @@ Just click Capture – it will process in background and show result here.
         alignItems: 'center', zIndex: 10000, padding: '10px', overflowY: 'auto'
       });
       
-      // 3. Create and show the Preview Image immediately
       const previewImg = document.createElement('img');
-      const imageUrl = URL.createObjectURL(blob); // Create the link
-      previewImg.src = imageUrl;
-      previewImg.style.cssText = 'width:90%; max-height:45vh; object-fit:contain; margin-top: 40px; border:1px solid #333; transform: rotate(-90deg);';
+      const previewUrl = URL.createObjectURL(blob);
+      previewImg.src = previewUrl;
+      previewImg.style.cssText = 'width:85%; max-height:45vh; object-fit:contain; margin-top: 40px; border:1px solid #444; transform: rotate(-90deg);';
       
       const procTxt = document.createElement('div');
-      procTxt.style.cssText = 'margin: 20px 0; font-size: 18px; text-align: center;';
-      procTxt.textContent = '📤 Sending to Server...';
+      procTxt.style.cssText = 'margin: 30px 0; font-size: 18px; font-weight: bold; color: #aaa;';
+      procTxt.textContent = '📤 Sending to Termux...';
       
       loadingContainer.appendChild(previewImg);
       loadingContainer.appendChild(procTxt);
       document.body.appendChild(loadingContainer);
 
-      // 4. Delayed Upload
+      // 3. Delayed Upload (The "Breathe" Window)
       setTimeout(() => {
         fetch('/upload', { 
           method: 'POST', 
           body: formData,
-          cache: 'no-cache' 
+          mode: 'cors' // Ensure CORS is handled
         })
         .then(response => {
-          if (!response.ok) throw new Error("Server rejected upload");
+          if (!response.ok) throw new Error("Server Busy");
           procTxt.textContent = '🔄 Processing OMR...';
+          procTxt.style.color = "limegreen";
           
           let attempts = 0;
           const poll2 = setInterval(() => {
@@ -362,14 +364,11 @@ Just click Capture – it will process in background and show result here.
             fetch('/status').then(r => r.json()).then(data => {
               if (data.processing === false) {
                 clearInterval(poll2);
-                
-                // Keep the same container but swap content for result
                 loadingContainer.innerHTML = ''; 
-                
                 if (data.filename) {
                   const resultImg = document.createElement('img');
                   resultImg.src = '/temp_output/' + data.filename + '?t=' + Date.now();
-                  resultImg.style.cssText = 'width:90%; max-height:55vh; object-fit:contain; margin-top:50px; transform: rotate(-90deg);';
+                  resultImg.style.cssText = 'width:85%; max-height:55vh; object-fit:contain; margin-top:50px; transform: rotate(-90deg);';
                   
                   const infoDiv = document.createElement('div');
                   infoDiv.style.cssText = 'text-align:center; margin: 20px 0;';
@@ -377,11 +376,8 @@ Just click Capture – it will process in background and show result here.
 
                   const nextBtn = document.createElement('button');
                   nextBtn.textContent = 'Next Scan';
-                  nextBtn.style.cssText = 'padding: 15px 40px; background: white; color: black; border-radius: 30px; font-weight: bold; border: none; cursor: pointer; margin-bottom: 40px;';
-                  nextBtn.onclick = () => {
-                    URL.revokeObjectURL(imageUrl); // Clean up memory
-                    location.reload();
-                  };
+                  nextBtn.style.cssText = 'padding: 15px 40px; background: white; color: black; border-radius: 30px; font-weight: bold; border: none;';
+                  nextBtn.onclick = () => location.reload();
 
                   loadingContainer.appendChild(resultImg);
                   loadingContainer.appendChild(infoDiv);
@@ -389,24 +385,20 @@ Just click Capture – it will process in background and show result here.
                 }
               }
             });
-            if (attempts > 40) {
-                clearInterval(poll2);
-                procTxt.textContent = "❌ Timeout";
-            }
+            if (attempts > 60) { clearInterval(poll2); procTxt.textContent = "❌ Timeout"; }
           }, 1000);
         })
         .catch(err => {
-          procTxt.innerHTML = `<div style="color:red">❌ Error</div><div style="font-size:14px;">${err.message}</div>
-                               <button onclick="location.reload()" style="margin-top:20px; padding:10px 20px;">Back</button>`;
+          // If it fails, show why but keep the preview so user can try again
+          procTxt.innerHTML = `<div style="color:red">Upload Error</div>
+                               <div style="font-size:12px; color:gray">${err.message}</div>
+                               <button onclick="location.reload()" style="margin-top:15px; padding:8px 15px;">Retry</button>`;
         });
-      }, 800); 
+      }, 1000); // 1 full second delay
     }
-
-  }, 'image/jpeg', 0.5);
+  }, 'image/jpeg', 0.4); // Dropped quality to 0.4 for maximum stability
 };
-
-
-                                        
+             
 
 
     refreshBtn.onclick = () => location.reload();
