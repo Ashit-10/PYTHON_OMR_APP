@@ -322,38 +322,37 @@ c.toBlob(blob => {
           }).catch(() => {
             showToast('❌ Upload failed', true);
           });
-           
-                            } else {
-          // --- START OF FIXED REPLACEMENT ---
+              } else {
+          // --- START OF REPLACEMENT ---
           stream.getTracks().forEach(t => t.stop());
-          
-          // Create a container to hold the loading view and results
-          const loadingContainer = document.createElement('div');
-          Object.assign(loadingContainer.style, {
-            position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-            background: 'black', color: 'white', display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', fontSize: '20px', zIndex: 9999,
+          const loading = document.createElement('div');
+          Object.assign(loading.style, {
+            position: 'fixed', top: 0, left: 0,
+            width: '100vw', height: '100vh',
+            background: 'black', color: 'white',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            fontSize: '20px', zIndex: 9999,
             textAlign: 'center', padding: '20px'
           });
 
-          const imgPreview = document.createElement('img');
-          imgPreview.src = URL.createObjectURL(blob);
-          imgPreview.style.maxHeight = '60vh';
-          imgPreview.style.marginBottom = '20px';
-          loadingContainer.appendChild(imgPreview);
+          const img = document.createElement('img');
+          img.src = URL.createObjectURL(blob);
+          img.style.maxHeight = '60vh';
+          img.style.marginBottom = '20px';
+          loading.appendChild(img);
 
           const procTxt = document.createElement('div');
           procTxt.textContent = '🔄 Processing the file...';
-          loadingContainer.appendChild(procTxt);
+          loading.appendChild(procTxt);
 
-          // Clear body and add our container
           document.body.innerHTML = '';
-          document.body.appendChild(loadingContainer);
+          document.body.appendChild(loading);
 
           fetch('/upload', { method: 'POST', body: formData }).then(() => {
-            document.getElementById('rollInput')?.value = ''; 
-            let attempts = 0;
-            
+  document.getElementById('rollInput').value = ''; // <--- Add this line
+  let attempts = 0;
+  
             const poll2 = setInterval(() => {
               attempts++;
               fetch('/status').then(r => r.json()).then(data => {
@@ -361,43 +360,45 @@ c.toBlob(blob => {
                   clearInterval(poll2);
                   if (data.filename && data.filename.trim() !== "") {
                     // SUCCESS PATH
-                    loadingContainer.innerHTML = ''; // Clear the "Processing..." screen
-                    
-                    const resultImg = document.createElement('img');
-                    resultImg.src = '/temp_output/' + data.filename + '?t=' + Date.now();
-                    resultImg.style.cssText = 'width:100vw;height:80vh;object-fit:contain;background:black';
-                    
-                    const nextBtn = document.createElement('button');
-                    nextBtn.textContent = 'Next ➔';
-                    nextBtn.style.cssText = 'margin-top:20px; padding:15px 30px; font-size:20px; background:white; color:black; border-radius:10px;';
-                    nextBtn.onclick = () => location.reload();
+                    const result = document.createElement('img');
+                    result.src = '/temp_output/' + data.filename + '?t=' + Date.now();
+                    result.style.cssText = 'width:100vw;height:100vh;object-fit:contain;background:black';
 
-                    loadingContainer.appendChild(resultImg);
-                    loadingContainer.appendChild(nextBtn);
+                    refreshBtn.textContent = 'Next';
+                    setTimeout(() => {
+                      document.body.innerHTML = '';
+                      document.body.appendChild(result);
+                      document.body.appendChild(refreshBtn);
+                    }, 500);
                   } else {
-                    // SERVER FINISHED BUT FAILED
+                    // SERVER FINISHED BUT FAILED TO EVALUATE
                     procTxt.innerHTML = '<span style="color:#ff5555">❌ Evaluation Failed</span><br><small>Could not detect OMR markers.</small>';
-                    const retryBtn = document.createElement('button');
-                    retryBtn.textContent = 'Try Again';
-                    retryBtn.style.cssText = 'margin-top:20px; padding:10px 20px; background:white; color:black;';
-                    retryBtn.onclick = () => location.reload();
-                    loadingContainer.appendChild(retryBtn);
+                    refreshBtn.textContent = 'Try Again';
+                    loading.appendChild(document.createElement('br'));
+                    loading.appendChild(refreshBtn);
                   }
                 }
               }).catch(() => {
                 clearInterval(poll2);
                 procTxt.textContent = '❌ Connection Error';
+                refreshBtn.textContent = 'Back';
+                loading.appendChild(refreshBtn);
               });
 
-              if (attempts > 25) { // Increased to 25 seconds for safety
+              // Safety Timeout (20 seconds)
+              if (attempts > 20) {
                 clearInterval(poll2);
                 procTxt.textContent = '⏱️ Request Timed Out';
+                refreshBtn.textContent = 'Try Again';
+                loading.appendChild(refreshBtn);
               }
             }, 1000);
           }).catch(() => {
             procTxt.textContent = '❌ Upload Failed';
+            refreshBtn.textContent = 'Back';
+            loading.appendChild(refreshBtn);
           });
-          // --- END OF FIXED REPLACEMENT ---
+          // --- END OF REPLACEMENT ---
         }
       }, 'image/jpeg', 0.5);
     };
