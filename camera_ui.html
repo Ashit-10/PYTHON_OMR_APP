@@ -393,6 +393,26 @@ function handleProcError(overlay, interval, msg) {
     }
 }
 
+// Helper function to handle errors and show the Retry button
+function handleProcError(overlay, interval, msg) {
+    if (interval) clearInterval(interval);
+    const statusEl = document.getElementById('procStatus');
+    const detailEl = document.getElementById('procDetail');
+    
+    if (statusEl) statusEl.innerHTML = `<span style="color:red">Error</span>`;
+    if (detailEl) detailEl.textContent = msg;
+
+    // Add Retry Button if not already there
+    if (!document.getElementById('retryBtn')) {
+        const rb = document.createElement('button');
+        rb.id = "retryBtn";
+        rb.textContent = "Try Again";
+        rb.style = "margin-top:20px; padding:10px 20px; background:white; color:black; border-radius:5px;";
+        rb.onclick = () => location.reload();
+        overlay.appendChild(rb);
+    }
+}
+
 
     refreshBtn.onclick = () => location.reload();
     flashBtn.onclick = toggleFlash;
