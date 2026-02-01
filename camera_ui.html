@@ -325,95 +325,92 @@ c.toBlob(blob => {
                
     
           
-            } else {
-  // --- FINAL FIXED INSTANT ON LOGIC ---
-  stream.getTracks().forEach(t => t.stop());
-  
-  const loadingContainer = document.createElement('div');
-  Object.assign(loadingContainer.style, {
-    position: 'fixed', top: 0, left: 0,
-    width: '100vw', height: '100vh',
-    background: 'black', color: 'white',
-    display: 'flex', flexDirection: 'column',
-    alignItems: 'center', 
-    justifyContent: 'flex-start', 
-    zIndex: 9999,
-    overflowY: 'auto', 
-    boxSizing: 'border-box',
-    padding: '10px'
-  });
+                  } else {
+                // --- FULLY FIXED INSTANT ON LOGIC (NO HANGING) ---
+                
+                // 1. Stop camera tracks properly to free up hardware
+                if (stream) {
+                    stream.getTracks().forEach(t => {
+                        t.stop();
+                        t.enabled = false;
+                    });
+                }
 
-  // 1. PREVIEW IMAGE (Rotated 90 deg Left)
-  const previewImg = document.createElement('img');
-  previewImg.src = URL.createObjectURL(blob);
-  // transform: rotate(-90deg) flips it left. 
-  // Added margin-top/bottom to prevent overlapping during rotation.
-  previewImg.style.cssText = 'width:100%; max-height:50vh; object-fit:contain; margin: 40px 0; border:1px solid #333; transform: rotate(-90deg);';
-  
-  const procTxt = document.createElement('div');
-  procTxt.style.cssText = 'font-size: 18px; margin: 10px 0; text-align: center;';
-  procTxt.textContent = '🔄 Processing OMR...';
-  
-  document.body.innerHTML = ''; 
-  loadingContainer.appendChild(previewImg);
-  loadingContainer.appendChild(procTxt);
-  document.body.appendChild(loadingContainer);
+                // 2. Create an OVERLAY instead of wiping document.body
+                const loadingContainer = document.createElement('div');
+                loadingContainer.id = 'omr-overlay';
+                Object.assign(loadingContainer.style, {
+                    position: 'fixed', top: 0, left: 0,
+                    width: '100vw', height: '100vh',
+                    background: 'black', color: 'white',
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'flex-start',
+                    zIndex: 10000, overflowY: 'auto',
+                    boxSizing: 'border-box', padding: '10px'
+                });
 
-  fetch('/upload', { method: 'POST', body: formData }).then(() => {
-    let attempts = 0;
-    const poll2 = setInterval(() => {
-      attempts++;
-      fetch('/status').then(r => r.json()).then(data => {
-        if (data.processing === false) {
-          clearInterval(poll2);
-          loadingContainer.innerHTML = ''; // Reset container for result
+                // 3. PREVIEW IMAGE (Rotated)
+                const previewImg = document.createElement('img');
+                previewImg.src = URL.createObjectURL(blob);
+                previewImg.style.cssText = 'width:90%; max-height:45vh; object-fit:contain; margin: 50px 0; border:1px solid #333; transform: rotate(-90deg);';
 
-          if (data.filename && data.filename.trim() !== "") {
-            // 2. THE PROCESSED RESULT IMAGE (Rotated 90 deg Left)
-            const resultImg = document.createElement('img');
-            resultImg.src = '/temp_output/' + data.filename + '?t=' + Date.now();
-            // Rotate applied here as well
-            resultImg.style.cssText = 'width:100%; max-height:60vh; object-fit:contain; background:#111;';
-            
-            // 3. THE RESULT TEXT
-            const infoDiv = document.createElement('div');
-            infoDiv.style.cssText = 'text-align:center; margin: 15px 0; width: 100%;';
-            const corrCount = extractCorrect(data.filename);
-            infoDiv.innerHTML = `<div style="color:limegreen; font-size:24px; font-weight:bold;">✅ Done!</div>
-                                 <div style="font-size:20px; margin-top:5px;">Correct: ${corrCount}</div>`;
+                const procTxt = document.createElement('div');
+                procTxt.style.cssText = 'font-size: 18px; margin: 10px 0; text-align: center;';
+                procTxt.textContent = '🔄 Processing OMR...';
 
-            // 4. THE NEXT BUTTON
-            const nextBtn = document.createElement('button');
-            nextBtn.textContent = 'Next Scan';
-            nextBtn.style.cssText = 'padding: 15px 40px; font-size: 18px; background: white; color: black; border-radius: 30px; border: none; font-weight: bold; cursor: pointer; margin-bottom: 50px;';
-            nextBtn.onclick = () => location.reload();
+                loadingContainer.appendChild(previewImg);
+                loadingContainer.appendChild(procTxt);
+                document.body.appendChild(loadingContainer);
 
-            loadingContainer.appendChild(resultImg);
-            loadingContainer.appendChild(infoDiv);
-            loadingContainer.appendChild(nextBtn);
-          } else {
-            // FAIL STATE
-            const failTxt = document.createElement('div');
-            failTxt.innerHTML = '<b style="color:red">❌ Failed</b><br>Could not read OMR.';
-            const backBtn = document.createElement('button');
-            backBtn.textContent = 'Try Again';
-            backBtn.style.cssText = 'margin-top:20px; padding:10px 20px; background:white;';
-            backBtn.onclick = () => location.reload();
-            loadingContainer.appendChild(failTxt);
-            loadingContainer.appendChild(backBtn);
-          }
-        }
-      }).catch(e => {
-        clearInterval(poll2);
-        loadingContainer.innerHTML = '<div style="padding:20px">Connect Error. <button onclick="location.reload()">Back</button></div>';
-      });
-      if (attempts > 30) clearInterval(poll2);
-    }, 1000);
-  });
-}
+                // 4. UPLOAD AND POLL
+                // Small delay ensures camera hardware is released before upload starts
+                setTimeout(() => {
+                    fetch('/upload', { method: 'POST', body: formData })
+                    .then(response => {
+                        let attempts = 0;
+                        const poll2 = setInterval(() => {
+                            attempts++;
+                            fetch('/status').then(r => r.json()).then(data => {
+                                if (data.processing === false) {
+                                    clearInterval(poll2);
+                                    loadingContainer.innerHTML = ''; // Reset overlay for result
 
+                                    if (data.filename && data.filename.trim() !== "") {
+                                        const resultImg = document.createElement('img');
+                                        resultImg.src = '/temp_output/' + data.filename + '?t=' + Date.now();
+                                        // Keeping rotation consistent with preview
+                                        resultImg.style.cssText = 'width:90%; max-height:55vh; object-fit:contain; background:#111; margin-top:50px; transform: rotate(-90deg);';
 
-      }, 'image/jpeg', 0.5);
+                                        const infoDiv = document.createElement('div');
+                                        infoDiv.style.cssText = 'text-align:center; margin: 20px 0; width: 100%;';
+                                        const corrCount = extractCorrect(data.filename);
+                                        infoDiv.innerHTML = `<div style="color:limegreen; font-size:24px; font-weight:bold;">✅ Done!</div>
+                                                             <div style="font-size:20px; margin-top:5px;">Correct: ${corrCount}</div>`;
+
+                                        const nextBtn = document.createElement('button');
+                                        nextBtn.textContent = 'Next Scan';
+                                        nextBtn.style.cssText = 'padding: 15px 40px; font-size: 18px; background: white; color: black; border-radius: 30px; border: none; font-weight: bold; cursor: pointer; margin-bottom: 50px;';
+                                        nextBtn.onclick = () => location.reload();
+
+                                        loadingContainer.appendChild(resultImg);
+                                        loadingContainer.appendChild(infoDiv);
+                                        loadingContainer.appendChild(nextBtn);
+                                    } else {
+                                        loadingContainer.innerHTML = '<div style="margin-top:100px; text-align:center;"><b style="color:red">❌ Failed</b><br>Could not read OMR.<br><button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; background:white;">Try Again</button></div>';
+                                    }
+                                }
+                            }).catch(e => {
+                                clearInterval(poll2);
+                                loadingContainer.innerHTML = '<div style="padding:20px; text-align:center;">Connect Error. <button onclick="location.reload()">Back</button></div>';
+                            });
+                            if (attempts > 40) clearInterval(poll2);
+                        }, 1000);
+                    }).catch(() => {
+                        loadingContainer.innerHTML = '<div style="padding:20px; text-align:center;">Upload Error. <button onclick="location.reload()">Back</button></div>';
+                    });
+                }, 300); 
+            }
+        }, 'image/jpeg', 0.5); // <--- High compression for same-device speed
     };
 
 
