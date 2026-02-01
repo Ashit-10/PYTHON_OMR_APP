@@ -111,7 +111,6 @@
       cursor: pointer;
     }
 
-    /* ✨ Modified toast style */
     #toast {
       position: fixed;
       bottom: 300px;
@@ -174,8 +173,6 @@
     <button id="refreshBtn">Refresh</button>
 </div>
 
-
-
   <div id="toast"></div>
 
   <script>
@@ -192,13 +189,7 @@
     instantToggle.checked = localStorage.getItem('instantMode') === 'true';
 
     if (!sessionStorage.getItem('initialShown')) {
-      alert(`📸 Instant ON:
-The processed OMR sheet will appear directly on screen.
-
-📥 Instant OFF:
-Just click Capture – it will process in background and show result here.
-
-💡 Recommended: Use Instant OFF for better performance and speed.`);
+      alert(`📸 Instant ON:\nThe processed OMR sheet will appear directly on screen.\n\n📥 Instant OFF:\nJust click Capture – it will process in background and show result here.\n\n💡 Recommended: Use Instant OFF for better performance and speed.`);
       sessionStorage.setItem('initialShown', 'true');
     }
 
@@ -221,23 +212,21 @@ Just click Capture – it will process in background and show result here.
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: 'environment' },
-        width: { ideal: 1920 }, // High-res source
+        width: { ideal: 1920 },
         height: { ideal: 1080 }
       }
     });
         video.srcObject = stream;
         video.play();
         
-         // --- ADD FOCUS LOGIC HERE ---
-    const track = stream.getVideoTracks()[0];
-    const capabilities = track.getCapabilities();
+        const track = stream.getVideoTracks()[0];
+        const capabilities = track.getCapabilities();
 
-    if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
-      await track.applyConstraints({
-        advanced: [{ focusMode: 'continuous' }]
-      });
-    }
-    // ----------------------------
+        if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+          await track.applyConstraints({
+            advanced: [{ focusMode: 'continuous' }]
+          });
+        }
 
         cameraStartTime = Date.now();
         startAutoCooldownCheck();
@@ -247,197 +236,152 @@ Just click Capture – it will process in background and show result here.
     }
 
     async function toggleFlash() {
-  if (!stream) return;
-  try {
-    const track = stream.getVideoTracks()[0];
-    const capabilities = track.getCapabilities();
-    if (!capabilities.torch) {
-      alert('❌ Flash not supported.');
-      return;
+      if (!stream) return;
+      try {
+        const track = stream.getVideoTracks()[0];
+        const capabilities = track.getCapabilities();
+        if (!capabilities.torch) {
+          alert('❌ Flash not supported.');
+          return;
+        }
+        torchOn = !torchOn;
+        await track.applyConstraints({
+          advanced: [{ torch: torchOn }]
+        });
+        flashBtn.textContent = torchOn ? 'Flash Off' : '🔦 Flash';
+      } catch (err) {
+        torchOn = false;
+        flashBtn.textContent = '🔦 Flash';
+      }
     }
-
-    // Toggle state
-    torchOn = !torchOn;
-
-    await track.applyConstraints({
-      advanced: [{ torch: torchOn }]
-    });
-
-    flashBtn.textContent = torchOn ? 'Flash Off' : '🔦 Flash';
-  } catch (err) {
-    console.error('Flash toggle failed:', err);
-    alert('⚠️ Flash control failed.');
-    torchOn = false;
-    flashBtn.textContent = '🔦 Flash';
-  }
-}
-
 
     function extractCorrect(filename) {
       const parts = filename.split("_");
       return parts[parts.length - 1].split(".")[0];
     }
 
-        captureBtn.onclick = async () => {
-    const isInstant = instantToggle.checked;
-    const rollNum = document.getElementById('rollInput').value;
-    
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0);
+    captureBtn.onclick = async () => {
+      const isInstant = instantToggle.checked;
+      const rollNum = document.getElementById('rollInput').value;
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0);
 
-    // Capture preview for display
-    const previewImg = canvas.toDataURL('image/jpeg', 0.5);
+      // PREVIEW CAPTURE
+      const previewImg = canvas.toDataURL('image/jpeg', 0.5);
 
-    if (stream) {
-        stream.getTracks().forEach(t => t.stop());
-    }
+      if (stream) {
+          stream.getTracks().forEach(t => t.stop());
+      }
 
-    canvas.toBlob(async (blob) => {
-        if (!blob) return alert("Capture failed");
+      canvas.toBlob(async (blob) => {
+          if (!blob) return alert("Capture failed");
 
-        const formData = new FormData();
-        formData.append('image', blob, 'capture.jpg');
-        formData.append('roll', rollNum);
+          const formData = new FormData();
+          formData.append('image', blob, 'capture.jpg');
+          formData.append('roll', rollNum);
 
-        const loadingScreen = document.createElement('div');
-        loadingScreen.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:black;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;overflow:hidden;";
+          const loadingScreen = document.createElement('div');
+          loadingScreen.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:black;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;";
+          
+          // ROTATION APPLIED HERE: -90deg
+          loadingScreen.innerHTML = `
+              <img id="procImg" src="${previewImg}" style="max-width:80%; max-height:50%; transform: rotate(-90deg) scale(1.4); margin-bottom:60px; border:1px solid #444;">
+              <h3 id="procStatus">Processing...</h3>
+              <p id="statusMsg">Uploading to Server...</p>
+          `;
+          document.body.appendChild(loadingScreen);
+
+          await new Promise(r => setTimeout(r, 100));
+
+          try {
+              const response = await fetch(`${window.location.origin}/upload`, {
+                  method: 'POST',
+                  body: formData,
+                  mode: 'cors'
+              });
+
+              if (!response.ok) throw new Error("Upload Failed");
+
+              document.getElementById('statusMsg').textContent = "Analyzing OMR...";
+
+              let attempts = 0;
+              const checkStatus = setInterval(async () => {
+                  attempts++;
+                  try {
+                      const st = await fetch(`${window.location.origin}/status`);
+                      if (!st.ok) throw new Error();
+                      const data = await st.json();
+
+                      if (!data.processing) {
+                          clearInterval(checkStatus);
+                          if (data.filename) {
+                              if (isInstant) {
+                                  document.getElementById('procImg').src = `/temp_output/${data.filename}?t=${Date.now()}`;
+                                  document.getElementById('procStatus').textContent = "Done";
+                                  document.getElementById('statusMsg').textContent = `Correct: ${extractCorrect(data.filename)}`;
+                                  
+                                  const btn = document.createElement('button');
+                                  btn.textContent = "Next";
+                                  btn.style = "margin-top:20px; padding:15px 30px; font-size:20px; position:relative; z-index:10001;";
+                                  btn.onclick = () => location.reload();
+                                  loadingScreen.appendChild(btn);
+                              } else {
+                                  loadingScreen.remove();
+                                  showToast(`✅ Correct: ${extractCorrect(data.filename)}`, true);
+                              }
+                          } else {
+                              throw new Error("Missing result");
+                          }
+                      }
+                      if (attempts > 30) throw new Error("Timeout");
+                  } catch (e) {
+                      handleProcError(loadingScreen, checkStatus, "Processing error or timeout.");
+                  }
+              }, 1000);
+
+          } catch (err) {
+              handleProcError(loadingScreen, null, err.message);
+          }
+      }, 'image/jpeg', 0.5);
+    };
+
+    function handleProcError(overlay, interval, msg) {
+        if (interval) clearInterval(interval);
+        const statusEl = document.getElementById('procStatus');
+        const detailEl = document.getElementById('statusMsg');
         
-        // FIX: Added rotate(-90deg) to the style
-        loadingScreen.innerHTML = `
-            <img id="procImg" src="${previewImg}" style="max-width:80%; max-height:50%; transform: rotate(-90deg); margin-bottom:40px; border:1px solid #444;">
-            <h3 id="procStatus">Processing...</h3>
-            <p id="statusMsg">Uploading to Server...</p>
-        `;
-        document.body.appendChild(loadingScreen);
+        if (statusEl) statusEl.innerHTML = `<span style="color:red">Error</span>`;
+        // CLEAR "Analyzing..." text here
+        if (detailEl) detailEl.textContent = msg;
 
-        await new Promise(r => setTimeout(r, 100));
-
-        try {
-            const response = await fetch(`${window.location.origin}/upload`, {
-                method: 'POST',
-                body: formData,
-                mode: 'cors'
-            });
-
-            if (!response.ok) throw new Error("Upload Failed");
-
-            document.getElementById('statusMsg').textContent = "Analyzing OMR...";
-
-            let attempts = 0;
-            const checkStatus = setInterval(async () => {
-                attempts++;
-                try {
-                    const st = await fetch(`${window.location.origin}/status`);
-                    if (!st.ok) throw new Error(); 
-                    const data = await st.json();
-
-                    if (!data.processing) {
-                        clearInterval(checkStatus);
-                        if (data.filename) {
-                            if (isInstant) {
-                                document.getElementById('procImg').src = `/temp_output/${data.filename}?t=${Date.now()}`;
-                                document.getElementById('procStatus').textContent = "Done";
-                                document.getElementById('statusMsg').textContent = `Correct: ${extractCorrect(data.filename)}`;
-                                
-                                const btn = document.createElement('button');
-                                btn.textContent = "Next";
-                                btn.style = "margin-top:20px; padding:15px 30px; font-size:20px; position:relative; z-index:10001;";
-                                btn.onclick = () => location.reload();
-                                loadingScreen.appendChild(btn);
-                            } else {
-                                loadingScreen.remove();
-                                showToast(`✅ Correct: ${extractCorrect(data.filename)}`, true);
-                            }
-                        } else {
-                            throw new Error("No Filename");
-                        }
-                    }
-                    if (attempts > 30) throw new Error("Processing Timeout");
-                } catch (e) {
-                    handleProcError(loadingScreen, checkStatus, "Server error or timeout.");
-                }
-            }, 1000);
-
-        } catch (err) {
-            handleProcError(loadingScreen, null, err.message);
+        if (!document.getElementById('retryBtn')) {
+            const rb = document.createElement('button');
+            rb.id = "retryBtn";
+            rb.textContent = "Try Again";
+            rb.style = "margin-top:20px; padding:10px 20px; background:white; color:black; border-radius:5px; position:relative; z-index:10001;";
+            rb.onclick = () => location.reload();
+            overlay.appendChild(rb);
         }
-    }, 'image/jpeg', 0.5); 
-};
-
-function handleProcError(overlay, interval, msg) {
-    if (interval) clearInterval(interval);
-    
-    // Select the elements
-    const statusEl = document.getElementById('procStatus');
-    const detailEl = document.getElementById('statusMsg');
-    
-    // FIX: Clear the "Analyzing" text and show the error instead
-    if (statusEl) {
-        statusEl.innerHTML = `<span style="color:red">Error</span>`;
     }
-    if (detailEl) {
-        detailEl.textContent = msg; // This replaces "Analyzing..." or "Uploading..."
-    }
-
-    if (!document.getElementById('retryBtn')) {
-        const rb = document.createElement('button');
-        rb.id = "retryBtn";
-        rb.textContent = "Try Again";
-        rb.style = "margin-top:20px; padding:10px 20px; background:white; color:black; border-radius:5px; position:relative; z-index:10001;";
-        rb.onclick = () => location.reload();
-        overlay.appendChild(rb);
-    }
-}
-
-// Helper function to handle errors and show the Retry button
-function handleProcError(overlay, interval, msg) {
-    if (interval) clearInterval(interval);
-    const statusEl = document.getElementById('procStatus');
-    const detailEl = document.getElementById('procDetail');
-    
-    if (statusEl) statusEl.innerHTML = `<span style="color:red">Error</span>`;
-    if (detailEl) detailEl.textContent = msg;
-
-    // Add Retry Button if not already there
-    if (!document.getElementById('retryBtn')) {
-        const rb = document.createElement('button');
-        rb.id = "retryBtn";
-        rb.textContent = "Try Again";
-        rb.style = "margin-top:20px; padding:10px 20px; background:white; color:black; border-radius:5px;";
-        rb.onclick = () => location.reload();
-        overlay.appendChild(rb);
-    }
-}
-
 
     refreshBtn.onclick = () => location.reload();
     flashBtn.onclick = toggleFlash;
 
-        document.getElementById('exitBtn').onclick = function () {
-      // 1. Stop all camera tracks safely
+    document.getElementById('exitBtn').onclick = function () {
       if (stream) {
-        stream.getTracks().forEach(track => {
-          track.stop();
-          console.log("Camera track stopped:", track.label);
-        });
+        stream.getTracks().forEach(track => track.stop());
       }
-
-      // 2. Clear the video source to ensure memory is released
       video.srcObject = null;
-
-      // 3. Go back to the previous page
-      // If there is no history, it will stay on the current page
       if (document.referrer !== "") {
         window.location.href = document.referrer;
       } else {
-        // Fallback: Change '/' to your actual home page URL if needed
         window.location.href = '/'; 
       }
     };
-
 
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
