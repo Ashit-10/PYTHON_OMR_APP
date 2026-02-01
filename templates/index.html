@@ -29,28 +29,8 @@
     </div>
   </div>
 </div>
-<button onclick="location.href='/scan'">📷 Scan OMR Sheet</button>
-<button onclick="showGitModal()" style="background-color: #24292e; color: white;">🐙 Upload to GitHub</button>
 
-<div id="gitModal" class="modal hidden">
-  <div class="modal-content">
-    <h3>GitHub Upload Details</h3>
-    
-    <label>Tuition:</label>
-    <div style="margin: 10px 0;">
-      <input type="radio" id="mvm" name="tuition" value="mvm" checked> <label for="mvm">MVM</label>
-      <input type="radio" id="wsc" name="tuition" value="wsc"> <label for="wsc">WSC</label>
-    </div>
 
-    <input id="gitCls" placeholder="Class (e.g. 10)">
-    <input id="gitSub" placeholder="Subject (e.g. Physics)">
-
-    <div class="modal-buttons">
-      <button onclick="submitGitUpload()">Upload</button>
-      <button onclick="closeGitModal()" style="background:#666;">Cancel</button>
-    </div>
-  </div>
-</div>
 
 
 <section id="log-section" class="card hidden" style="margin: 12px; background: #1e1e1e; color: #00ff00; border-radius: 8px; overflow: hidden;">
@@ -79,7 +59,29 @@
     {% endfor %}
   </div>
 </section>
+<button onclick="location.href='/scan'">📷 Scan OMR Sheet</button>
+  <button onclick="showGitModal()" style="background-color: #24292e; color: white;">🐙 Upload to GitHub</button>
 
+<div id="gitModal" class="modal hidden">
+  <div class="modal-content">
+    <h3>GitHub Upload Details</h3>
+    
+    <label>Tuition:</label>
+    <div style="margin: 10px 0;">
+      <input type="radio" id="mvm" name="tuition" value="mvm" checked> <label for="mvm">MVM</label>
+      <input type="radio" id="wsc" name="tuition" value="wsc"> <label for="wsc">WSC</label>
+    </div>
+
+    <input id="gitCls" placeholder="Class (e.g. 10)">
+    <input id="gitSub" placeholder="Subject (e.g. Physics)">
+
+    <div class="modal-buttons">
+      <button onclick="submitGitUpload()">Upload</button>
+      <button onclick="closeGitModal()" style="background:#666;">Cancel</button>
+    </div>
+  </div>
+</div>
+  
 <section class="card" style="margin: 12px;">
   <h3>Student Roll Files</h3>
   <div id="rolls-files">
