@@ -222,7 +222,7 @@ async function deleteAllFiles() {
     }
 }
 
-function renameFile(oldPath) {
+Function renameFile(oldPath) {
     const currentPath = "{{ path }}";
     const isOutput = currentPath.includes("output") || currentPath.includes("class");
     
@@ -234,24 +234,23 @@ function renameFile(oldPath) {
     let newName = "";
 
     if (isOutput) {
-    // Split by underscore: ["23", "99", "1"]
-    let nameParts = baseName.split('_');
-    let oldRoll = nameParts[0] || "";
-    let oldMarks = nameParts[1] || "";
-    let suffix = nameParts[2] ? "_" + nameParts[2] : ""; // Captures the "1" in "23_99_1"
+        // Handle roll_marks logic
+        let nameParts = baseName.split('_');
+        let oldRoll = nameParts[0] || "";
+        let oldMarks = nameParts[1] || "";
 
-    let newRoll = prompt("Enter Roll Number:", oldRoll);
-    if (newRoll === null) return; 
+        let newRoll = prompt("Enter Roll Number:", oldRoll);
+        if (newRoll === null) return; 
 
-    // Strip leading zeros
-    let strippedRoll = parseInt(newRoll, 10).toString();
-    if (isNaN(strippedRoll)) strippedRoll = "0"; 
+        // Strip leading zeros: convert to number and back to string
+        // If user enters "00", it becomes "0"
+        let strippedRoll = parseInt(newRoll, 10).toString();
+        if (isNaN(strippedRoll)) strippedRoll = "0"; 
 
-    let newMarks = prompt("Enter Marks:", oldMarks);
-    if (newMarks === null) return;
+        let newMarks = prompt("Enter Marks:", oldMarks);
+        if (newMarks === null) return;
 
-    // Reconstruct using the new inputs + the original suffix
-    newName = strippedRoll + "_" + newMarks + suffix;
+        newName = strippedRoll + "_" + newMarks;
     } else {
         // Standard logic for other folders
         let n = prompt("New name", baseName);
@@ -268,6 +267,7 @@ function renameFile(oldPath) {
         body: JSON.stringify({ old: oldPath, new: newPath })
     }).then(res => res.ok ? location.reload() : alert("Rename failed."));
 }
+
 
 </script>
 </body>
