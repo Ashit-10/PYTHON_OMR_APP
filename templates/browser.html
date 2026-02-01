@@ -222,22 +222,44 @@ async function deleteAllFiles() {
     }
 }
 
-function renameFile(oldPath){
+function renameFile(oldPath) {
+    const isOutput = "{{ path }}".includes("output");
     let filename = oldPath.split('/').pop();
     let parts = filename.split('.');
     let ext = parts.length > 1 ? '.' + parts.pop() : '';
     let baseName = parts.join('.');
-    
-    let n = prompt("New name", baseName);
-    if(!n || n === baseName) return;
-    
+
+    let newName = "";
+
+    if (isOutput) {
+        // Expected format: roll_marks
+        let nameParts = baseName.split('_');
+        let oldRoll = nameParts[0] || "";
+        let oldMarks = nameParts[1] || "";
+
+        let newRoll = prompt("Enter Roll Number:", oldRoll);
+        if (newRoll === null) return; // Cancelled
+
+        let newMarks = prompt("Enter Marks:", oldMarks);
+        if (newMarks === null) return; // Cancelled
+
+        newName = newRoll + "_" + newMarks;
+    } else {
+        // Default logic for other folders
+        let n = prompt("New name", baseName);
+        if (!n || n === baseName) return;
+        newName = n;
+    }
+
+    if (!newName || newName === baseName) return;
+
     let folder = oldPath.substring(0, oldPath.lastIndexOf('/'));
-    let newPath = folder + "/" + n + ext;
-    
-    fetch("/rename",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({old:oldPath, new:newPath})
+    let newPath = folder + "/" + newName + ext;
+
+    fetch("/rename", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ old: oldPath, new: newPath })
     }).then(res => res.ok ? location.reload() : alert("Rename failed."));
 }
 
