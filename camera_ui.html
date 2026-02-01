@@ -288,83 +288,66 @@ Just click Capture – it will process in background and show result here.
   c.height = video.videoHeight;
   c.getContext('2d').drawImage(video, 0, 0);
 
-  // Use 0.5 quality to keep file size small for Termux
+  // We capture at 0.5 quality to ensure the 'fetch' doesn't crash Termux memory
   c.toBlob(blob => {
+    // 1. Prepare Data
     const formData = new FormData();
-    // Use 'image' as the key to match your background logic
     formData.append('image', blob, 'capture.jpg');
-    
     const rollNum = document.getElementById('rollInput').value;
     formData.append('roll', rollNum); 
 
     if (!isInstant) {
       showToast('🔄 Processing...');
       fetch('/upload', { method: 'POST', body: formData })
-        .then(response => {
-          if (!response.ok) throw new Error("Server Error");
+        .then(res => res.json())
+        .then(() => {
           document.getElementById('rollInput').value = '';
           const poll = setInterval(() => {
             fetch('/status').then(r => r.json()).then(data => {
               if (!data.processing) {
                 clearInterval(poll);
                 if (data.filename) {
-                  const corr = extractCorrect(data.filename);
-                  showToast(`✅ Correct: ${corr}`, true);
-                } else {
-                  showToast('❌ Process failed', true);
+                  showToast(`✅ Correct: ${extractCorrect(data.filename)}`, true);
                 }
               }
-            }).catch(() => {
-              clearInterval(poll);
-              showToast('❌ Status Check Error', true);
             });
           }, 1000);
-        })
-        .catch(err => {
-          showToast('❌ Upload failed', true);
-          console.error(err);
-        });
+        }).catch(err => showToast('❌ Fetch Error: ' + err.message));
                
     } else {
-      // --- INSTANT ON LOGIC ---
-      // 1. Stop tracks FIRST
+      // --- INSTANT ON: SAME-DEVICE STABILITY FIX ---
+      
+      // 1. Kill Camera immediately
       if (stream) {
-        stream.getTracks().forEach(t => {
-          t.stop();
-          t.enabled = false;
-        });
+        stream.getTracks().forEach(t => t.stop());
       }
 
-      // 2. Create Overlay
+      // 2. Show UI
       const loadingContainer = document.createElement('div');
-      loadingContainer.id = 'omr-overlay';
       Object.assign(loadingContainer.style, {
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
         background: 'black', color: 'white', display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'flex-start', zIndex: 10000,
-        overflowY: 'auto', boxSizing: 'border-box', padding: '10px'
+        alignItems: 'center', zIndex: 10000, padding: '10px'
       });
-
-      const previewImg = document.createElement('img');
-      previewImg.src = URL.createObjectURL(blob);
-      previewImg.style.cssText = 'width:90%; max-height:45vh; object-fit:contain; margin: 50px 0; border:1px solid #333; transform: rotate(-90deg);';
       
       const procTxt = document.createElement('div');
-      procTxt.style.cssText = 'font-size: 18px; margin: 10px 0; text-align: center;';
-      procTxt.textContent = '🔄 Uploading to Termux...';
-      
-      loadingContainer.appendChild(previewImg);
+      procTxt.style.cssText = 'margin-top: 50px; font-size: 20px;';
+      procTxt.textContent = '📤 Sending to Server...';
       loadingContainer.appendChild(procTxt);
       document.body.appendChild(loadingContainer);
 
-      // 3. Delayed Upload to prevent "Upload Error"
+      // 3. THE MAGIC FIX: Use a slightly longer delay (800ms) 
+      // This allows the mobile OS to finish releasing the camera hardware 
+      // so the Network antenna is fully available for the upload.
       setTimeout(() => {
         fetch('/upload', { 
           method: 'POST', 
-          body: formData 
+          body: formData,
+          // Force no-cache to prevent Termux/Browser hanging
+          cache: 'no-cache' 
         })
         .then(response => {
-          if (!response.ok) throw new Error("Upload Failed");
+          if (!response.ok) throw new Error("Server rejected upload");
           procTxt.textContent = '🔄 Processing OMR...';
           
           let attempts = 0;
@@ -374,45 +357,39 @@ Just click Capture – it will process in background and show result here.
               if (data.processing === false) {
                 clearInterval(poll2);
                 loadingContainer.innerHTML = ''; 
-
-                if (data.filename && data.filename.trim() !== "") {
+                if (data.filename) {
                   const resultImg = document.createElement('img');
                   resultImg.src = '/temp_output/' + data.filename + '?t=' + Date.now();
-                  resultImg.style.cssText = 'width:90%; max-height:55vh; object-fit:contain; background:#111; margin-top:50px; transform: rotate(-90deg);';
+                  resultImg.style.cssText = 'width:90%; max-height:55vh; object-fit:contain; margin-top:50px; transform: rotate(-90deg);';
                   
                   const infoDiv = document.createElement('div');
-                  infoDiv.style.cssText = 'text-align:center; margin: 20px 0; width: 100%;';
-                  const corrCount = extractCorrect(data.filename);
-                  infoDiv.innerHTML = `<div style="color:limegreen; font-size:24px; font-weight:bold;">✅ Done!</div>
-                                       <div style="font-size:20px; margin-top:5px;">Correct: ${corrCount}</div>`;
+                  infoDiv.style.cssText = 'text-align:center; margin: 20px 0;';
+                  infoDiv.innerHTML = `<b style="color:limegreen; font-size:24px;">✅ Done!</b><br>Correct: ${extractCorrect(data.filename)}`;
 
                   const nextBtn = document.createElement('button');
                   nextBtn.textContent = 'Next Scan';
-                  nextBtn.style.cssText = 'padding: 15px 40px; font-size: 18px; background: white; color: black; border-radius: 30px; border: none; font-weight: bold; cursor: pointer; margin-bottom: 50px;';
+                  nextBtn.style.cssText = 'padding: 15px 40px; background: white; border-radius: 30px; font-weight: bold;';
                   nextBtn.onclick = () => location.reload();
 
                   loadingContainer.appendChild(resultImg);
                   loadingContainer.appendChild(infoDiv);
                   loadingContainer.appendChild(nextBtn);
-                } else {
-                  loadingContainer.innerHTML = '<div style="margin-top:100px; text-align:center;">❌ Failed<br><button onclick="location.reload()">Try Again</button></div>';
                 }
               }
-            }).catch(() => {
-              clearInterval(poll2);
-              loadingContainer.innerHTML = '<div style="padding:20px; text-align:center;">Status Error. <button onclick="location.reload()">Back</button></div>';
             });
-            if (attempts > 60) clearInterval(poll2);
+            if (attempts > 40) clearInterval(poll2);
           }, 1000);
         })
         .catch(err => {
-          console.error("Fetch Error:", err);
-          loadingContainer.innerHTML = `<div style="padding:20px; text-align:center;">Upload Error: ${err.message}<br><button onclick="location.reload()">Back</button></div>`;
+          procTxt.innerHTML = `<div style="color:red">❌ Failed to fetch</div>
+                               <div style="font-size:14px; margin:10px;">${err.message}</div>
+                               <button onclick="location.reload()" style="padding:10px 20px; background:white; color:black; border:none; border-radius:5px; margin-top:20px;">Try Again</button>`;
         });
-      }, 500); // 500ms delay gives Android enough time to release camera
+      }, 800); 
     }
   }, 'image/jpeg', 0.5);
 };
+
 
                                         
 
