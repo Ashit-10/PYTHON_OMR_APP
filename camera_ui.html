@@ -339,13 +339,13 @@ Just click Capture – it will process in background and show result here.
                               const imgEl = document.getElementById('procImg');
 
 // --- THE FIX IS HERE ---
-// Reset rotation and force the image to fit the screen dimensions
 imgEl.style.transform = "rotate(0deg)"; 
-imgEl.style.maxWidth = "100%";      // Ensures it doesn't exceed screen width
-imgEl.style.maxHeight = "60vh";     // Limits height so text/buttons stay visible
-imgEl.style.display = "block";      // Removes bottom whitespace
-imgEl.style.margin = "0 auto";      // Centers horizontally
-imgEl.style.objectFit = "contain";  // Maintains aspect ratio without stretching
+imgEl.style.width = "100vw";         // Forces image to span full screen width
+imgEl.style.height = "auto";         // Maintains aspect ratio automatically
+imgEl.style.maxWidth = "100vw";      // Prevents any overflow
+imgEl.style.objectFit = "cover";     // Ensures the image fills the area
+imgEl.style.display = "block";       // Removes inline spacing
+imgEl.style.margin = "0";            // Removes default margins
 // --- THE FIX IS HERE ---
 
 imgEl.src = `/temp_output/${data.filename}?t=${Date.now()}`;
@@ -358,6 +358,10 @@ btn.textContent = "Scan Next";
 btn.style = "margin-top:20px; padding:15px 40px; font-size:18px; background:white; color:black; border-radius:8px; border:none; font-weight:bold;";
 btn.onclick = () => location.reload();
 loadingScreen.appendChild(btn);
+
+// Optional: Ensure the container doesn't have hidden padding
+imgEl.parentElement.style.padding = "0";
+imgEl.parentElement.style.margin = "0";
 
  
                             } else {
