@@ -421,13 +421,24 @@ c.toBlob(blob => {
     flashBtn.onclick = toggleFlash;
 
         document.getElementById('exitBtn').onclick = function () {
-      // 1. Stop all camera tracks safely
-      if (stream) {
-        stream.getTracks().forEach(track => {
-          track.stop();
-          console.log("Camera track stopped:", track.label);
-        });
-      }
+  // 1. Stop all camera tracks safely
+  if (stream) {
+    stream.getTracks().forEach(track => {
+      track.stop();
+      console.log("Camera track stopped:", track.label);
+    });
+  }
+
+  // 2. Clear the video element source (optional but recommended)
+  const videoElement = document.getElementById('yourVideoElementId'); 
+  if (videoElement) {
+    videoElement.srcObject = null;
+  }
+
+  // 3. Redirect to the home page
+  window.location.href = 'index.html';
+};
+
 
       // 2. Clear the video source to ensure memory is released
       video.srcObject = null;
