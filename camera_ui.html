@@ -282,22 +282,19 @@ Just click Capture – it will process in background and show result here.
     const isInstant = instantToggle.checked;
     const rollNum = document.getElementById('rollInput').value;
     
-    // Create canvas and capture
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0);
 
-    // FIX 1: Capture preview to show while processing
+    // Capture preview for display
     const previewImg = canvas.toDataURL('image/jpeg', 0.5);
 
-    // Stop camera immediately
     if (stream) {
         stream.getTracks().forEach(t => t.stop());
     }
 
-    // Convert to Blob
     canvas.toBlob(async (blob) => {
         if (!blob) return alert("Capture failed");
 
@@ -305,13 +302,12 @@ Just click Capture – it will process in background and show result here.
         formData.append('image', blob, 'capture.jpg');
         formData.append('roll', rollNum);
 
-        // UI Update
         const loadingScreen = document.createElement('div');
-        loadingScreen.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:black;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;";
+        loadingScreen.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:black;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;overflow:hidden;";
         
-        // FIX 2: Show the clicked image immediately in the loading screen
+        // FIX: Added rotate(-90deg) to the style
         loadingScreen.innerHTML = `
-            <img id="procImg" src="${previewImg}" style="max-width:90%; max-height:60%; margin-bottom:20px; border:1px solid #444;">
+            <img id="procImg" src="${previewImg}" style="max-width:80%; max-height:50%; transform: rotate(-90deg); margin-bottom:40px; border:1px solid #444;">
             <h3 id="procStatus">Processing...</h3>
             <p id="statusMsg">Uploading to Server...</p>
         `;
@@ -330,7 +326,6 @@ Just click Capture – it will process in background and show result here.
 
             document.getElementById('statusMsg').textContent = "Analyzing OMR...";
 
-            // Polling Logic
             let attempts = 0;
             const checkStatus = setInterval(async () => {
                 attempts++;
@@ -343,14 +338,13 @@ Just click Capture – it will process in background and show result here.
                         clearInterval(checkStatus);
                         if (data.filename) {
                             if (isInstant) {
-                                // Update image with processed version
                                 document.getElementById('procImg').src = `/temp_output/${data.filename}?t=${Date.now()}`;
                                 document.getElementById('procStatus').textContent = "Done";
                                 document.getElementById('statusMsg').textContent = `Correct: ${extractCorrect(data.filename)}`;
                                 
                                 const btn = document.createElement('button');
                                 btn.textContent = "Next";
-                                btn.style = "margin-top:20px; padding:15px 30px; font-size:20px;";
+                                btn.style = "margin-top:20px; padding:15px 30px; font-size:20px; position:relative; z-index:10001;";
                                 btn.onclick = () => location.reload();
                                 loadingScreen.appendChild(btn);
                             } else {
@@ -361,12 +355,8 @@ Just click Capture – it will process in background and show result here.
                             throw new Error("No Filename");
                         }
                     }
-                    
-                    // FIX 3: Timeout if stuck in background for too long (30 seconds)
                     if (attempts > 30) throw new Error("Processing Timeout");
-
                 } catch (e) {
-                    clearInterval(checkStatus);
                     handleProcError(loadingScreen, checkStatus, "Server error or timeout.");
                 }
             }, 1000);
@@ -377,22 +367,26 @@ Just click Capture – it will process in background and show result here.
     }, 'image/jpeg', 0.5); 
 };
 
-
-// Helper function to handle errors and show the Retry button
 function handleProcError(overlay, interval, msg) {
     if (interval) clearInterval(interval);
-    const statusEl = document.getElementById('procStatus');
-    const detailEl = document.getElementById('procDetail');
     
-    if (statusEl) statusEl.innerHTML = `<span style="color:red">Error</span>`;
-    if (detailEl) detailEl.textContent = msg;
+    // Select the elements
+    const statusEl = document.getElementById('procStatus');
+    const detailEl = document.getElementById('statusMsg');
+    
+    // FIX: Clear the "Analyzing" text and show the error instead
+    if (statusEl) {
+        statusEl.innerHTML = `<span style="color:red">Error</span>`;
+    }
+    if (detailEl) {
+        detailEl.textContent = msg; // This replaces "Analyzing..." or "Uploading..."
+    }
 
-    // Add Retry Button if not already there
     if (!document.getElementById('retryBtn')) {
         const rb = document.createElement('button');
         rb.id = "retryBtn";
         rb.textContent = "Try Again";
-        rb.style = "margin-top:20px; padding:10px 20px; background:white; color:black; border-radius:5px;";
+        rb.style = "margin-top:20px; padding:10px 20px; background:white; color:black; border-radius:5px; position:relative; z-index:10001;";
         rb.onclick = () => location.reload();
         overlay.appendChild(rb);
     }
