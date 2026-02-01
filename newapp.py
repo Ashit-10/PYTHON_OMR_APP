@@ -285,13 +285,18 @@ def upload():
     global current_filename, processing
     file = request.files['image']
     
-    # Force a unique name that the watch_folder WILL recognize
-    current_filename = f"OMR_sheet_{int(time.time())}.jpg"
+    # Get the roll number from the request (defaults to empty string)
+    roll = request.form.get('roll', '').strip()
+    timestamp = int(time.time())
+
+    # Build filename: Check if roll is provided and not empty
+    if roll:
+        current_filename = f"OMR_sheet_roll_{roll}_{timestamp}.jpg"
+    else:
+        current_filename = f"OMR_sheet_{timestamp}.jpg"
+    
     path = os.path.join(download_folder, current_filename)
     file.save(path)
-    
-    # OPTIONAL: Trigger processing immediately instead of waiting for the thread
-    # threading.Thread(target=move_and_process, args=(path,)).start()
     
     return jsonify({"message": "OK", "filename": current_filename})
 
