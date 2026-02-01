@@ -158,10 +158,13 @@
   </div>
 
   <div class="controls">
+    <input type="number" id="rollInput" placeholder="Roll (Opt)" style="width: 80px; padding: 10px; border-radius: 5px; border: 1px solid white; background: #222; color: white; font-size: 16px;">
+    
     <button id="flashBtn">🔦 Flash</button>
     <button id="captureBtn">📸 Capture</button>
     <button id="refreshBtn">🔄 Refresh</button>
-  </div>
+</div>
+
 
   <div id="toast"></div>
 
@@ -275,11 +278,18 @@ Just click Capture – it will process in background and show result here.
       c.height = video.videoHeight;
       c.getContext('2d').drawImage(video, 0, 0);
 
-      c.toBlob(blob => {
-        const formData = new FormData();
-        formData.append('image', blob, 'capture.jpg');
+      // ... existing code inside captureBtn.onclick ...
+c.toBlob(blob => {
+    const formData = new FormData();
+    formData.append('image', blob, 'capture.jpg');
+    
+    // ADD THIS LINE: Get roll number and append to form
+    const rollNum = document.getElementById('rollInput').value;
+    formData.append('roll', rollNum); 
 
-        if (!isInstant) {
+    if (!isInstant) {
+// ... rest of the fetch logic ...
+
           showToast('🔄 Processing...');
           fetch('/upload', { method: 'POST', body: formData }).then(() => {
             const poll = setInterval(() => {
