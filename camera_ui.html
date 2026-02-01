@@ -310,87 +310,90 @@ Just click Capture – it will process in background and show result here.
                 // ... (rest of your existing polling logic)
             } catch (e) { showToast('❌ Upload failed'); }
             
-        } else {
-            // --- FIXED INSTANT MODE ---
-            // 1. Create a Full-Screen Overlay instead of wiping the body
-            const loadingOverlay = document.createElement('div');
-            Object.assign(loadingOverlay.style, {
-                position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-                background: 'black', color: 'white', display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center', zIndex: '10000'
+           } else {
+        // --- FIXED INSTANT ON LOGIC WITH PREVIEW ---
+        stream.getTracks().forEach(t => t.stop());
+        
+        const loadingContainer = document.createElement('div');
+        Object.assign(loadingContainer.style, {
+          position: 'fixed', top: 0, left: 0,
+          width: '100vw', height: '100vh',
+          background: 'black', color: 'white',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          fontSize: '20px', zIndex: 9999,
+          textAlign: 'center', padding: '20px'
+        });
+
+        // 1. Show the photo the user just took
+        const previewImg = document.createElement('img');
+        previewImg.src = URL.createObjectURL(blob);
+        previewImg.style.maxHeight = '60vh';
+        previewImg.style.marginBottom = '20px';
+        previewImg.style.border = '2px solid #444';
+        
+        const procTxt = document.createElement('div');
+        procTxt.textContent = '🔄 Processing OMR...';
+        
+        const actionBtn = document.createElement('button');
+        actionBtn.style.marginTop = '20px';
+        actionBtn.textContent = 'Restart';
+        actionBtn.onclick = () => location.reload();
+
+        loadingContainer.appendChild(previewImg);
+        loadingContainer.appendChild(procTxt);
+        document.body.innerHTML = ''; 
+        document.body.appendChild(loadingContainer);
+
+        fetch('/upload', { method: 'POST', body: formData }).then(() => {
+          let attempts = 0;
+          const poll2 = setInterval(() => {
+            attempts++;
+            fetch('/status').then(r => r.json()).then(data => {
+              if (data.processing === false) {
+                clearInterval(poll2);
+                
+                // Clear the "Processing..." text and Preview
+                loadingContainer.innerHTML = '';
+
+                if (data.filename && data.filename.trim() !== "") {
+                  // 2. Show the Processed Result from Server
+                  const resultImg = document.createElement('img');
+                  resultImg.src = '/temp_output/' + data.filename + '?t=' + Date.now();
+                  resultImg.style.cssText = 'width:100vw;height:80vh;object-fit:contain;background:black';
+                  
+                  const successLabel = document.createElement('div');
+                  successLabel.innerHTML = `<b style="color:limegreen">✅ Done!</b><br>Correct: ${extractCorrect(data.filename)}`;
+                  successLabel.style.margin = "10px";
+
+                  actionBtn.textContent = "Scan Next Sheet";
+                  loadingContainer.appendChild(resultImg);
+                  loadingContainer.appendChild(successLabel);
+                  loadingContainer.appendChild(actionBtn);
+                } else {
+                  // Error Case
+                  procTxt.innerHTML = '<span style="color:#ff5555">❌ Evaluation Failed</span><br><small>Markers not found. Hold still and try again.</small>';
+                  loadingContainer.appendChild(procTxt);
+                  loadingContainer.appendChild(actionBtn);
+                }
+              }
+            }).catch(() => {
+              clearInterval(poll2);
+              procTxt.textContent = '❌ Connection Error';
+              loadingContainer.appendChild(actionBtn);
             });
 
-            const msg = document.createElement('div');
-            msg.style.marginTop = "20px";
-            msg.textContent = '🔄 Initializing Upload...';
-
-            const preview = document.createElement('img');
-            preview.src = URL.createObjectURL(blob);
-            preview.style.cssText = 'max-height:60vh; max-width:90vw; border:1px solid lime;';
-            
-            loadingOverlay.appendChild(preview);
-            loadingOverlay.appendChild(msg);
-            document.body.appendChild(loadingOverlay);
-
-            // 2. Stop camera AFTER showing overlay
-            if (stream) {
-                stream.getTracks().forEach(t => t.stop());
+            if (attempts > 30) {
+              clearInterval(poll2);
+              procTxt.textContent = '⏱️ Server Timeout';
+              loadingContainer.appendChild(actionBtn);
             }
-
-            // 3. Perform Fetch
-            try {
-                const res = await fetch('/upload', { method: 'POST', body: formData });
-                if (!res.ok) throw new Error('Server error');
-                
-                msg.textContent = '🔄 Server Processing...';
-                
-                let attempts = 0;
-                const pollInterval = setInterval(async () => {
-                    attempts++;
-                    try {
-                        const r = await fetch('/status');
-                        const data = await r.json();
-                        
-                        if (!data.processing) {
-                            clearInterval(pollInterval);
-                            if (data.filename) {
-                                // Clear overlay and show final result
-                                loadingOverlay.innerHTML = '';
-                                const finalImg = document.createElement('img');
-                                finalImg.src = `/temp_output/${data.filename}?t=${Date.now()}`;
-                                finalImg.style.cssText = 'width:100vw;height:100vh;object-fit:contain;background:black';
-                                
-                                const nextBtn = refreshBtn.cloneNode(true);
-                                nextBtn.textContent = "Next Scan";
-                                nextBtn.onclick = () => location.reload();
-                                nextBtn.style.position = "absolute";
-                                nextBtn.style.bottom = "20px";
-
-                                loadingOverlay.appendChild(finalImg);
-                                loadingOverlay.appendChild(nextBtn);
-                            } else {
-                                msg.innerHTML = '<span style="color:red">❌ Evaluation Failed</span>';
-                                loadingOverlay.appendChild(refreshBtn);
-                            }
-                        }
-                    } catch (e) { console.error("Polling error", e); }
-
-                    if (attempts > 30) { 
-                        clearInterval(pollInterval); 
-                        msg.textContent = '⏱️ Timeout'; 
-                        loadingOverlay.appendChild(refreshBtn); 
-                    }
-                }, 1000);
-
-            } catch (err) {
-                console.error(err);
-                msg.innerHTML = '<span style="color:red">❌ Upload Failed</span>';
-                const retryBtn = refreshBtn.cloneNode(true);
-                retryBtn.textContent = "Try Again";
-                retryBtn.onclick = () => location.reload();
-                loadingOverlay.appendChild(retryBtn);
-            }
-        }
+          }, 1000);
+        }).catch(() => {
+          procTxt.textContent = '❌ Upload Failed';
+          loadingContainer.appendChild(actionBtn);
+        });
+      }
     }, 'image/jpeg', 0.6);
 };
 
