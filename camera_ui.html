@@ -336,8 +336,14 @@ Just click Capture – it will process in background and show result here.
                         clearInterval(checkStatus);
                         if (data.filename) {
                             if (isInstant) {
+                              const imgEl = document.getElementById('procImg');
+                                
+                                // --- THE FIX IS HERE ---
+                                // Reset rotation to 0 degrees for the result image
+                                imgEl.style.transform = "rotate(0deg)"; 
+                                imgEl.src = `/temp_output/${data.filename}?t=${Date.now()}`;
                                 // The evaluated image displays normally here
-                                document.getElementById('procImg').src = `/temp_output/${data.filename}?t=${Date.now()}`;
+                            //    document.getElementById('procImg').src = `/temp_output/${data.filename}?t=${Date.now()}`;
                                 document.getElementById('procStatus').textContent = "Analysis Complete";
                                 document.getElementById('statusMsg').innerHTML = `<b style="font-size:24px; color:limegreen;">Correct: ${extractCorrect(data.filename)}</b>`;
                                 
