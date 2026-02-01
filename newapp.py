@@ -267,18 +267,24 @@ def run_gitup():
         process.wait()
 
     return Response(generate(), mimetype='text/plain')
-@app.route("/rename", methods=["POST"])
-def rename_file():
+
+@app.route('/rename', methods=['POST'])
+def rename():
+    data = request.json
+    old_path = data.get('old')
+    new_path = data.get('new')
+
+    # 1. Check if the target filename already exists
+    if os.path.exists(new_path):
+        # Return 409 Conflict status
+        return jsonify({"error": "File already exists"}), 409
+
     try:
-        old_path = os.path.join(BASE, request.json.get("old"))
-        new_path = os.path.join(BASE, request.json.get("new"))
-        
-        if os.path.exists(old_path):
-            os.rename(old_path, new_path)
-            return jsonify(ok=True)
-        return jsonify(ok=False, error="File not found"), 404
+        os.rename(old_path, new_path)
+        return jsonify({"success": True}), 200
     except Exception as e:
-        return jsonify(ok=False, error=str(e)), 500
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/scan")
 def scan_ui():
