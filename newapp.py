@@ -266,6 +266,18 @@ def run_gitup():
         process.wait()
 
     return Response(generate(), mimetype='text/plain')
+@app.route("/rename", methods=["POST"])
+def rename_file():
+    try:
+        old_path = os.path.join(BASE, request.json.get("old"))
+        new_path = os.path.join(BASE, request.json.get("new"))
+        
+        if os.path.exists(old_path):
+            os.rename(old_path, new_path)
+            return jsonify(ok=True)
+        return jsonify(ok=False, error="File not found"), 404
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 500
 
 @app.route("/scan")
 def scan_ui():
