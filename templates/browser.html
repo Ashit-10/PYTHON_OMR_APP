@@ -24,60 +24,48 @@
     margin-bottom: 5px;
   }
 
+  /* GLOBAL IMAGE WRAPPER (DEFAULT) */
   .img-wrapper {
     width: 100%;
-    background: #f9f9f9;
+    background: #fff;
+    overflow: hidden;
     position: relative;
     display: flex;
     justify-content: center;
-    align-items: flex-start; /* Aligns to top so long images flow down */
   }
 
+  /* DEFAULT IMAGE BEHAVIOR (For Output/Class folders) */
   .img-wrapper img {
-    width: 100%;
-    height: auto; /* Allows the image to take its natural height */
-    display: block;
-    object-fit: contain; /* Ensures the whole image is visible */
-  }
-/* Ensure output images are full width and original height */
-.image-card .img-wrapper img {
     width: 100% !important;
     height: auto !important;
     max-height: none !important;
+    display: block;
     object-fit: contain;
-}
+  }
 
-  /* Keep your .rotate-box CSS as is, it handles the 'input' folder specifically */
-
-
-  /* INPUT FOLDER SPECIFIC ROTATION */
+  /* INPUT FOLDER SPECIFIC ROTATION - RESTORED & PROTECTED */
   .rotate-box {
-  width: 120%;
-  height: 25vh;      /* This controls how "tall" the strip looks on your screen */
-  position: relative;
-  background: #fff;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
+    width: 100%;
+    height: 35vh; /* Adjust height of the viewing window */
+    position: relative;
+    background: #000; /* Dark background helps see the sheet */
+    overflow: hidden;
+  }
 
-/* 2. This forces the image to be huge so it fills the screen after rotation */
-.rotate-box img {
-  /* We make the image's height match your screen width (100vw) */
-  height: 140% !important; 
-  width: auto !important;
-  
-  /* We scale it up (zoom) to remove the centering 'smallness' */
-  /* If it's still too small, increase 1.5 to 1.8 */
-  transform: translate(-50%, -50%) rotate(-90deg) scale(1.5);
-  
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  object-fit: contain;
-  max-width: none !important; /* Prevents the browser from forced shrinking */
-  max-height: none !important; 
-}
+  .rotate-box img {
+    /* These override the global settings above only when inside .rotate-box */
+    width: auto !important;
+    height: 95vw !important; /* Forces image to match screen width after rotation */
+    max-width: none !important;
+    
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    
+    object-fit: contain !important;
+  }
+
 
   .file-actions {
     padding: 8px 12px;
