@@ -33,14 +33,7 @@
 
 
 
-<section id="log-section" class="card hidden" style="margin: 12px; background: #1e1e1e; color: #00ff00; border-radius: 8px; overflow: hidden;">
-  <div style="background: #333; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;">
-    <span style="font-size: 0.8rem; font-family: monospace; color: #ccc;">termux_terminal_output</span>
-    <button onclick="document.getElementById('log-section').classList.add('hidden')" style="background:none; border:none; color:white; cursor:pointer;">✕</button>
-  </div>
-  <div id="terminal-logs" style="padding: 10px; max-height: 250px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.85rem; line-height: 1.5;">
-    </div>
-</section>
+
 
 
 <section class="card" style="margin: 12px;">
@@ -81,7 +74,14 @@
     </div>
   </div>
 </div>
-  
+  <section id="log-section" class="card hidden" style="margin: 12px; background: #1e1e1e; color: #00ff00; border-radius: 8px; overflow: hidden;">
+  <div style="background: #333; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;">
+    <span style="font-size: 0.8rem; font-family: monospace; color: #ccc;">termux_terminal_output</span>
+    <button onclick="document.getElementById('log-section').classList.add('hidden')" style="background:none; border:none; color:white; cursor:pointer;">✕</button>
+  </div>
+  <div id="terminal-logs" style="padding: 10px; max-height: 250px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.85rem; line-height: 1.5;">
+    </div>
+</section>
 <section class="card" style="margin: 12px;">
   <h3>Student Roll Files</h3>
   <div id="rolls-files">
