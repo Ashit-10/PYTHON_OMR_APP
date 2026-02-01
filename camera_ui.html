@@ -278,140 +278,143 @@ Just click Capture – it will process in background and show result here.
       return parts[parts.length - 1].split(".")[0];
     }
 
-    captureBtn.onclick = () => {
-      permanentToast = false;
-      toast.style.display = 'none';
+  captureBtn.onclick = () => {
+  permanentToast = false;
+  toast.style.display = 'none';
 
-      const isInstant = instantToggle.checked;
-      const c = document.createElement('canvas');
-      c.width = video.videoWidth;
-      c.height = video.videoHeight;
-      c.getContext('2d').drawImage(video, 0, 0);
+  const isInstant = instantToggle.checked;
+  const c = document.createElement('canvas');
+  c.width = video.videoWidth;
+  c.height = video.videoHeight;
+  c.getContext('2d').drawImage(video, 0, 0);
 
-      // ... existing code inside captureBtn.onclick ...
-c.toBlob(blob => {
+  // Use 0.5 quality to keep file size small for Termux
+  c.toBlob(blob => {
     const formData = new FormData();
+    // Use 'image' as the key to match your background logic
     formData.append('image', blob, 'capture.jpg');
     
-    // ADD THIS LINE: Get roll number and append to form
     const rollNum = document.getElementById('rollInput').value;
     formData.append('roll', rollNum); 
 
     if (!isInstant) {
-// ... rest of the fetch logic ...
-
-          showToast('🔄 Processing...');
-          fetch('/upload', { method: 'POST', body: formData }).then(() => {
-  document.getElementById('rollInput').value = ''; // <--- Add this line
-  const poll = setInterval(() => {
-              fetch('/status').then(r => r.json()).then(data => {
-                if (!data.processing) {
-                  clearInterval(poll);
-                  if (data.filename) {
-                    const corr = extractCorrect(data.filename);
-                    showToast(`✅ Correct: ${corr}`, true);
-                  } else {
-                    showToast('❌ Process failed', true);
-                  }
-                }
-              }).catch(() => {
+      showToast('🔄 Processing...');
+      fetch('/upload', { method: 'POST', body: formData })
+        .then(response => {
+          if (!response.ok) throw new Error("Server Error");
+          document.getElementById('rollInput').value = '';
+          const poll = setInterval(() => {
+            fetch('/status').then(r => r.json()).then(data => {
+              if (!data.processing) {
                 clearInterval(poll);
-                showToast('❌ Error', true);
-              });
-            }, 1000);
-          }).catch(() => {
-            showToast('❌ Upload failed', true);
-          });
-               
-    
-          
-                  } else {
-                // --- FULLY FIXED INSTANT ON LOGIC (NO HANGING) ---
-                
-                // 1. Stop camera tracks properly to free up hardware
-                if (stream) {
-                    stream.getTracks().forEach(t => {
-                        t.stop();
-                        t.enabled = false;
-                    });
+                if (data.filename) {
+                  const corr = extractCorrect(data.filename);
+                  showToast(`✅ Correct: ${corr}`, true);
+                } else {
+                  showToast('❌ Process failed', true);
                 }
+              }
+            }).catch(() => {
+              clearInterval(poll);
+              showToast('❌ Status Check Error', true);
+            });
+          }, 1000);
+        })
+        .catch(err => {
+          showToast('❌ Upload failed', true);
+          console.error(err);
+        });
+               
+    } else {
+      // --- INSTANT ON LOGIC ---
+      // 1. Stop tracks FIRST
+      if (stream) {
+        stream.getTracks().forEach(t => {
+          t.stop();
+          t.enabled = false;
+        });
+      }
 
-                // 2. Create an OVERLAY instead of wiping document.body
-                const loadingContainer = document.createElement('div');
-                loadingContainer.id = 'omr-overlay';
-                Object.assign(loadingContainer.style, {
-                    position: 'fixed', top: 0, left: 0,
-                    width: '100vw', height: '100vh',
-                    background: 'black', color: 'white',
-                    display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', justifyContent: 'flex-start',
-                    zIndex: 10000, overflowY: 'auto',
-                    boxSizing: 'border-box', padding: '10px'
-                });
+      // 2. Create Overlay
+      const loadingContainer = document.createElement('div');
+      loadingContainer.id = 'omr-overlay';
+      Object.assign(loadingContainer.style, {
+        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+        background: 'black', color: 'white', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'flex-start', zIndex: 10000,
+        overflowY: 'auto', boxSizing: 'border-box', padding: '10px'
+      });
 
-                // 3. PREVIEW IMAGE (Rotated)
-                const previewImg = document.createElement('img');
-                previewImg.src = URL.createObjectURL(blob);
-                previewImg.style.cssText = 'width:90%; max-height:45vh; object-fit:contain; margin: 50px 0; border:1px solid #333; transform: rotate(-90deg);';
+      const previewImg = document.createElement('img');
+      previewImg.src = URL.createObjectURL(blob);
+      previewImg.style.cssText = 'width:90%; max-height:45vh; object-fit:contain; margin: 50px 0; border:1px solid #333; transform: rotate(-90deg);';
+      
+      const procTxt = document.createElement('div');
+      procTxt.style.cssText = 'font-size: 18px; margin: 10px 0; text-align: center;';
+      procTxt.textContent = '🔄 Uploading to Termux...';
+      
+      loadingContainer.appendChild(previewImg);
+      loadingContainer.appendChild(procTxt);
+      document.body.appendChild(loadingContainer);
 
-                const procTxt = document.createElement('div');
-                procTxt.style.cssText = 'font-size: 18px; margin: 10px 0; text-align: center;';
-                procTxt.textContent = '🔄 Processing OMR...';
+      // 3. Delayed Upload to prevent "Upload Error"
+      setTimeout(() => {
+        fetch('/upload', { 
+          method: 'POST', 
+          body: formData 
+        })
+        .then(response => {
+          if (!response.ok) throw new Error("Upload Failed");
+          procTxt.textContent = '🔄 Processing OMR...';
+          
+          let attempts = 0;
+          const poll2 = setInterval(() => {
+            attempts++;
+            fetch('/status').then(r => r.json()).then(data => {
+              if (data.processing === false) {
+                clearInterval(poll2);
+                loadingContainer.innerHTML = ''; 
 
-                loadingContainer.appendChild(previewImg);
-                loadingContainer.appendChild(procTxt);
-                document.body.appendChild(loadingContainer);
+                if (data.filename && data.filename.trim() !== "") {
+                  const resultImg = document.createElement('img');
+                  resultImg.src = '/temp_output/' + data.filename + '?t=' + Date.now();
+                  resultImg.style.cssText = 'width:90%; max-height:55vh; object-fit:contain; background:#111; margin-top:50px; transform: rotate(-90deg);';
+                  
+                  const infoDiv = document.createElement('div');
+                  infoDiv.style.cssText = 'text-align:center; margin: 20px 0; width: 100%;';
+                  const corrCount = extractCorrect(data.filename);
+                  infoDiv.innerHTML = `<div style="color:limegreen; font-size:24px; font-weight:bold;">✅ Done!</div>
+                                       <div style="font-size:20px; margin-top:5px;">Correct: ${corrCount}</div>`;
 
-                // 4. UPLOAD AND POLL
-                // Small delay ensures camera hardware is released before upload starts
-                setTimeout(() => {
-                    fetch('/upload', { method: 'POST', body: formData })
-                    .then(response => {
-                        let attempts = 0;
-                        const poll2 = setInterval(() => {
-                            attempts++;
-                            fetch('/status').then(r => r.json()).then(data => {
-                                if (data.processing === false) {
-                                    clearInterval(poll2);
-                                    loadingContainer.innerHTML = ''; // Reset overlay for result
+                  const nextBtn = document.createElement('button');
+                  nextBtn.textContent = 'Next Scan';
+                  nextBtn.style.cssText = 'padding: 15px 40px; font-size: 18px; background: white; color: black; border-radius: 30px; border: none; font-weight: bold; cursor: pointer; margin-bottom: 50px;';
+                  nextBtn.onclick = () => location.reload();
 
-                                    if (data.filename && data.filename.trim() !== "") {
-                                        const resultImg = document.createElement('img');
-                                        resultImg.src = '/temp_output/' + data.filename + '?t=' + Date.now();
-                                        // Keeping rotation consistent with preview
-                                        resultImg.style.cssText = 'width:90%; max-height:55vh; object-fit:contain; background:#111; margin-top:50px; transform: rotate(-90deg);';
+                  loadingContainer.appendChild(resultImg);
+                  loadingContainer.appendChild(infoDiv);
+                  loadingContainer.appendChild(nextBtn);
+                } else {
+                  loadingContainer.innerHTML = '<div style="margin-top:100px; text-align:center;">❌ Failed<br><button onclick="location.reload()">Try Again</button></div>';
+                }
+              }
+            }).catch(() => {
+              clearInterval(poll2);
+              loadingContainer.innerHTML = '<div style="padding:20px; text-align:center;">Status Error. <button onclick="location.reload()">Back</button></div>';
+            });
+            if (attempts > 60) clearInterval(poll2);
+          }, 1000);
+        })
+        .catch(err => {
+          console.error("Fetch Error:", err);
+          loadingContainer.innerHTML = `<div style="padding:20px; text-align:center;">Upload Error: ${err.message}<br><button onclick="location.reload()">Back</button></div>`;
+        });
+      }, 500); // 500ms delay gives Android enough time to release camera
+    }
+  }, 'image/jpeg', 0.5);
+};
 
-                                        const infoDiv = document.createElement('div');
-                                        infoDiv.style.cssText = 'text-align:center; margin: 20px 0; width: 100%;';
-                                        const corrCount = extractCorrect(data.filename);
-                                        infoDiv.innerHTML = `<div style="color:limegreen; font-size:24px; font-weight:bold;">✅ Done!</div>
-                                                             <div style="font-size:20px; margin-top:5px;">Correct: ${corrCount}</div>`;
-
-                                        const nextBtn = document.createElement('button');
-                                        nextBtn.textContent = 'Next Scan';
-                                        nextBtn.style.cssText = 'padding: 15px 40px; font-size: 18px; background: white; color: black; border-radius: 30px; border: none; font-weight: bold; cursor: pointer; margin-bottom: 50px;';
-                                        nextBtn.onclick = () => location.reload();
-
-                                        loadingContainer.appendChild(resultImg);
-                                        loadingContainer.appendChild(infoDiv);
-                                        loadingContainer.appendChild(nextBtn);
-                                    } else {
-                                        loadingContainer.innerHTML = '<div style="margin-top:100px; text-align:center;"><b style="color:red">❌ Failed</b><br>Could not read OMR.<br><button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; background:white;">Try Again</button></div>';
-                                    }
-                                }
-                            }).catch(e => {
-                                clearInterval(poll2);
-                                loadingContainer.innerHTML = '<div style="padding:20px; text-align:center;">Connect Error. <button onclick="location.reload()">Back</button></div>';
-                            });
-                            if (attempts > 40) clearInterval(poll2);
-                        }, 1000);
-                    }).catch(() => {
-                        loadingContainer.innerHTML = '<div style="padding:20px; text-align:center;">Upload Error. <button onclick="location.reload()">Back</button></div>';
-                    });
-                }, 300); 
-            }
-        }, 'image/jpeg', 0.5); // <--- High compression for same-device speed
-    };
+                                        
 
 
     refreshBtn.onclick = () => location.reload();
