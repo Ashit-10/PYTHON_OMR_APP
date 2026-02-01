@@ -223,7 +223,9 @@ async function deleteAllFiles() {
 }
 
 function renameFile(oldPath) {
-    const isOutput = "{{ path }}".includes("output");
+    const currentPath = "{{ path }}";
+    const isOutput = currentPath.includes("output") || currentPath.includes("class");
+    
     let filename = oldPath.split('/').pop();
     let parts = filename.split('.');
     let ext = parts.length > 1 ? '.' + parts.pop() : '';
@@ -232,26 +234,29 @@ function renameFile(oldPath) {
     let newName = "";
 
     if (isOutput) {
-        // Expected format: roll_marks
+        // Handle roll_marks logic
         let nameParts = baseName.split('_');
         let oldRoll = nameParts[0] || "";
         let oldMarks = nameParts[1] || "";
 
         let newRoll = prompt("Enter Roll Number:", oldRoll);
-        if (newRoll === null) return; // Cancelled
+        if (newRoll === null) return; 
+
+        // Strip leading zeros: convert to number and back to string
+        // If user enters "00", it becomes "0"
+        let strippedRoll = parseInt(newRoll, 10).toString();
+        if (isNaN(strippedRoll)) strippedRoll = "0"; 
 
         let newMarks = prompt("Enter Marks:", oldMarks);
-        if (newMarks === null) return; // Cancelled
+        if (newMarks === null) return;
 
-        newName = newRoll + "_" + newMarks;
+        newName = strippedRoll + "_" + newMarks;
     } else {
-        // Default logic for other folders
+        // Standard logic for other folders
         let n = prompt("New name", baseName);
         if (!n || n === baseName) return;
         newName = n;
     }
-
-    if (!newName || newName === baseName) return;
 
     let folder = oldPath.substring(0, oldPath.lastIndexOf('/'));
     let newPath = folder + "/" + newName + ext;
