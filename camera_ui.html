@@ -96,7 +96,7 @@
     .controls {
       margin-top: 10px;
       display: flex;
-      gap: 10px;
+      gap: 1px;
       flex-wrap: wrap;
       justify-content: center;
     }
@@ -158,12 +158,21 @@
   </div>
 
   <div class="controls">
-    <input type="number" id="rollInput" placeholder="Roll (Opt)" style="width: 80px; padding: 10px; border-radius: 5px; border: 1px solid white; background: #222; color: white; font-size: 16px;">
+    <input type="number" 
+           id="rollInput" 
+           placeholder="Roll" 
+           inputmode="numeric" 
+           pattern="[0-9]*" 
+           min="1"
+           step="1"
+           onkeydown="return ['Backspace','Delete','ArrowLeft','ArrowRight','Tab'].includes(event.code) || /[0-9]/.test(event.key)"
+           style="width: 80px; padding: 10px; border-radius: 5px; border: 1px solid white; background: #222; color: white; font-size: 16px;">
     
-    <button id="flashBtn">🔦 Flash</button>
-    <button id="captureBtn">📸 Capture</button>
-    <button id="refreshBtn">🔄 Refresh</button>
+    <button id="flashBtn">Flash</button>
+    <button id="captureBtn">Click</button>
+    <button id="refreshBtn">Refresh</button>
 </div>
+
 
 
   <div id="toast"></div>
