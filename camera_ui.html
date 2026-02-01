@@ -337,23 +337,29 @@ Just click Capture – it will process in background and show result here.
                         if (data.filename) {
                             if (isInstant) {
                               const imgEl = document.getElementById('procImg');
-                                
-                                // --- THE FIX IS HERE ---
-                                // Reset rotation to 0 degrees for the result image
-                                imgEl.style.transform = "rotate(0deg)"; 
-                              // --- THE FIX IS HERE ---
 
-                                imgEl.src = `/temp_output/${data.filename}?t=${Date.now()}`;
-                                // The evaluated image displays normally here
-                            //    document.getElementById('procImg').src = `/temp_output/${data.filename}?t=${Date.now()}`;
-                                document.getElementById('procStatus').textContent = "Analysis Complete";
-                                document.getElementById('statusMsg').innerHTML = `<b style="font-size:24px; color:limegreen;">Correct: ${extractCorrect(data.filename)}</b>`;
-                                
-                                const btn = document.createElement('button');
-                                btn.textContent = "Scan Next";
-                                btn.style = "margin-top:20px; padding:15px 40px; font-size:18px; background:white; color:black; border-radius:8px; border:none; font-weight:bold;";
-                                btn.onclick = () => location.reload();
-                                loadingScreen.appendChild(btn);
+// --- THE FIX IS HERE ---
+// Reset rotation and force the image to fit the screen dimensions
+imgEl.style.transform = "rotate(0deg)"; 
+imgEl.style.maxWidth = "100%";      // Ensures it doesn't exceed screen width
+imgEl.style.maxHeight = "60vh";     // Limits height so text/buttons stay visible
+imgEl.style.display = "block";      // Removes bottom whitespace
+imgEl.style.margin = "0 auto";      // Centers horizontally
+imgEl.style.objectFit = "contain";  // Maintains aspect ratio without stretching
+// --- THE FIX IS HERE ---
+
+imgEl.src = `/temp_output/${data.filename}?t=${Date.now()}`;
+
+document.getElementById('procStatus').textContent = "Analysis Complete";
+document.getElementById('statusMsg').innerHTML = `<b style="font-size:24px; color:limegreen;">Correct: ${extractCorrect(data.filename)}</b>`;
+
+const btn = document.createElement('button');
+btn.textContent = "Scan Next";
+btn.style = "margin-top:20px; padding:15px 40px; font-size:18px; background:white; color:black; border-radius:8px; border:none; font-weight:bold;";
+btn.onclick = () => location.reload();
+loadingScreen.appendChild(btn);
+
+ 
                             } else {
                                 showToast(`✅ Correct: ${extractCorrect(data.filename)}`, true);
                             }
