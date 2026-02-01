@@ -281,20 +281,26 @@ Just click Capture – it will process in background and show result here.
   captureBtn.onclick = () => {
   permanentToast = false;
   toast.style.display = 'none';
-
   const isInstant = instantToggle.checked;
+
+  // 1. IMMEDIATELY STOP CAMERA (First thing!)
+  // This frees up the device's RAM so the 'fetch' doesn't crash.
+  if (stream) {
+    stream.getTracks().forEach(t => {
+      t.stop();
+      t.enabled = false;
+    });
+  }
+
+  // 2. Draw to canvas AFTER stopping camera
   const c = document.createElement('canvas');
-  
-  // --- STABILITY IMPROVEMENT: DOWNSCALE ---
-  // We reduce the resolution slightly for same-device processing
-  // This prevents the "Failed to Fetch" memory crash.
-  const scale = 0.7; 
+  const scale = 0.6; // Smaller scale for high stability
   c.width = video.videoWidth * scale;
   c.height = video.videoHeight * scale;
-  
   const ctx = c.getContext('2d');
   ctx.drawImage(video, 0, 0, c.width, c.height);
 
+  // 3. Process the Blob
   c.toBlob(blob => {
     const formData = new FormData();
     formData.append('image', blob, 'capture.jpg');
@@ -302,7 +308,8 @@ Just click Capture – it will process in background and show result here.
     formData.append('roll', rollNum); 
 
     if (!isInstant) {
-      showToast('🔄 Processing...');
+      // Background Mode
+      showToast('🔄 Uploading...');
       fetch('/upload', { method: 'POST', body: formData })
         .then(() => {
           document.getElementById('rollInput').value = '';
@@ -317,46 +324,39 @@ Just click Capture – it will process in background and show result here.
         }).catch(err => showToast('❌ Error: ' + err.message));
                
     } else {
-      // 1. Kill Camera immediately
-      if (stream) {
-        stream.getTracks().forEach(t => {
-          t.stop();
-          t.enabled = false;
-        });
-      }
-
-      // 2. Create UI Overlay
+      // Instant Mode
       const loadingContainer = document.createElement('div');
       Object.assign(loadingContainer.style, {
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
         background: 'black', color: 'white', display: 'flex', flexDirection: 'column',
-        alignItems: 'center', zIndex: 10000, padding: '10px', overflowY: 'auto'
+        alignItems: 'center', zIndex: 10000, padding: '10px'
       });
       
       const previewImg = document.createElement('img');
       const previewUrl = URL.createObjectURL(blob);
       previewImg.src = previewUrl;
-      previewImg.style.cssText = 'width:85%; max-height:45vh; object-fit:contain; margin-top: 40px; border:1px solid #444; transform: rotate(-90deg);';
+      previewImg.style.cssText = 'width:80%; max-height:40vh; object-fit:contain; margin-top: 40px; border:1px solid #444; transform: rotate(-90deg);';
       
       const procTxt = document.createElement('div');
-      procTxt.style.cssText = 'margin: 30px 0; font-size: 18px; font-weight: bold; color: #aaa;';
-      procTxt.textContent = '📤 Sending to Termux...';
+      procTxt.style.cssText = 'margin: 30px 0; font-size: 18px; text-align: center;';
+      procTxt.textContent = '📤 Sending...';
       
       loadingContainer.appendChild(previewImg);
       loadingContainer.appendChild(procTxt);
       document.body.appendChild(loadingContainer);
 
-      // 3. Delayed Upload (The "Breathe" Window)
+      // The 1-second delay is crucial for Termux + Browser on same device
       setTimeout(() => {
         fetch('/upload', { 
           method: 'POST', 
           body: formData,
-          mode: 'cors' // Ensure CORS is handled
+          // No-cache prevents the "instant fail" on many Android browsers
+          cache: 'no-store',
+          mode: 'cors'
         })
         .then(response => {
-          if (!response.ok) throw new Error("Server Busy");
+          if (!response.ok) throw new Error("Server rejected request");
           procTxt.textContent = '🔄 Processing OMR...';
-          procTxt.style.color = "limegreen";
           
           let attempts = 0;
           const poll2 = setInterval(() => {
@@ -368,7 +368,7 @@ Just click Capture – it will process in background and show result here.
                 if (data.filename) {
                   const resultImg = document.createElement('img');
                   resultImg.src = '/temp_output/' + data.filename + '?t=' + Date.now();
-                  resultImg.style.cssText = 'width:85%; max-height:55vh; object-fit:contain; margin-top:50px; transform: rotate(-90deg);';
+                  resultImg.style.cssText = 'width:80%; max-height:55vh; object-fit:contain; margin-top:50px; transform: rotate(-90deg);';
                   
                   const infoDiv = document.createElement('div');
                   infoDiv.style.cssText = 'text-align:center; margin: 20px 0;';
@@ -377,7 +377,10 @@ Just click Capture – it will process in background and show result here.
                   const nextBtn = document.createElement('button');
                   nextBtn.textContent = 'Next Scan';
                   nextBtn.style.cssText = 'padding: 15px 40px; background: white; color: black; border-radius: 30px; font-weight: bold; border: none;';
-                  nextBtn.onclick = () => location.reload();
+                  nextBtn.onclick = () => {
+                    URL.revokeObjectURL(previewUrl);
+                    location.reload();
+                  };
 
                   loadingContainer.appendChild(resultImg);
                   loadingContainer.appendChild(infoDiv);
@@ -385,19 +388,19 @@ Just click Capture – it will process in background and show result here.
                 }
               }
             });
-            if (attempts > 60) { clearInterval(poll2); procTxt.textContent = "❌ Timeout"; }
+            if (attempts > 50) clearInterval(poll2);
           }, 1000);
         })
         .catch(err => {
-          // If it fails, show why but keep the preview so user can try again
-          procTxt.innerHTML = `<div style="color:red">Upload Error</div>
-                               <div style="font-size:12px; color:gray">${err.message}</div>
-                               <button onclick="location.reload()" style="margin-top:15px; padding:8px 15px;">Retry</button>`;
+          procTxt.innerHTML = `<div style="color:red">Upload Failed</div>
+                               <div style="font-size:12px; margin:5px;">${err.message}</div>
+                               <button onclick="location.reload()" style="margin-top:10px; padding:10px;">Retry</button>`;
         });
-      }, 1000); // 1 full second delay
+      }, 1000);
     }
-  }, 'image/jpeg', 0.4); // Dropped quality to 0.4 for maximum stability
+  }, 'image/jpeg', 0.3); // Very low quality for maximum network stability
 };
+
              
 
 
