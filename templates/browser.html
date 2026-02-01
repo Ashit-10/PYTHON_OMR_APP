@@ -238,14 +238,9 @@ function renameFile(oldPath){
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({old:oldPath, new:newPath})
-    }).then(res => {
-        if(res.ok) {
-            location.reload();
-        } else {
-            alert("Rename failed.");
-        }
-    }).catch(err => console.error(err));
+    }).then(res => res.ok ? location.reload() : alert("Rename failed."));
 }
+
 </script>
 </body>
 </html>
