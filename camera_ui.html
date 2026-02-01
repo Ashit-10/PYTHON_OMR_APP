@@ -341,6 +341,20 @@ Just click Capture – it will process in background and show result here.
                                 // --- THE FIX IS HERE ---
                                 // Reset rotation to 0 degrees for the result image
                                 imgEl.style.transform = "rotate(0deg)"; 
+                              // --- THE FIX IS HERE ---
+imgEl.style.transform = "rotate(0deg)"; 
+
+// Add these lines to force full-screen fit
+imgEl.style.position = "fixed";
+imgEl.style.top = "0";
+imgEl.style.left = "0";
+imgEl.style.width = "100vw";   // 100% of viewport width
+imgEl.style.height = "100vh";  // 100% of viewport height
+imgEl.style.objectFit = "contain"; // Use "cover" to bleed to edges, "contain" to see the whole image
+imgEl.style.zIndex = "9999";   // Ensure it stays on top of other elements
+
+
+
                                 imgEl.src = `/temp_output/${data.filename}?t=${Date.now()}`;
                                 // The evaluated image displays normally here
                             //    document.getElementById('procImg').src = `/temp_output/${data.filename}?t=${Date.now()}`;
