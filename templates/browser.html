@@ -26,19 +26,29 @@
 
   .img-wrapper {
     width: 100%;
-    background: #fff;
-    overflow: hidden;
+    background: #f9f9f9;
     position: relative;
     display: flex;
     justify-content: center;
+    align-items: flex-start; /* Aligns to top so long images flow down */
   }
 
   .img-wrapper img {
     width: 100%;
-    height: auto;
+    height: auto; /* Allows the image to take its natural height */
     display: block;
-    object-fit: cover;
+    object-fit: contain; /* Ensures the whole image is visible */
   }
+/* Ensure output images are full width and original height */
+.image-card .img-wrapper img {
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    object-fit: contain;
+}
+
+  /* Keep your .rotate-box CSS as is, it handles the 'input' folder specifically */
+
 
   /* INPUT FOLDER SPECIFIC ROTATION */
   .rotate-box {
@@ -102,7 +112,12 @@
 </head>
 <body>
 
-<header onclick="location.href='/'">⬅ {{ path }}</header>
+<header onclick="location.href='/'">
+  ⬅ {{ path }} 
+  <span style="font-size: 0.8em; opacity: 0.8; margin-left: 10px;">
+    ({% set count = [] %}{% for item in items %}{% set ext = item.name.split('.')[-1].lower() %}{% if not item.is_dir and ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}{% set _ = count.append(1) %}{% endif %}{% endfor %}{{ count|length }} Images)
+  </span>
+</header>
 
 {% if path == "output" or "class" in path %}
 <div class="search-bar">
@@ -115,7 +130,9 @@
 
 <div class="file-container" id="fileBox">
 {% for item in items %}
-  {% if not item.is_dir %}
+  {% set ext = item.name.split('.')[-1].lower() %}
+  {% if not item.is_dir and ext in ['jpg', 'jpeg', 'png', 'webp'] %}
+
   <div class="image-card" data-name="{{ item.name }}">
     <div class="img-wrapper {% if path == 'input' %}rotate-box{% endif %}">
       <img src="/file?path={{ path }}/{{ item.name }}" onclick="openPreview(this.src)" loading="lazy">
