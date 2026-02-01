@@ -436,22 +436,11 @@ c.toBlob(blob => {
   }
 
   // 3. Redirect to the home page
-  window.location.href = 'index.html';
+  window.location.href = '/';
 };
 
 
-      // 2. Clear the video source to ensure memory is released
-      video.srcObject = null;
-
-      // 3. Go back to the previous page
-      // If there is no history, it will stay on the current page
-      if (document.referrer !== "") {
-        window.location.href = document.referrer;
-      } else {
-        // Fallback: Change '/' to your actual home page URL if needed
-        window.location.href = '/'; 
-      }
-    };
+      
 
 
     document.addEventListener('visibilitychange', () => {
