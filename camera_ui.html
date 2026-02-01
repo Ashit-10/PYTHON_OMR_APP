@@ -282,50 +282,50 @@ Just click Capture – it will process in background and show result here.
     const isInstant = instantToggle.checked;
     const rollNum = document.getElementById('rollInput').value;
     
-    // 1. Capture to Canvas
+    // Create canvas and capture
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0);
 
-    // 2. Convert to Blob
+    // Stop camera immediately to free up BUS for the Upload
+    if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+    }
+
+    // Convert to Blob
     canvas.toBlob(async (blob) => {
         if (!blob) return alert("Capture failed");
-
-        // Create a temporary URL for the preview image
-        const previewUrl = URL.createObjectURL(blob);
 
         const formData = new FormData();
         formData.append('image', blob, 'capture.jpg');
         formData.append('roll', rollNum);
 
-        // 3. Create the Processing Overlay
+        // UI Update (Overlay instead of wiping body)
         const loadingScreen = document.createElement('div');
-        loadingScreen.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:black;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;text-align:center;";
-        
-        // Add the Preview Image and Status Text
-        loadingScreen.innerHTML = `
-            <img id="procPreview" src="${previewUrl}" style="max-height:60vh; max-width:90vw; border:1px solid lime; margin-bottom:20px;">
-            <h3 id="procStatus">Uploading...</h3>
-            <div id="procDetail">Sending data to server</div>
-        `;
+        loadingScreen.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:black;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;";
+        loadingScreen.innerHTML = `<h3>Processing...</h3><p id="statusMsg">Uploading to Server...</p>`;
         document.body.appendChild(loadingScreen);
 
-        // 4. Stop camera to free resources
-        if (stream) stream.getTracks().forEach(t => t.stop());
+        // THE FIX: Small delay (100ms) to ensure camera hardware is released 
+        // before starting the network-heavy upload on the same device.
+        await new Promise(r => setTimeout(r, 100));
 
         try {
+            // Explicitly use the current origin to avoid loopback issues
             const response = await fetch(`${window.location.origin}/upload`, {
                 method: 'POST',
                 body: formData,
+                // Adding mode: 'cors' helps if the host is picky
                 mode: 'cors'
             });
 
             if (!response.ok) throw new Error("Upload Failed");
 
-            document.getElementById('procStatus').textContent = "Processing...";
-            document.getElementById('procDetail').textContent = "Analyzing OMR patterns...";
+            document.getElementById('statusMsg').textContent = "Analyzing OMR...";
 
+            // Polling Logic
             let attempts = 0;
             const checkStatus = setInterval(async () => {
                 attempts++;
@@ -333,44 +333,41 @@ Just click Capture – it will process in background and show result here.
                     const st = await fetch(`${window.location.origin}/status`);
                     const data = await st.json();
 
-                    // If processing finished
                     if (!data.processing) {
                         clearInterval(checkStatus);
-                        URL.revokeObjectURL(previewUrl); // Clean up memory
-
                         if (data.filename) {
                             if (isInstant) {
-                                // Show Result
-                                loadingScreen.innerHTML = `<img src="/temp_output/${data.filename}?t=${Date.now()}" style="width:100%;height:100%;object-fit:contain;background:black;">`;
+                                loadingScreen.innerHTML = `<img src="/temp_output/${data.filename}?t=${Date.now()}" style="width:100%;height:100%;object-fit:contain;">`;
                                 const btn = document.createElement('button');
-                                btn.textContent = "Next Scan";
-                                btn.style = "position:absolute;bottom:30px;padding:12px 25px;font-size:18px;background:white;color:black;border-radius:8px;border:none;font-weight:bold;";
+                                btn.textContent = "Next";
+                                btn.style = "position:absolute;bottom:20px;padding:15px 30px;font-size:20px;";
                                 btn.onclick = () => location.reload();
                                 loadingScreen.appendChild(btn);
                             } else {
-                                // Background mode: remove overlay and show toast
                                 loadingScreen.remove();
                                 showToast(`✅ Correct: ${extractCorrect(data.filename)}`, true);
                             }
                         } else {
-                            // Processing finished but no filename (Logic Failure)
-                            throw new Error("OMR Evaluation Failed");
+                            throw new Error();
                         }
                     }
                 } catch (e) {
-                    handleProcError(loadingScreen, checkStatus, e.message);
-                }
-
-                // Timeout after 30 seconds
-                if (attempts > 30) {
-                    handleProcError(loadingScreen, checkStatus, "Timeout: Server took too long");
+                    if (attempts > 20) {
+                        clearInterval(checkStatus);
+                        document.getElementById('statusMsg').innerHTML = "<span style='color:red'>Timeout/Error</span>";
+                        loadingScreen.appendChild(refreshBtn);
+                    }
                 }
             }, 1000);
 
         } catch (err) {
-            handleProcError(loadingScreen, null, err.message);
+            document.getElementById('statusMsg').innerHTML = `<span style='color:red'>FAILED: ${err.message}</span>`;
+            const rb = document.createElement('button');
+            rb.textContent = "Retry";
+            rb.onclick = () => location.reload();
+            loadingScreen.appendChild(rb);
         }
-    }, 'image/jpeg', 0.6);
+    }, 'image/jpeg', 0.5); // Lowered quality slightly for host stability
 };
 
 // Helper function to handle errors and show the Retry button
