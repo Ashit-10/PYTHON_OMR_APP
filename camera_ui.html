@@ -279,123 +279,130 @@ Just click Capture – it will process in background and show result here.
     }
 
     captureBtn.onclick = () => {
-    permanentToast = false;
-    toast.style.display = 'none';
+      permanentToast = false;
+      toast.style.display = 'none';
 
-    const isInstant = instantToggle.checked;
-    const rollNum = document.getElementById('rollInput').value;
+      const isInstant = instantToggle.checked;
+      const c = document.createElement('canvas');
+      c.width = video.videoWidth;
+      c.height = video.videoHeight;
+      c.getContext('2d').drawImage(video, 0, 0);
+
+      // ... existing code inside captureBtn.onclick ...
+c.toBlob(blob => {
+    const formData = new FormData();
+    formData.append('image', blob, 'capture.jpg');
     
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
+    // ADD THIS LINE: Get roll number and append to form
+    const rollNum = document.getElementById('rollInput').value;
+    formData.append('roll', rollNum); 
 
-    canvas.toBlob(async (blob) => {
-        if (!blob) {
-            showToast('❌ Capture failed');
-            return;
-        }
+    if (!isInstant) {
+// ... rest of the fetch logic ...
 
-        const formData = new FormData();
-        formData.append('image', blob, 'capture.jpg');
-        formData.append('roll', rollNum);
-
-        if (!isInstant) {
-            // --- NON-INSTANT MODE (Kept as is, it's safer) ---
-            showToast('🔄 Processing...');
-            try {
-                const res = await fetch('/upload', { method: 'POST', body: formData });
-                if (!res.ok) throw new Error();
-                document.getElementById('rollInput').value = '';
-                // ... (rest of your existing polling logic)
-            } catch (e) { showToast('❌ Upload failed'); }
-            
-           } else {
-        // --- FIXED INSTANT ON LOGIC WITH PREVIEW ---
-        stream.getTracks().forEach(t => t.stop());
-        
-        const loadingContainer = document.createElement('div');
-        Object.assign(loadingContainer.style, {
-          position: 'fixed', top: 0, left: 0,
-          width: '100vw', height: '100vh',
-          background: 'black', color: 'white',
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          fontSize: '20px', zIndex: 9999,
-          textAlign: 'center', padding: '20px'
-        });
-
-        // 1. Show the photo the user just took
-        const previewImg = document.createElement('img');
-        previewImg.src = URL.createObjectURL(blob);
-        previewImg.style.maxHeight = '60vh';
-        previewImg.style.marginBottom = '20px';
-        previewImg.style.border = '2px solid #444';
-        
-        const procTxt = document.createElement('div');
-        procTxt.textContent = '🔄 Processing OMR...';
-        
-        const actionBtn = document.createElement('button');
-        actionBtn.style.marginTop = '20px';
-        actionBtn.textContent = 'Restart';
-        actionBtn.onclick = () => location.reload();
-
-        loadingContainer.appendChild(previewImg);
-        loadingContainer.appendChild(procTxt);
-        document.body.innerHTML = ''; 
-        document.body.appendChild(loadingContainer);
-
-        fetch('/upload', { method: 'POST', body: formData }).then(() => {
-          let attempts = 0;
-          const poll2 = setInterval(() => {
-            attempts++;
-            fetch('/status').then(r => r.json()).then(data => {
-              if (data.processing === false) {
-                clearInterval(poll2);
-                
-                // Clear the "Processing..." text and Preview
-                loadingContainer.innerHTML = '';
-
-                if (data.filename && data.filename.trim() !== "") {
-                  // 2. Show the Processed Result from Server
-                  const resultImg = document.createElement('img');
-                  resultImg.src = '/temp_output/' + data.filename + '?t=' + Date.now();
-                  resultImg.style.cssText = 'width:100vw;height:80vh;object-fit:contain;background:black';
-                  
-                  const successLabel = document.createElement('div');
-                  successLabel.innerHTML = `<b style="color:limegreen">✅ Done!</b><br>Correct: ${extractCorrect(data.filename)}`;
-                  successLabel.style.margin = "10px";
-
-                  actionBtn.textContent = "Scan Next Sheet";
-                  loadingContainer.appendChild(resultImg);
-                  loadingContainer.appendChild(successLabel);
-                  loadingContainer.appendChild(actionBtn);
-                } else {
-                  // Error Case
-                  procTxt.innerHTML = '<span style="color:#ff5555">❌ Evaluation Failed</span><br><small>Markers not found. Hold still and try again.</small>';
-                  loadingContainer.appendChild(procTxt);
-                  loadingContainer.appendChild(actionBtn);
+          showToast('🔄 Processing...');
+          fetch('/upload', { method: 'POST', body: formData }).then(() => {
+  document.getElementById('rollInput').value = ''; // <--- Add this line
+  const poll = setInterval(() => {
+              fetch('/status').then(r => r.json()).then(data => {
+                if (!data.processing) {
+                  clearInterval(poll);
+                  if (data.filename) {
+                    const corr = extractCorrect(data.filename);
+                    showToast(`✅ Correct: ${corr}`, true);
+                  } else {
+                    showToast('❌ Process failed', true);
+                  }
                 }
-              }
-            }).catch(() => {
-              clearInterval(poll2);
-              procTxt.textContent = '❌ Connection Error';
-              loadingContainer.appendChild(actionBtn);
-            });
+              }).catch(() => {
+                clearInterval(poll);
+                showToast('❌ Error', true);
+              });
+            }, 1000);
+          }).catch(() => {
+            showToast('❌ Upload failed', true);
+          });
+              } else {
+          // --- START OF REPLACEMENT ---
+          stream.getTracks().forEach(t => t.stop());
+          const loading = document.createElement('div');
+          Object.assign(loading.style, {
+            position: 'fixed', top: 0, left: 0,
+            width: '100vw', height: '100vh',
+            background: 'black', color: 'white',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            fontSize: '20px', zIndex: 9999,
+            textAlign: 'center', padding: '20px'
+          });
 
-            if (attempts > 30) {
-              clearInterval(poll2);
-              procTxt.textContent = '⏱️ Server Timeout';
-              loadingContainer.appendChild(actionBtn);
-            }
-          }, 1000);
-        }).catch(() => {
-          procTxt.textContent = '❌ Upload Failed';
-          loadingContainer.appendChild(actionBtn);
-        });
-      }
-    }, 'image/jpeg', 0.6);
-};
+          const img = document.createElement('img');
+          img.src = URL.createObjectURL(blob);
+          img.style.maxHeight = '60vh';
+          img.style.marginBottom = '20px';
+          loading.appendChild(img);
+
+          const procTxt = document.createElement('div');
+          procTxt.textContent = '🔄 Processing the file...';
+          loading.appendChild(procTxt);
+
+          document.body.innerHTML = '';
+          document.body.appendChild(loading);
+
+          fetch('/upload', { method: 'POST', body: formData }).then(() => {
+  document.getElementById('rollInput').value = ''; // <--- Add this line
+  let attempts = 0;
+  
+            const poll2 = setInterval(() => {
+              attempts++;
+              fetch('/status').then(r => r.json()).then(data => {
+                if (!data.processing) {
+                  clearInterval(poll2);
+                  if (data.filename && data.filename.trim() !== "") {
+                    // SUCCESS PATH
+                    const result = document.createElement('img');
+                    result.src = '/temp_output/' + data.filename + '?t=' + Date.now();
+                    result.style.cssText = 'width:100vw;height:100vh;object-fit:contain;background:black';
+
+                    refreshBtn.textContent = 'Next';
+                    setTimeout(() => {
+                      document.body.innerHTML = '';
+                      document.body.appendChild(result);
+                      document.body.appendChild(refreshBtn);
+                    }, 500);
+                  } else {
+                    // SERVER FINISHED BUT FAILED TO EVALUATE
+                    procTxt.innerHTML = '<span style="color:#ff5555">❌ Evaluation Failed</span><br><small>Could not detect OMR markers.</small>';
+                    refreshBtn.textContent = 'Try Again';
+                    loading.appendChild(document.createElement('br'));
+                    loading.appendChild(refreshBtn);
+                  }
+                }
+              }).catch(() => {
+                clearInterval(poll2);
+                procTxt.textContent = '❌ Connection Error';
+                refreshBtn.textContent = 'Back';
+                loading.appendChild(refreshBtn);
+              });
+
+              // Safety Timeout (20 seconds)
+              if (attempts > 20) {
+                clearInterval(poll2);
+                procTxt.textContent = '⏱️ Request Timed Out';
+                refreshBtn.textContent = 'Try Again';
+                loading.appendChild(refreshBtn);
+              }
+            }, 1000);
+          }).catch(() => {
+            procTxt.textContent = '❌ Upload Failed';
+            refreshBtn.textContent = 'Back';
+            loading.appendChild(refreshBtn);
+          });
+          // --- END OF REPLACEMENT ---
+        }
+      }, 'image/jpeg', 0.5);
+    };
+
 
     refreshBtn.onclick = () => location.reload();
     flashBtn.onclick = toggleFlash;
