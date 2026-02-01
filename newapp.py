@@ -82,7 +82,8 @@ def move_and_process(file_path):
         if os.path.exists(dest_path):
             count = 1
             while True:
-                new_name = f"dup{count}_{latest_output_filename}"
+                new_pre = latest_output_filename.split(".")[0]
+                new_name = f"{new_pre}_{count}.jpg"
                 dest_path = os.path.join("output", new_name)
                 if not os.path.exists(dest_path): break
                 count += 1
