@@ -111,15 +111,12 @@
       cursor: pointer;
     }
 
-    /* ✨ Modified toast style */
-/* Container moved to the far right edge */
 #toast {
   position: fixed;
   top: 15vh;
   right: 0;
-  background: transparent;
   z-index: 9999;
-  display: flex; /* Changed from none for preview */
+  display: none; /* JS toggles this to flex */
   flex-direction: row-reverse;
   align-items: center;
   pointer-events: none;
@@ -127,18 +124,14 @@
 
 #toast img {
   display: block;
-  max-height: 250px; 
+  max-height: 250px;
   width: auto;
-  border-radius: 8px 0 0 8px;
+  /* Rotate around the bottom right corner */
+  transform: rotate(90deg) translateX(100%);
+  transform-origin: bottom right;
   
-  /* The Magic Sauce */
-  transform: rotate(90deg) translateY(-100%);
-  transform-origin: top right;
-  
-  /* Reset margins to 0 - no more magic numbers! */
+  /* Reset all margins - let the transform do the work */
   margin: 0; 
-  
-  background: transparent;
   box-shadow: -4px 4px 15px rgba(0,0,0,0.5);
 }
 
@@ -150,9 +143,8 @@
   border: 1px solid #444;
   font-weight: bold;
   white-space: nowrap;
-  
-  /* Use a positive margin to push it away from the image pivot point */
-  margin-right: 10px; 
+  /* Adjust this to pull the text closer to the image */
+  margin-right: -10px; 
   z-index: 10;
   pointer-events: auto;
 }
