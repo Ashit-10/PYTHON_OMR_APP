@@ -188,13 +188,28 @@ def update_config():
 @app.route("/")
 def dashboard():
     """Main landing page with folder manager and roll lists."""
-    # Find all files ending with _rolls.txt in the current directory
     all_files = os.listdir(BASE)
     rolls_files = [f for f in all_files if f.endswith('_rolls.txt')]
     
+    # Get the list of project folders
+    folders = get_project_folders()
+    
+    # Calculate file counts for each folder
+    folder_counts = {}
+    for folder in folders:
+        folder_path = os.path.join(BASE, folder)
+        if os.path.isdir(folder_path):
+            # Counts only files, ignoring sub-folders
+            count = len([f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))])
+            folder_counts[folder] = count
+        else:
+            folder_counts[folder] = 0
+
     return render_template("index.html", 
-                           folders=get_project_folders(), 
+                           folders=folders, 
+                           folder_counts=folder_counts, # Pass the dictionary here
                            rolls_files=rolls_files)
+
 
 import subprocess
 
