@@ -27,7 +27,24 @@
   }
   .recheck-btn:active { background: #16a34a; }
 
-  .search-bar { padding: 10px; display: flex; gap: 8px; background: #fff; border-bottom: 1px solid #ddd; }
+  /* BATCH DELETE FLOATING BUTTON */
+  .batch-delete-floating {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1002;
+    padding: 15px 25px;
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 50px;
+    font-weight: bold;
+    display: none; /* Hidden by default */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    cursor: pointer;
+  }
+
+  .search-bar { padding: 10px; display: flex; gap: 8px; background: #fff; border-bottom: 1px solid #ddd; align-items: center;}
   .search-bar input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }
   .search-bar button { padding: 10px 15px; background: #2563eb; color: white; border: none; border-radius: 5px; }
 
@@ -40,6 +57,17 @@
     border: 1px solid #ddd;
     overflow: hidden;
     margin-bottom: 5px;
+    position: relative;
+  }
+
+  /* CHECKBOX STYLE */
+  .select-checkbox {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+    transform: scale(1.8);
+    cursor: pointer;
   }
 
   .img-wrapper {
@@ -114,6 +142,10 @@
 <button class="recheck-btn" id="runRecheckBtn" onclick="runRecheck()">🔄 Recheck</button>
 {% endif %}
 
+<button id="batchDeleteBtn" class="batch-delete-floating" onclick="deleteSelectedFiles()">
+    🗑️ Delete Selected (<span id="selectedCount">0</span>)
+</button>
+
 <header onclick="location.href='/'">
   ⬅ {{ path }} 
   <span style="font-size: 0.8em; opacity: 0.8; margin-left: 6px;">
@@ -121,12 +153,15 @@
   </span>
 </header>
 
-{% if path == "output" or "class" in path %}
 <div class="search-bar">
+  {% if path == "output" or "class" in path %}
   <input id="rollSearch" placeholder="Search Roll Number..." oninput="searchRoll()">
   <button onclick="searchRoll()">🔍</button>
+  {% endif %}
+  <label style="font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+    <input type="checkbox" id="selectAll" onclick="toggleSelectAll()" style="transform: scale(1.3);"> Select All
+  </label>
 </div>
-{% endif %}
 
 <div id="noMatch">❌ Roll Number Not Found</div>
 
@@ -136,6 +171,7 @@
   {% if not item.is_dir and ext in ['jpg', 'jpeg', 'png', 'webp'] %}
 
   <div class="image-card" data-name="{{ item.name }}">
+    <input type="checkbox" class="select-checkbox" data-path="{{ path }}/{{ item.name }}" onclick="updateBatchUI()">
     <div class="img-wrapper {% if path == 'input' or path == 'duplicates' or path == 'error_images' %}rotate-box{% endif %}">
       <img src="/file?path={{ path }}/{{ item.name }}" onclick="openPreview(this.src)" loading="lazy">
     </div>
@@ -175,6 +211,64 @@
 </div>
 
 <script>
+// --- BATCH SELECTION LOGIC ---
+function toggleSelectAll() {
+    const isChecked = document.getElementById('selectAll').checked;
+    const checkboxes = document.querySelectorAll('.select-checkbox');
+    checkboxes.forEach(cb => {
+        if (cb.parentElement.style.display !== 'none') {
+            cb.checked = isChecked;
+        }
+    });
+    updateBatchUI();
+}
+
+function updateBatchUI() {
+    const selected = document.querySelectorAll('.select-checkbox:checked');
+    const btn = document.getElementById('batchDeleteBtn');
+    const countSpan = document.getElementById('selectedCount');
+    
+    if (selected.length > 0) {
+        btn.style.display = 'block';
+        countSpan.innerText = selected.length;
+    } else {
+        btn.style.display = 'none';
+        document.getElementById('selectAll').checked = false;
+    }
+}
+
+async function deleteSelectedFiles() {
+    const selected = document.querySelectorAll('.select-checkbox:checked');
+    if (selected.length === 0) return;
+
+    if (!confirm(`Are you sure you want to delete ${selected.length} selected files?`)) return;
+
+    const btn = document.getElementById('batchDeleteBtn');
+    btn.innerText = "Deleting...";
+    btn.disabled = true;
+
+    let deletePromises = [];
+    selected.forEach(cb => {
+        const fullPath = cb.getAttribute("data-path");
+        const p = fetch("/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path: fullPath })
+        });
+        deletePromises.push(p);
+    });
+
+    try {
+        await Promise.all(deletePromises);
+        alert("Selected files deleted.");
+        location.reload();
+    } catch (err) {
+        console.error(err);
+        alert("An error occurred during deletion.");
+        location.reload();
+    }
+}
+
 // --- NEW RECHECK FUNCTION ---
 function runRecheck() {
     const btn = document.getElementById('runRecheckBtn');
@@ -212,9 +306,12 @@ function searchRoll(){
       found++;
     } else {
       card.style.display = "none";
+      // Uncheck hidden cards so they aren't accidentally deleted
+      card.querySelector('.select-checkbox').checked = false;
     }
   });
   document.getElementById("noMatch").style.display = (found === 0 && val !== "") ? "block" : "none";
+  updateBatchUI();
 }
 
 function openPreview(src){
