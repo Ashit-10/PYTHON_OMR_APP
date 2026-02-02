@@ -168,6 +168,46 @@
     const showTopButtons = getQueryParameter('user');
     const subjectName = getQueryParameter('subject');
 
+// --- Inside your DOMContentLoaded listener ---
+const pasteButton = document.getElementById('pasteButton');
+
+async function pasteJSONData() {
+    try {
+        const text = await navigator.clipboard.readText();
+        const jsonData = JSON.parse(text);
+
+        // Simple validation: ensure it's an object
+        if (typeof jsonData !== 'object' || jsonData === null) {
+            throw new Error("Invalid format");
+        }
+
+        if (confirm("Valid JSON detected. Do you want to overwrite current answers and save?")) {
+            // 1. Reset current UI and data
+            userInput.length = 0;
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = false);
+
+            // 2. Load the pasted JSON into the UI
+            processJSON(jsonData);
+
+            // 3. Trigger the save to the server (answer_key.txt)
+            // Note: We create a synthetic event for the existing saveData function
+            await saveData(new Event('submit'));
+            
+            alert("✅ Data pasted and saved to answer_key.txt");
+        }
+    } catch (err) {
+        alert("❌ Error: Clipboard does not contain valid JSON data.");
+        console.error(err);
+    }
+}
+
+// Attach listener
+pasteButton.addEventListener('click', pasteJSONData);
+
+
+      
+
     filenameDisplay.textContent = subjectName || filename || "New OMR Sheet";
 
     if (showTopButtons === 'student') {
@@ -352,17 +392,20 @@
     <h5 id="filenameDisplay">New OMR Sheet</h5>
   </div>
   <div class="topButtons">
-    <button id="copyButon" class="action-button">Copy JSON data</button>
-    <h3 id="setButon">set:</h3>
-    <select id="setValue">
-      <option value="A">set - A</option>
-      <option value="B">set - B</option>
-      <option value="C">set - C</option>
-      <option value="D">set - D</option>
-      <option value="none" selected>No set</option>
-    </select>
-    <button id="saveButton" class="action-button">Save</button>
-  </div>
+  <button id="copyButon" class="action-button">Copy JSON data</button>
+  <button id="pasteButton" class="action-button" style="background-color: #28a745;">Paste JSON data</button>
+  
+  <h3 id="setButon">set:</h3>
+  <select id="setValue">
+    <option value="A">set - A</option>
+    <option value="B">set - B</option>
+    <option value="C">set - C</option>
+    <option value="D">set - D</option>
+    <option value="none" selected>No set</option>
+  </select>
+  <button id="saveButton" class="action-button">Save</button>
+</div>
+
   <form id="omrForm">
     <div id="questionContainer"></div>
   </form>
