@@ -128,16 +128,28 @@ import json
 import os
 
 
-import configparser
-
-@app.route('/get_config')
-def get_config():
+@app.route('/update_config', methods=['POST'])
+def update_config():
+    data = request.get_json()
     config = configparser.ConfigParser()
     config.read('config.cfg')
-    # Adjust 'SETTINGS' to whatever your config section name is
-    return {"white_pixel": config.get('SETTINGS', 'white_pixel', fallback='150')}
 
-# Update your existing /update_config to handle the 'white_pixel' key
+    # Ensure the [settings] section exists
+    if not config.has_section('settings'):
+        config.add_section('settings')
+
+    # Check which value is being sent and update it
+    if 'signature' in data:
+        config.set('settings', 'signature', data['signature'])
+    
+    if 'pixel_value' in data:
+        config.set('settings', 'pixel_value', str(data['pixel_value']))
+
+    # Save the changes back to the file
+    with open('config.cfg', 'w') as configfile:
+        config.write(configfile)
+
+    return {"status": "success"}
 
 @app.route("/edit_rolls")
 def edit_rolls():
