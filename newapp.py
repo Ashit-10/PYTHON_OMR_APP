@@ -127,6 +127,21 @@ def get_project_folders():
 import json
 import os
 
+import configparser
+
+@app.route('/get_config')
+def get_config():
+    config = configparser.ConfigParser()
+    config.read('config.cfg')
+    
+    # Extract values from the [settings] section
+    pixel = config.get('settings', 'pixel_value', fallback='200')
+    sign = config.get('settings', 'signature', fallback='')
+    
+    return {
+        "pixel_value": pixel,
+        "signature": sign
+    }
 
 @app.route('/update_config', methods=['POST'])
 def update_config():
@@ -186,8 +201,8 @@ def save_rolls():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route("/update_config", methods=["POST"])
-def update_config():
+@app.route("/update_config2", methods=["POST"])
+def update_config2():
     data = request.json
     new_sign = data.get("signature")
     
