@@ -138,7 +138,7 @@
     }
     #toast {
   position: fixed;
-  bottom: 20px; /* Moved lower to stay out of the way */
+  top: 60px; /* Moved lower to stay out of the way */
   right: 20px;
   background: rgba(34, 34, 34, 0.95);
   color: #fff;
@@ -153,10 +153,16 @@
 
 #toast img {
   display: block;
-  max-width: 150px; /* Small "peek" size */
+  max-width: 250px; /* Adjust width as needed for your "peek" size */
+  height: auto;
   border-radius: 8px;
-  margin-bottom: 8px;
+  margin: 10px auto;
+  /* Rotate 90deg Clockwise */
+  transform: rotate(90deg);
+  /* This ensures the layout accounts for the rotated dimensions */
+  transform-origin: center;
 }
+
 
 #toast b {
   color: limegreen;
@@ -238,18 +244,19 @@ Just click Capture – it will process in background and show result here.
 
     function showToast(msg, permanent = false, imageUrl = null) {
   permanentToast = permanent;
-  
-  // Clear previous content
   toast.innerHTML = ''; 
 
-  // Add Image if provided
   if (imageUrl) {
     const img = document.createElement('img');
     img.src = imageUrl;
+    
+    // Add extra margin to account for rotation overlap
+    // Since 90deg swap width/height, we add vertical margin
+    img.style.margin = "40px auto"; 
+    
     toast.appendChild(img);
   }
 
-  // Add Text
   const text = document.createElement('div');
   text.innerHTML = msg;
   toast.appendChild(text);
@@ -259,9 +266,10 @@ Just click Capture – it will process in background and show result here.
   if (!permanent) {
     setTimeout(() => {
       if (!permanentToast) toast.style.display = 'none';
-    }, 4000); // Increased to 4s so you have time to look
+    }, 10000);
   }
 }
+
 
 
     async function startCamera() {
