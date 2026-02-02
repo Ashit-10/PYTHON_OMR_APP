@@ -136,6 +136,33 @@
       left: 10px;
       z-index: 9999;
     }
+    #toast {
+  position: fixed;
+  bottom: 20px; /* Moved lower to stay out of the way */
+  right: 20px;
+  background: rgba(34, 34, 34, 0.95);
+  color: #fff;
+  padding: 10px;
+  border-radius: 12px;
+  z-index: 9999;
+  display: none;
+  border: 1px solid #444;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+  text-align: center;
+}
+
+#toast img {
+  display: block;
+  max-width: 150px; /* Small "peek" size */
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+#toast b {
+  color: limegreen;
+  font-size: 18px;
+}
+
   </style>
 </head>
 <body>
@@ -209,16 +236,33 @@ Just click Capture – it will process in background and show result here.
       localStorage.setItem('instantMode', instantToggle.checked);
     };
 
-    function showToast(msg, permanent = false) {
-      permanentToast = permanent;
-      toast.textContent = msg;
-      toast.style.display = 'block';
-      if (!permanent) {
-        setTimeout(() => {
-          if (!permanentToast) toast.style.display = 'none';
-        }, 2500);
-      }
-    }
+    function showToast(msg, permanent = false, imageUrl = null) {
+  permanentToast = permanent;
+  
+  // Clear previous content
+  toast.innerHTML = ''; 
+
+  // Add Image if provided
+  if (imageUrl) {
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    toast.appendChild(img);
+  }
+
+  // Add Text
+  const text = document.createElement('div');
+  text.innerHTML = msg;
+  toast.appendChild(text);
+
+  toast.style.display = 'block';
+
+  if (!permanent) {
+    setTimeout(() => {
+      if (!permanentToast) toast.style.display = 'none';
+    }, 4000); // Increased to 4s so you have time to look
+  }
+}
+
 
     async function startCamera() {
       try {
@@ -349,7 +393,13 @@ Just click Capture – it will process in background and show result here.
                                 imgEl.parentElement.style.padding = "0";
                                 imgEl.parentElement.style.margin = "0";
                             } else {
-                                showToast(`✅ Correct: ${extractCorrect(data.filename)}`, true);
+            // NEW IMAGE TOAST LOGIC
+            const resultUrl = `/temp_output/${data.filename}?t=${Date.now()}`;
+            const scoreText = `<b>Correct: ${extractCorrect(data.filename)}</b>`;
+            
+            showToast(scoreText, false, resultUrl);
+      
+
                             }
                         } else {
                             throw new Error("No filename returned");
