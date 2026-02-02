@@ -6,54 +6,71 @@
 <title>OMR Dashboard</title>
 <link rel="stylesheet" href="/static/style.css">
 <style>
-  /* New Header Styles for Menu */
+  /* Menu and Header Layout */
   header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 15px;
+    padding: 10px 20px;
+    position: relative;
   }
 
   .menu-btn {
-    background: #444;
-    border: none;
+    background: #333;
+    border: 1px solid #555;
     color: white;
-    font-size: 1.5rem;
-    padding: 5px 10px;
-    border-radius: 5px;
+    font-size: 1.2rem;
+    padding: 5px 12px;
+    border-radius: 4px;
     cursor: pointer;
-    line-height: 1;
+    transition: background 0.2s;
   }
 
-  /* Dropdown Menu Styling */
-  #sideMenu {
+  .menu-btn:hover { background: #444; }
+
+  /* Dropdown styling */
+  .dropdown-content {
+    display: none;
+    position: absolute;
+    right: 20px;
+    top: 55px;
+    background-color: #2c2c2c;
+    min-width: 200px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.5);
     z-index: 1000;
+    border-radius: 8px;
+    border: 1px solid #444;
+    overflow: hidden;
   }
 
-  .pixel-display {
-    font-family: monospace;
-    color: #00ff00;
-    background: #222;
+  .dropdown-content button {
+    color: white;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #333;
+  }
+
+  .dropdown-content button:hover { background-color: #3d3d3d; }
+
+  .pixel-badge {
+    background: #00ff00;
+    color: #000;
     padding: 2px 6px;
     border-radius: 4px;
-    margin-left: 5px;
+    font-family: monospace;
+    font-weight: bold;
+    font-size: 0.8rem;
   }
 
-  /* Ensure modals are on top */
-  .modal {
-    position: fixed;
-    z-index: 2000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.7);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .hidden { display: none !important; }
+  .show { display: block; }
 </style>
 </head>
 <body>
@@ -61,23 +78,31 @@
 <header>
   <span>OMR Scanner</span>
   <button class="menu-btn" onclick="toggleMenu()">☰</button>
-</header>
-
-<div id="sideMenu" class="modal hidden" onclick="toggleMenu()">
-  <div class="modal-content" style="width: 220px; position: absolute; right: 15px; top: 60px;" onclick="event.stopPropagation()">
-    <button onclick="openPixelModal()" style="width: 100%; text-align: left; background: #333; display: flex; justify-content: space-between; align-items: center;">
-      <span>⚫ Black Pixel</span>
-      <span id="pixelValDisplay" class="pixel-display">--</span>
+  
+  <div id="myDropdown" class="dropdown-content">
+    <button onclick="openPixelModal()">
+      ⚫ Black Pixel <span id="pixelValDisplay" class="pixel-badge">--</span>
     </button>
-    <button onclick="toggleMenu()" style="background: #cc0000; width: 100%; margin-top: 10px;">Close Menu</button>
   </div>
-</div>
+</header>
 
 <section class="actions">
   <button onclick="showModal()" style="display: none;">➕ Create Project Folder</button>
   <button onclick="openAnswerKey()">🗝 Answer Key</button>
   <button onclick="showSignModal()" style="background-color: #5d4037; color: white;">✍️ Change Signature</button>
 </section>
+
+<div id="pixelModal" class="modal hidden">
+  <div class="modal-content">
+    <h3>Adjust Pixel Threshold</h3>
+    <p style="font-size: 0.8rem; color: #aaa; margin-bottom: 15px;">Modify <b>pixel_value</b> in config file:</p>
+    <input type="number" id="pixelInput" style="width: 100%; padding: 12px; background: #222; color: #fff; border: 1px solid #444; border-radius: 4px; margin-bottom: 20px;">
+    <div class="modal-buttons">
+      <button onclick="savePixelValue()">Save Config</button>
+      <button onclick="closePixelModal()" style="background:#cc0000;">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <div id="signModal" class="modal hidden">
   <div class="modal-content">
@@ -92,23 +117,10 @@
   </div>
 </div>
 
-<div id="pixelModal" class="modal hidden">
-  <div class="modal-content">
-    <h3>Edit White Pixel Value</h3>
-    <p style="font-size: 0.8rem; color: #ccc; margin-bottom: 10px;">Adjust the threshold for OMR detection.</p>
-    <input type="number" id="pixelInput" placeholder="Value (e.g. 150)" style="width: 100%; padding: 10px; margin-bottom: 15px; background: #222; color: #fff; border: 1px solid #444;">
-    <div class="modal-buttons" style="display: flex; gap: 10px;">
-      <button onclick="savePixelValue()" style="flex: 1;">Save</button>
-      <button onclick="closePixelModal()" style="background:#666; flex: 1;">Cancel</button>
-    </div>
-  </div>
-</div>
-
 <section class="card" style="margin: 12px;">
   <h3>Project Folders</h3>
   <div id="folders">
   {% set ordered_list = ['input', 'output', 'error_images', 'duplicates'] %}
-  
   {% for target in ordered_list %}
     {% if target in folders %}
       <div class="folder-card" onclick="openFolder('{{ target }}')" style="display: flex; justify-content: space-between; align-items: center;">
@@ -156,137 +168,128 @@
   <h3>Student Roll Files</h3>
   <div id="rolls-files">
     {% for file in rolls_files %}
-      <div class="folder-card" onclick="location.href='/edit_rolls?file={{ file }}'">
-        📄 {{ file }}
-      </div>
+      <div class="folder-card" onclick="location.href='/edit_rolls?file={{ file }}'">📄 {{ file }}</div>
     {% endfor %}
   </div>
 </section>
 
-<div id="modal" class="modal hidden">
-  <div class="modal-content">
-    <h3>Create Project Folder</h3>
-    <input id="clsInput" placeholder="Class (e.g. 10)">
-    <input id="subInput" placeholder="Subject (e.g. Math)">
-    <div class="modal-buttons">
-      <button onclick="createFolder()">Create</button>
-      <button onclick="closeModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
 <script>
-  // --- New Logic for Black Pixel & Menu ---
-  function toggleMenu() {
-    const menu = document.getElementById("sideMenu");
-    menu.classList.toggle("hidden");
-    if (!menu.classList.contains("hidden")) {
-        fetchPixelValue();
+/* --- NEW MENU LOGIC --- */
+function toggleMenu() {
+    document.getElementById("myDropdown").classList.toggle("show");
+    fetchPixelValue();
+}
+
+// Close dropdown if user clicks outside
+window.onclick = function(event) {
+  if (!event.target.matches('.menu-btn')) {
+    var dropdowns = document.getElementsByClassName("dropdown-content");
+    for (var i = 0; i < dropdowns.length; i++) {
+      var openDropdown = dropdowns[i];
+      if (openDropdown.classList.contains('show')) {
+        openDropdown.classList.remove('show');
+      }
     }
   }
+}
 
-  function openPixelModal() {
-    document.getElementById("pixelModal").classList.remove("hidden");
-    document.getElementById("sideMenu").classList.add("hidden");
-  }
-
-  function closePixelModal() {
-    document.getElementById("pixelModal").classList.add("hidden");
-  }
-
-  function fetchPixelValue() {
-    // Calling the update_config or a dedicated get_config endpoint
+function fetchPixelValue() {
     fetch("/get_config")
     .then(r => r.json())
     .then(data => {
-        const val = data.white_pixel || "--";
+        const val = data.pixel_value || "0";
         document.getElementById("pixelValDisplay").innerText = val;
         document.getElementById("pixelInput").value = val;
-    }).catch(err => console.log("Config fetch failed, ensure /get_config exists"));
-  }
+    });
+}
 
-  function savePixelValue() {
-    const newVal = document.getElementById("pixelInput").value;
+function openPixelModal() {
+    document.getElementById("pixelModal").classList.remove("hidden");
+}
+
+function closePixelModal() {
+    document.getElementById("pixelModal").classList.add("hidden");
+}
+
+function savePixelValue() {
+    const val = document.getElementById("pixelInput").value;
     fetch("/update_config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ white_pixel: newVal })
+        body: JSON.stringify({ pixel_value: val })
     })
     .then(response => {
         if (response.ok) {
-            alert("Value updated!");
-            document.getElementById("pixelValDisplay").innerText = newVal;
+            alert("Pixel value updated successfully!");
+            document.getElementById("pixelValDisplay").innerText = val;
             closePixelModal();
         }
     });
-  }
+}
 
-  // --- Existing Logic ---
-  function showSignModal() { document.getElementById("signModal").classList.remove("hidden"); }
-  function closeSignModal() { document.getElementById("signModal").classList.add("hidden"); }
+/* --- EXISTING LOGIC --- */
+function showSignModal() { document.getElementById("signModal").classList.remove("hidden"); }
+function closeSignModal() { document.getElementById("signModal").classList.add("hidden"); }
 
-  function updateSignature(filename) {
-      fetch("/update_config", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ signature: filename })
-      })
-      .then(response => {
-          if (response.ok) {
-              alert("Signature updated to: " + filename);
-              closeSignModal();
-          }
-      });
-  }
+function updateSignature(filename) {
+    fetch("/update_config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signature: filename })
+    })
+    .then(response => {
+        if (response.ok) {
+            alert("Signature updated to: " + filename);
+            closeSignModal();
+        }
+    });
+}
 
-  function showGitModal() { document.getElementById("gitModal").classList.remove("hidden"); }
-  function closeGitModal() { document.getElementById("gitModal").classList.add("hidden"); }
+function showGitModal() { document.getElementById("gitModal").classList.remove("hidden"); }
+function closeGitModal() { document.getElementById("gitModal").classList.add("hidden"); }
 
-  function submitGitUpload() {
-      const tution = document.querySelector('input[name="tuition"]:checked').value;
-      const cls = document.getElementById("gitCls").value.trim();
-      const sub = document.getElementById("gitSub").value.trim();
-      if(!cls || !sub) { alert("Please fill all fields"); return; }
-      closeGitModal();
-      const logSection = document.getElementById("log-section");
-      const logContainer = document.getElementById("terminal-logs");
-      logSection.classList.remove("hidden");
-      logContainer.innerHTML = "Starting GitHub sync...<br>";
-      const url = `/run_gitup?tution=${tution}&class=${cls}&subject=${sub}`;
-      fetch(url).then(response => {
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          function read() {
-              return reader.read().then(({ done, value }) => {
-                  if (done) return;
-                  logContainer.innerHTML += decoder.decode(value).replace(/\n/g, "<br>");
-                  logContainer.scrollTop = logContainer.scrollHeight;
-                  return read();
-              });
-          }
-          return read();
-      });
-  }
+function submitGitUpload() {
+    const tution = document.querySelector('input[name="tuition"]:checked').value;
+    const cls = document.getElementById("gitCls").value.trim();
+    const sub = document.getElementById("gitSub").value.trim();
+    if(!cls || !sub) { alert("Please fill all fields"); return; }
+    closeGitModal();
+    const logSection = document.getElementById("log-section");
+    const logContainer = document.getElementById("terminal-logs");
+    logSection.classList.remove("hidden");
+    logContainer.innerHTML = "Starting GitHub sync...<br>";
+    const url = `/run_gitup?tution=${tution}&class=${cls}&subject=${sub}`;
+    fetch(url).then(response => {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        function read() {
+            return reader.read().then(({ done, value }) => {
+                if (done) return;
+                logContainer.innerHTML += decoder.decode(value).replace(/\n/g, "<br>");
+                logContainer.scrollTop = logContainer.scrollHeight;
+                return read();
+            });
+        }
+        return read();
+    });
+}
 
-  function openFolder(f){ window.location.href = "/browse?path=" + encodeURIComponent(f); }
-  function showModal(){ document.getElementById("modal").classList.remove("hidden") }
-  function closeModal(){ document.getElementById("modal").classList.add("hidden") }
+function openFolder(f){ window.location.href = "/browse?path=" + encodeURIComponent(f); }
+function showModal(){ document.getElementById("modal").classList.remove("hidden") }
+function closeModal(){ document.getElementById("modal").classList.add("hidden") }
+function createFolder(){
+  const clsVal = document.getElementById("clsInput").value.trim();
+  const subVal = document.getElementById("subInput").value.trim();
+  if(!clsVal || !subVal){ alert("Class and Subject required"); return; }
+  fetch("/create_folder",{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({class:clsVal, subject:subVal})
+  }).then(() => location.reload());
+}
+function openAnswerKey() { window.location.href = "/answer_key?folder=input"; }
 
-  function createFolder(){
-    const clsVal = document.getElementById("clsInput").value.trim();
-    const subVal = document.getElementById("subInput").value.trim();
-    if(!clsVal || !subVal){ alert("Class and Subject required"); return; }
-    fetch("/create_folder",{
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body:JSON.stringify({class:clsVal, subject:subVal})
-    }).then(() => location.reload());
-  }
-
-  function openAnswerKey() { window.location.href = "/answer_key?folder=input"; }
-
-  // Initial load
-  window.onload = fetchPixelValue;
+window.onload = fetchPixelValue;
 </script>
 </body>
 </html>
