@@ -39,18 +39,25 @@
 <section class="card" style="margin: 12px;">
   <h3>Project Folders</h3>
   <div id="folders">
-    {# Manually list the folders in your preferred order #}
-    {% set ordered_list = ['input', 'output', 'error_images', 'duplicates'] %}
-    
-    {% for target in ordered_list %}
-      {% if target in folders %}
-        <div class="folder-card" onclick="openFolder('{{ target }}')">
-          📁 {{ target }}
+  {% set ordered_list = ['input', 'output', 'error_images', 'duplicates'] %}
+  
+  {% for target in ordered_list %}
+    {% if target in folders %}
+      <div class="folder-card" onclick="openFolder('{{ target }}')" style="display: flex; justify-content: space-between; align-items: center;">
+        <span>📁 {{ target }}</span>
+        
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="background: #444; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; color: #fff;">
+            {{ folder_counts[target] }}
+          </span>
+          
           <button class="mini danger delete-folder" onclick="event.stopPropagation(); deleteFolder('{{ target }}')">🗑</button>
         </div>
-      {% endif %}
-    {% endfor %}
-  </div>
+      </div>
+    {% endif %}
+  {% endfor %}
+</div>
+
 </section>
 <button onclick="location.href='/scan'">📷 Scan OMR Sheet</button>
   <button onclick="showGitModal()" style="background-color: #24292e; color: white;">🐙 Upload to GitHub</button>
