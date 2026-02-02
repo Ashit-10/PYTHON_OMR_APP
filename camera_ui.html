@@ -115,7 +115,7 @@
 /* Container is now invisible so the image has no background */
 #toast {
   position: fixed;
-  top: 15vh;
+  top: 20vh;
   right: 20px;
   background: transparent; /* No background here */
   z-index: 9999;
@@ -137,7 +137,7 @@
   box-shadow: 0 4px 15px rgba(0,0,0,0.5); /* Optional: adds depth to the image only */
 }
 
-/* The black background is now only on the text label 
+/* The black background is now only on the text label */
 .toast-text {
   background: rgba(34, 34, 34, 0.95);
   color: #fff;
@@ -147,7 +147,7 @@
   font-weight: bold;
   white-space: nowrap;
 }
-*/
+
 
     #exitBtn {
       position: absolute;
@@ -244,19 +244,17 @@ Just click Capture – it will process in background and show result here.
   if (imageUrl) {
     const img = document.createElement('img');
     img.src = imageUrl;
-    
-    // Add extra margin to account for rotation overlap
-    // Since 90deg swap width/height, we add vertical margin
-    img.style.margin = "40px auto"; 
-    
     toast.appendChild(img);
   }
 
-  const text = document.createElement('div');
-  text.innerHTML = msg;
-  toast.appendChild(text);
+  // Create a separate div for the text to hold the background
+  const textContainer = document.createElement('div');
+  textContainer.className = 'toast-text';
+  textContainer.innerHTML = msg;
+  toast.appendChild(textContainer);
 
-  toast.style.display = 'block';
+  // Set to flex to ensure column alignment
+  toast.style.display = 'flex';
 
   if (!permanent) {
     setTimeout(() => {
@@ -264,6 +262,7 @@ Just click Capture – it will process in background and show result here.
     }, 10000);
   }
 }
+
 
 
 
