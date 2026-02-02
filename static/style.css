@@ -260,3 +260,94 @@ button.danger {
   .folder-card { flex:1 1 100%; }
   .file-container { grid-template-columns: repeat(auto-fill, minmax(90px,1fr)); }
 }
+
+
+/* =====================
+   DROPDOWN MENU
+===================== */
+
+/* Container for the menu button and dropdown */
+.menu-container {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.menu-btn {
+  background: #333;
+  color: #fff;
+  border: 1px solid #444;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 40px;
+  background-color: #fff;
+  min-width: 220px;
+  box-shadow: 0px 8px 16px rgba(0,0,0,0.2);
+  z-index: 1000;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #ddd;
+}
+
+/* Menu Item Buttons */
+.dropdown-content button {
+  width: 100%;
+  padding: 14px 16px;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid #eee;
+  font-size: 15px;
+  color: #111;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.dropdown-content button:last-child {
+  border-bottom: none;
+}
+
+.dropdown-content button:active {
+  background-color: #f0f0f0;
+}
+
+/* The "Black Pixel" Value Badge */
+.pixel-badge {
+  background: #111;
+  color: #00ff00;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-family: monospace;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+/* Show class for JS toggle */
+.show {
+  display: block !important;
+}
+
+/* =====================
+   ADDITIONAL MOBILE FIXES
+===================== */
+/* Make all standard action buttons full-width for mobile */
+button:not(.mini):not(.menu-btn) {
+  width: 100%;
+}
+
+/* Ensure the header text doesn't overlap the menu button */
+header span {
+  display: block;
+  margin-right: 40px;
+}
