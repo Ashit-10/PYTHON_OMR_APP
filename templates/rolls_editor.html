@@ -50,7 +50,7 @@
         <div class="student-item">
             <span class="roll-number">{{ s.roll }}</span>
             <input type="text" class="name-input" value="{{ s.name }}">
-            <button type="button" class="delete-btn" onclick="this.parentElement.remove(); saveChanges(true);">🗑</button>
+            <button type="button" class="delete-btn" onclick="this.parentElement.remove();">🗑</button>
         </div>
         {% endfor %}
     </div>
