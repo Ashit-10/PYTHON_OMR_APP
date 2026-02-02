@@ -5,17 +5,79 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OMR Dashboard</title>
 <link rel="stylesheet" href="/static/style.css">
+<style>
+  /* New Header Styles for Menu */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+  }
+
+  .menu-btn {
+    background: #444;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  /* Dropdown Menu Styling */
+  #sideMenu {
+    z-index: 1000;
+  }
+
+  .pixel-display {
+    font-family: monospace;
+    color: #00ff00;
+    background: #222;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 5px;
+  }
+
+  /* Ensure modals are on top */
+  .modal {
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .hidden { display: none !important; }
+</style>
 </head>
 <body>
 
-<header>OMR Scanner</header>
+<header>
+  <span>OMR Scanner</span>
+  <button class="menu-btn" onclick="toggleMenu()">☰</button>
+</header>
+
+<div id="sideMenu" class="modal hidden" onclick="toggleMenu()">
+  <div class="modal-content" style="width: 220px; position: absolute; right: 15px; top: 60px;" onclick="event.stopPropagation()">
+    <button onclick="openPixelModal()" style="width: 100%; text-align: left; background: #333; display: flex; justify-content: space-between; align-items: center;">
+      <span>⚫ Black Pixel</span>
+      <span id="pixelValDisplay" class="pixel-display">--</span>
+    </button>
+    <button onclick="toggleMenu()" style="background: #cc0000; width: 100%; margin-top: 10px;">Close Menu</button>
+  </div>
+</div>
 
 <section class="actions">
-  
   <button onclick="showModal()" style="display: none;">➕ Create Project Folder</button>
   <button onclick="openAnswerKey()">🗝 Answer Key</button>
-  
-<button onclick="showSignModal()" style="background-color: #5d4037; color: white;">✍️ Change Signature</button>
+  <button onclick="showSignModal()" style="background-color: #5d4037; color: white;">✍️ Change Signature</button>
+</section>
 
 <div id="signModal" class="modal hidden">
   <div class="modal-content">
@@ -30,11 +92,17 @@
   </div>
 </div>
 
-
-
-
-
-
+<div id="pixelModal" class="modal hidden">
+  <div class="modal-content">
+    <h3>Edit White Pixel Value</h3>
+    <p style="font-size: 0.8rem; color: #ccc; margin-bottom: 10px;">Adjust the threshold for OMR detection.</p>
+    <input type="number" id="pixelInput" placeholder="Value (e.g. 150)" style="width: 100%; padding: 10px; margin-bottom: 15px; background: #222; color: #fff; border: 1px solid #444;">
+    <div class="modal-buttons" style="display: flex; gap: 10px;">
+      <button onclick="savePixelValue()" style="flex: 1;">Save</button>
+      <button onclick="closePixelModal()" style="background:#666; flex: 1;">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <section class="card" style="margin: 12px;">
   <h3>Project Folders</h3>
@@ -45,63 +113,55 @@
     {% if target in folders %}
       <div class="folder-card" onclick="openFolder('{{ target }}')" style="display: flex; justify-content: space-between; align-items: center;">
         <span>📁 {{ target }}</span>
-        
         <div style="display: flex; align-items: center; gap: 10px;">
           <span style="background: #444; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; color: #fff;">
             {{ folder_counts[target] }} Images
           </span>
-          
-        
         </div>
       </div>
     {% endif %}
   {% endfor %}
 </div>
-
 </section>
+
 <button onclick="location.href='/scan'">📷 Scan OMR Sheet</button>
-  <button onclick="showGitModal()" style="background-color: #24292e; color: white;">🐙 Upload to GitHub</button>
+<button onclick="showGitModal()" style="background-color: #24292e; color: white;">🐙 Upload to GitHub</button>
 
 <div id="gitModal" class="modal hidden">
   <div class="modal-content">
     <h3>GitHub Upload Details</h3>
-    
     <label>Tuition:</label>
     <div style="margin: 10px 0;">
       <input type="radio" id="mvm" name="tuition" value="mvm" checked> <label for="mvm">MVM</label>
       <input type="radio" id="wsc" name="tuition" value="wsc"> <label for="wsc">WSC</label>
     </div>
-
     <input id="gitCls" placeholder="Class (e.g. 10)">
     <input id="gitSub" placeholder="Subject (e.g. Physics)">
-
     <div class="modal-buttons">
       <button onclick="submitGitUpload()">Upload</button>
       <button onclick="closeGitModal()" style="background:#666;">Cancel</button>
     </div>
   </div>
 </div>
-  <section id="log-section" class="card hidden" style="margin: 12px; background: #1e1e1e; color: #00ff00; border-radius: 8px; overflow: hidden;">
+
+<section id="log-section" class="card hidden" style="margin: 12px; background: #1e1e1e; color: #00ff00; border-radius: 8px; overflow: hidden;">
   <div style="background: #333; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;">
     <span style="font-size: 0.8rem; font-family: monospace; color: #ccc;">termux_terminal_output</span>
     <button onclick="document.getElementById('log-section').classList.add('hidden')" style="background:none; border:none; color:white; cursor:pointer;">✕</button>
   </div>
-  <div id="terminal-logs" style="padding: 10px; max-height: 250px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.85rem; line-height: 1.5;">
-    </div>
+  <div id="terminal-logs" style="padding: 10px; max-height: 250px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.85rem; line-height: 1.5;"></div>
 </section>
+
 <section class="card" style="margin: 12px;">
   <h3>Student Roll Files</h3>
   <div id="rolls-files">
     {% for file in rolls_files %}
-      {# This only displays the name of the file #}
       <div class="folder-card" onclick="location.href='/edit_rolls?file={{ file }}'">
         📄 {{ file }}
       </div>
     {% endfor %}
   </div>
 </section>
-
-
 
 <div id="modal" class="modal hidden">
   <div class="modal-content">
@@ -116,116 +176,117 @@
 </div>
 
 <script>
-  function showSignModal() {
-    document.getElementById("signModal").classList.remove("hidden");
-}
+  // --- New Logic for Black Pixel & Menu ---
+  function toggleMenu() {
+    const menu = document.getElementById("sideMenu");
+    menu.classList.toggle("hidden");
+    if (!menu.classList.contains("hidden")) {
+        fetchPixelValue();
+    }
+  }
 
-function closeSignModal() {
-    document.getElementById("signModal").classList.add("hidden");
-}
+  function openPixelModal() {
+    document.getElementById("pixelModal").classList.remove("hidden");
+    document.getElementById("sideMenu").classList.add("hidden");
+  }
 
-function updateSignature(filename) {
+  function closePixelModal() {
+    document.getElementById("pixelModal").classList.add("hidden");
+  }
+
+  function fetchPixelValue() {
+    // Calling the update_config or a dedicated get_config endpoint
+    fetch("/get_config")
+    .then(r => r.json())
+    .then(data => {
+        const val = data.white_pixel || "--";
+        document.getElementById("pixelValDisplay").innerText = val;
+        document.getElementById("pixelInput").value = val;
+    }).catch(err => console.log("Config fetch failed, ensure /get_config exists"));
+  }
+
+  function savePixelValue() {
+    const newVal = document.getElementById("pixelInput").value;
     fetch("/update_config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signature: filename })
+        body: JSON.stringify({ white_pixel: newVal })
     })
     .then(response => {
         if (response.ok) {
-            alert("Signature updated to: " + filename);
-            closeSignModal();
-        } else {
-            alert("Failed to update signature.");
+            alert("Value updated!");
+            document.getElementById("pixelValDisplay").innerText = newVal;
+            closePixelModal();
         }
     });
-}
+  }
 
-  function showGitModal() { 
-    document.getElementById("gitModal").classList.remove("hidden"); 
-}
+  // --- Existing Logic ---
+  function showSignModal() { document.getElementById("signModal").classList.remove("hidden"); }
+  function closeSignModal() { document.getElementById("signModal").classList.add("hidden"); }
 
-function closeGitModal() { 
-    document.getElementById("gitModal").classList.add("hidden"); 
-}
+  function updateSignature(filename) {
+      fetch("/update_config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signature: filename })
+      })
+      .then(response => {
+          if (response.ok) {
+              alert("Signature updated to: " + filename);
+              closeSignModal();
+          }
+      });
+  }
 
-function submitGitUpload() {
-    const tution = document.querySelector('input[name="tuition"]:checked').value;
-    const cls = document.getElementById("gitCls").value.trim();
-    const sub = document.getElementById("gitSub").value.trim();
+  function showGitModal() { document.getElementById("gitModal").classList.remove("hidden"); }
+  function closeGitModal() { document.getElementById("gitModal").classList.add("hidden"); }
 
-    if(!cls || !sub) { alert("Please fill all fields"); return; }
+  function submitGitUpload() {
+      const tution = document.querySelector('input[name="tuition"]:checked').value;
+      const cls = document.getElementById("gitCls").value.trim();
+      const sub = document.getElementById("gitSub").value.trim();
+      if(!cls || !sub) { alert("Please fill all fields"); return; }
+      closeGitModal();
+      const logSection = document.getElementById("log-section");
+      const logContainer = document.getElementById("terminal-logs");
+      logSection.classList.remove("hidden");
+      logContainer.innerHTML = "Starting GitHub sync...<br>";
+      const url = `/run_gitup?tution=${tution}&class=${cls}&subject=${sub}`;
+      fetch(url).then(response => {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          function read() {
+              return reader.read().then(({ done, value }) => {
+                  if (done) return;
+                  logContainer.innerHTML += decoder.decode(value).replace(/\n/g, "<br>");
+                  logContainer.scrollTop = logContainer.scrollHeight;
+                  return read();
+              });
+          }
+          return read();
+      });
+  }
 
-    closeGitModal();
-    
-    // Show the log tray
-    const logSection = document.getElementById("log-section");
-    const logContainer = document.getElementById("terminal-logs");
-    logSection.classList.remove("hidden");
-    logContainer.innerHTML = "Starting GitHub sync...<br>";
+  function openFolder(f){ window.location.href = "/browse?path=" + encodeURIComponent(f); }
+  function showModal(){ document.getElementById("modal").classList.remove("hidden") }
+  function closeModal(){ document.getElementById("modal").classList.add("hidden") }
 
-    // Send to Python
-    const url = `/run_gitup?tution=${tution}&class=${cls}&subject=${sub}`;
-    
-    fetch(url).then(response => {
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
+  function createFolder(){
+    const clsVal = document.getElementById("clsInput").value.trim();
+    const subVal = document.getElementById("subInput").value.trim();
+    if(!clsVal || !subVal){ alert("Class and Subject required"); return; }
+    fetch("/create_folder",{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({class:clsVal, subject:subVal})
+    }).then(() => location.reload());
+  }
 
-        function read() {
-            return reader.read().then(({ done, value }) => {
-                if (done) return;
-                logContainer.innerHTML += decoder.decode(value).replace(/\n/g, "<br>");
-                logContainer.scrollTop = logContainer.scrollHeight;
-                return read();
-            });
-        }
-        return read();
-    });
-}
+  function openAnswerKey() { window.location.href = "/answer_key?folder=input"; }
 
-  
-            
-
-const foldersDiv = document.getElementById("folders");
-
-function openFolder(f){ 
-    window.location.href = "/browse?path=" + encodeURIComponent(f); 
-}
-
-function showModal(){ document.getElementById("modal").classList.remove("hidden") }
-function closeModal(){ document.getElementById("modal").classList.add("hidden") }
-
-function createFolder(){
-  const clsVal = document.getElementById("clsInput").value.trim();
-  const subVal = document.getElementById("subInput").value.trim();
-  if(!clsVal || !subVal){ alert("Class and Subject required"); return; }
-  
-  fetch("/create_folder",{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({class:clsVal, subject:subVal})
-  })
-  .then(r => r.json())
-  .then(d => {
-    location.reload(); // Simplest way to refresh the folder list properly
-  });
-}
-
-function openAnswerKey() {
-    // This assumes you want to edit the answer key for the "input" folder by default
-    // or you can change "input" to whatever folder you are working in.
-    window.location.href = "/answer_key?folder=input";
-}
-
-function deleteFolder(f){
-  if(!confirm("Delete folder "+f+"?")) return
-  fetch("/delete",{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({path:f})
-  }).then(()=>location.reload())
-}
-
-
+  // Initial load
+  window.onload = fetchPixelValue;
 </script>
 </body>
 </html>
