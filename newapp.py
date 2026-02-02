@@ -353,7 +353,7 @@ def trigger_recheck():
 
         # .run() waits for the script to finish
         # You can add your arguments inside the list here
-        result = subprocess.run(["python", script_path, "y"], capture_output=True, text=True)
+        result = subprocess.run(["python", "-u", script_path, "y"], check=True)
         
         if result.returncode == 0:
             return jsonify({"message": "Success"}), 200
