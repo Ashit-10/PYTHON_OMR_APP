@@ -41,14 +41,15 @@
   <div class="modal-content">
     <h3>Select Signature</h3>
     <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">
-      <button onclick="updateSignature('ashit_sign.png')" style="background: #444;">Ashit</button>
-      <button onclick="updateSignature('rupa_sign.png')" style="background: #444;">Rupa</button>
-      <button onclick="updateSignature('lakhia_sign.png')" style="background: #444;">Lakhia Bhai</button>
-      <button onclick="updateSignature('ananta_sign.png')" style="background: #444;">Ananta</button>
-      <button onclick="closeSignModal()" style="background: #cc0000; margin-top: 10px;">Cancel</button>
+      <button style="font-size: 18px; border-radius: 6px; padding: 5px 30px;" onclick="updateSignature('ashit_sign.png')" style="background: #444;">Ashit</button>
+      <button style="font-size: 18px; border-radius: 6px; padding: 5px 30px;" onclick="updateSignature('rupa_sign.png')" style="background: #444;">Rupa</button>
+      <button style="font-size: 18px; border-radius: 6px; padding: 5px 30px;" onclick="updateSignature('lakhia_sign.png')" style="background: #444;">Lakhia Bhai</button>
+      <button style="font-size: 18px; border-radius: 6px; padding: 5px 30px;" onclick="updateSignature('ananta_sign.png')" style="background: #444;">Ananta</button>
+      <button onclick="closeSignModal()" style="font-size: 18px; border-radius: 6px; padding: 5px 30px; background: #24292e; color: white; margin-top: 10px;">Cancel</button>
     </div>
   </div>
 </div>
+
 
 <section class="card" style="margin: 12px;">
   <h3>Project Folders</h3>
@@ -68,11 +69,11 @@
   {% endfor %}
 </div>
 </section>
+<section class="actions">
+<button onclick="location.href='/scan'">📷 Scan OMR Sheet</button>
 
-<button onclick="location.href='/scan'" style="padding: 25px 10px;">📷 Scan OMR Sheet</button>
-
-<button onclick="showGitModal()" style="background-color: #24292e; color: white; padding: 25px 10px;">🐙 Upload to GitHub</button>
-
+<button onclick="showGitModal()" style="background-color: #24292e; color: white;">🐙 Upload to GitHub</button>
+<section/>
 <div id="gitModal" class="modal hidden">
   <div class="modal-content">
     <h3>GitHub Upload Details</h3>
