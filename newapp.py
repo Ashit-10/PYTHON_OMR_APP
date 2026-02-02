@@ -128,6 +128,16 @@ import json
 import os
 
 
+import configparser
+
+@app.route('/get_config')
+def get_config():
+    config = configparser.ConfigParser()
+    config.read('config.cfg')
+    # Adjust 'SETTINGS' to whatever your config section name is
+    return {"white_pixel": config.get('SETTINGS', 'white_pixel', fallback='150')}
+
+# Update your existing /update_config to handle the 'white_pixel' key
 
 @app.route("/edit_rolls")
 def edit_rolls():
