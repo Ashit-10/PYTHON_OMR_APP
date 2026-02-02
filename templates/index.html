@@ -51,7 +51,7 @@
             {{ folder_counts[target] }} Images
           </span>
           
-          <button class="mini danger delete-folder" onclick="event.stopPropagation(); deleteFolder('{{ target }}')">🗑</button>
+        
         </div>
       </div>
     {% endif %}
@@ -225,23 +225,7 @@ function deleteFolder(f){
   }).then(()=>location.reload())
 }
 
-// Long press for mobile to show delete button
-function attachLongPress(el, folderName){
-    let longPressTimer;
-    el.addEventListener("touchstart", function(e){
-        longPressTimer = setTimeout(()=>{
-            const btn = el.querySelector(".delete-folder");
-            if(btn) btn.style.display="inline-block";
-        }, 600);
-    });
-    el.addEventListener("touchend", () => clearTimeout(longPressTimer));
-    el.addEventListener("touchmove", () => clearTimeout(longPressTimer));
-}
 
-document.querySelectorAll(".folder-card").forEach(div => {
-    const name = div.innerText.replace("📁 ","").trim();
-    attachLongPress(div, name);
-});
 </script>
 </body>
 </html>
