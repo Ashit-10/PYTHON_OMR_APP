@@ -9,6 +9,24 @@
   body { background: #fff; color: #111; margin: 0; padding: 0; font-family: sans-serif; }
   header { background: #111; color: #fff; padding: 15px; position: sticky; top: 0; z-index: 100; text-align: center; cursor: pointer; }
 
+  /* RECHECK BUTTON STYLE */
+  .recheck-btn {
+    position: fixed;
+    top: 12px;
+    right: 10px;
+    z-index: 1001;
+    padding: 8px 12px;
+    background: #22c55e;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 13px;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  .recheck-btn:active { background: #16a34a; }
+
   .search-bar { padding: 10px; display: flex; gap: 8px; background: #fff; border-bottom: 1px solid #ddd; }
   .search-bar input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }
   .search-bar button { padding: 10px 15px; background: #2563eb; color: white; border: none; border-radius: 5px; }
@@ -24,7 +42,6 @@
     margin-bottom: 5px;
   }
 
-  /* GLOBAL IMAGE WRAPPER (DEFAULT) */
   .img-wrapper {
     width: 100%;
     background: #fff;
@@ -34,7 +51,6 @@
     justify-content: center;
   }
 
-  /* DEFAULT IMAGE BEHAVIOR (For Output/Class folders) */
   .img-wrapper img {
     width: 100% !important;
     height: auto !important;
@@ -43,29 +59,24 @@
     object-fit: contain;
   }
 
-  /* INPUT FOLDER SPECIFIC ROTATION - RESTORED & PROTECTED */
   .rotate-box {
     width: 100%;
-    height: 35vh; /* Adjust height of the viewing window */
+    height: 35vh;
     position: relative;
-    background: #000; /* Dark background helps see the sheet */
+    background: #000;
     overflow: hidden;
   }
 
   .rotate-box img {
-    /* These override the global settings above only when inside .rotate-box */
     width: auto !important;
-    height: 95vw !important; /* Forces image to match screen width after rotation */
+    height: 95vw !important;
     max-width: none !important;
-    
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%) rotate(-90deg);
-    
     object-fit: contain !important;
   }
-
 
   .file-actions {
     padding: 8px 12px;
@@ -78,7 +89,6 @@
   .fname { font-size: 12px; font-weight: bold; color: #333; }
   #noMatch { display: none; padding: 20px; text-align: center; color: red; font-weight: bold; }
 
-  /* Delete All Section */
   .batch-actions {
     padding: 20px;
     text-align: center;
@@ -99,6 +109,8 @@
 </style>
 </head>
 <body>
+
+<button class="recheck-btn" id="runRecheckBtn" onclick="runRecheck()">🔄 Recheck</button>
 
 <header onclick="location.href='/'">
   ⬅ {{ path }} 
@@ -150,6 +162,24 @@
 </div>
 
 <script>
+// --- NEW RECHECK FUNCTION ---
+function runRecheck() {
+    const btn = document.getElementById('runRecheckBtn');
+    if(!confirm("Run recheck.py?")) return;
+    
+    btn.innerText = "⏳ Running...";
+    btn.disabled = true;
+
+    fetch("/run-recheck", { method: "POST" })
+        .then(res => res.json())
+        .then(data => alert(data.message || "Recheck triggered!"))
+        .catch(err => alert("Error starting recheck."))
+        .finally(() => {
+            btn.innerText = "🔄 Recheck";
+            btn.disabled = false;
+        });
+}
+
 function searchRoll(){
   let val = document.getElementById("rollSearch").value.toLowerCase();
   let cards = document.querySelectorAll(".image-card");
@@ -182,25 +212,18 @@ function deleteFile(p){
 }
 
 async function deleteAllFiles() {
-    // Confirmation Dialog
     const confirmed = confirm("⚠️ WARNING: This will delete EVERY file in this folder. This cannot be undone. Proceed?");
-    
     if (confirmed) {
         const cards = document.querySelectorAll(".image-card");
         const folderPath = "{{ path }}";
-        
-        // Disable button to prevent double clicks
         const btn = document.querySelector(".btn-delete-all");
         btn.innerText = "Deleting... Please wait";
         btn.disabled = true;
 
         let deletePromises = [];
-
         cards.forEach(card => {
             const fileName = card.getAttribute("data-name");
             const fullPath = folderPath + "/" + fileName;
-            
-            // Push each delete fetch into an array
             const p = fetch("/delete", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -215,7 +238,6 @@ async function deleteAllFiles() {
         }
 
         try {
-            // Wait for all deletions to finish
             await Promise.all(deletePromises);
             alert("Folder cleared successfully.");
             location.reload();
@@ -239,6 +261,7 @@ function renameFile(oldPath) {
     let newName = "";
 
     if (isOutput) {
+        // Splits "23_99_1" into ["23", "99", "1"]
         let nameParts = baseName.split('_');
         let oldRoll = nameParts[0] || "";
         let oldMarks = nameParts[1] || "";
@@ -252,7 +275,7 @@ function renameFile(oldPath) {
         let newMarks = prompt("Enter Marks:", oldMarks);
         if (newMarks === null) return;
 
-        // This removes the _1 by only using Roll and Marks
+        // Force roll_mark.jpg format (strips the _1)
         newName = strippedRoll + "_" + newMarks;
     } else {
         let n = prompt("New name", baseName);
@@ -263,7 +286,6 @@ function renameFile(oldPath) {
     let folder = oldPath.substring(0, oldPath.lastIndexOf('/'));
     let newPath = folder + "/" + newName + ext;
 
-    // PREVENT SELF-RENAME: If name hasn't changed, just exit
     if (newPath === oldPath) return;
 
     fetch("/rename", {
@@ -272,17 +294,14 @@ function renameFile(oldPath) {
         body: JSON.stringify({ old: oldPath, new: newPath })
     }).then(async res => {
         if (res.status === 409) {
-            alert("Error: A file with the name '" + newName + ext + "' already exists in this folder.");
+            alert("Error: File '" + newName + ext + "' already exists. Edit cancelled.");
         } else if (!res.ok) {
-            alert("Rename failed. The server encountered an error.");
+            alert("Rename failed.");
         } else {
-            location.reload(); // Only reload if successful
+            location.reload();
         }
     });
 }
-
-
-
 </script>
 </body>
 </html>
