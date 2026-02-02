@@ -352,7 +352,7 @@ def trigger_recheck():
 
         # Use subprocess.Popen to run the script in the background
         # Use "python" or "python3" depending on your system
-        subprocess.Popen(["python", script_path])
+        subprocess.Popen(["python", script_path, "y"])
         
         return jsonify({"message": "recheck has started in the background!"}), 200
     except Exception as e:
