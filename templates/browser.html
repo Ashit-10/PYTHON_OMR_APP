@@ -15,7 +15,7 @@
     top: 12px;
     right: 10px;
     z-index: 1001;
-    padding: 4px 4px;
+    padding: 4px 10px;
     background: #22c55e;
     color: white;
     border: none;
@@ -116,7 +116,7 @@
 
 <header onclick="location.href='/'">
   ⬅ {{ path }} 
-  <span style="font-size: 0.8em; opacity: 0.8; margin-left: 10px;">
+  <span style="font-size: 0.8em; opacity: 0.8; margin-left: 6px;">
     ({% set count = [] %}{% for item in items %}{% set ext = item.name.split('.')[-1].lower() %}{% if not item.is_dir and ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}{% set _ = count.append(1) %}{% endif %}{% endfor %}{{ count|length }} Images)
   </span>
 </header>
@@ -167,7 +167,7 @@
 // --- NEW RECHECK FUNCTION ---
 function runRecheck() {
     const btn = document.getElementById('runRecheckBtn');
-    if(!confirm("Run recheck.py?")) return;
+    if(!confirm("Run recheck ?")) return;
     
     // Immediate feedback
     alert("Process has been started, check output folder.");
@@ -180,6 +180,7 @@ function runRecheck() {
         .then(data => {
             // This alert only triggers once the Python script is actually done
             alert("✅ Task Finished!");
+            location.reload();
         })
         .catch(err => alert("Error during recheck."))
         .finally(() => {
