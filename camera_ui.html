@@ -96,14 +96,14 @@
     .controls {
       margin-top: 10px;
       display: flex;
-      gap: 20px;
+      gap: 10px;
       flex-wrap: wrap;
       justify-content: center;
     }
 
     button {
       font-size: 16px;
-      padding: 5px 5px;
+      padding: 5px 10px;
       border: none;
       border-radius: 5px;
       background: white;
@@ -171,6 +171,8 @@
     
     <button id="flashBtn">Flash</button>
     <button id="captureBtn">Click</button>
+    <button id="fileBtn">📁 Gallery</button>
+    <input type="file" id="fileInput" accept="image/*" style="display: none;">
     <button id="refreshBtn">Refresh</button>
 </div>
 
@@ -181,6 +183,8 @@
     const video = document.getElementById('video');
     const flashBtn = document.getElementById('flashBtn');
     const captureBtn = document.getElementById('captureBtn');
+    const fileBtn = document.getElementById('fileBtn');
+    const fileInput = document.getElementById('fileInput');
     const refreshBtn = document.getElementById('refreshBtn');
     const instantToggle = document.getElementById('instantToggle');
     const toast = document.getElementById('toast');
@@ -275,26 +279,14 @@ Just click Capture – it will process in background and show result here.
       return parts[parts.length - 1].split(".")[0];
     }
 
-        captureBtn.onclick = async () => {
-    const isInstant = instantToggle.checked;
-    const rollNum = document.getElementById('rollInput').value;
-    
-    // Create canvas and capture
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0);
+    // Logic for processing (Shared between Capture and File Upload)
+    async function processImage(blob, previewUrl) {
+        const isInstant = instantToggle.checked;
+        const rollNum = document.getElementById('rollInput').value;
 
-    // High quality for analysis, but lower quality for UI preview
-    const previewDataUrl = canvas.toDataURL('image/jpeg', 0.5);
-
-    if (isInstant && stream) {
-        stream.getTracks().forEach(t => t.stop());
-    }
-
-    canvas.toBlob(async (blob) => {
-        if (!blob) return alert("Capture failed");
+        if (isInstant && stream) {
+            stream.getTracks().forEach(t => t.stop());
+        }
 
         const formData = new FormData();
         formData.append('image', blob, 'capture.jpg');
@@ -304,9 +296,8 @@ Just click Capture – it will process in background and show result here.
         if (isInstant) {
             loadingScreen = document.createElement('div');
             loadingScreen.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:black;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;padding:20px;box-sizing:border-box;";
-            // FIX: Removed rotation and scale. Added object-fit contain to prevent cropping.
             loadingScreen.innerHTML = `
-                 <img id="procImg" src="${previewDataUrl}" style="max-width:90%; max-height:60%; object-fit:contain; transform: rotate(-90deg); margin-bottom:40px; border:1px solid #444;">
+                 <img id="procImg" src="${previewUrl}" style="max-width:90%; max-height:60%; object-fit:contain; transform: rotate(-90deg); margin-bottom:40px; border:1px solid #444;">
                 <h3 id="procStatus" style="margin:10px 0;">Processing...</h3>
                 <p id="statusMsg" style="margin:5px 0;">Uploading to Server...</p>`;
             document.body.appendChild(loadingScreen);
@@ -336,34 +327,26 @@ Just click Capture – it will process in background and show result here.
                         clearInterval(checkStatus);
                         if (data.filename) {
                             if (isInstant) {
-                              const imgEl = document.getElementById('procImg');
+                                const imgEl = document.getElementById('procImg');
+                                imgEl.style.transform = "rotate(0deg)"; 
+                                imgEl.style.width = "100vw";
+                                imgEl.style.height = "auto";
+                                imgEl.style.maxWidth = "100vw";
+                                imgEl.style.objectFit = "cover";
+                                imgEl.style.display = "block";
+                                imgEl.style.margin = "0";
+                                imgEl.src = `/temp_output/${data.filename}?t=${Date.now()}`;
 
-// --- THE FIX IS HERE ---
-imgEl.style.transform = "rotate(0deg)"; 
-imgEl.style.width = "100vw";         // Forces image to span full screen width
-imgEl.style.height = "auto";         // Maintains aspect ratio automatically
-imgEl.style.maxWidth = "100vw";      // Prevents any overflow
-imgEl.style.objectFit = "cover";     // Ensures the image fills the area
-imgEl.style.display = "block";       // Removes inline spacing
-imgEl.style.margin = "0";            // Removes default margins
-// --- THE FIX IS HERE ---
+                                document.getElementById('procStatus').textContent = "Analysis Complete";
+                                document.getElementById('statusMsg').innerHTML = `<b style="font-size:24px; color:limegreen;">Correct: ${extractCorrect(data.filename)}</b>`;
 
-imgEl.src = `/temp_output/${data.filename}?t=${Date.now()}`;
-
-document.getElementById('procStatus').textContent = "Analysis Complete";
-document.getElementById('statusMsg').innerHTML = `<b style="font-size:24px; color:limegreen;">Correct: ${extractCorrect(data.filename)}</b>`;
-
-const btn = document.createElement('button');
-btn.textContent = "Scan Next";
-btn.style = "margin-top:20px; padding:15px 40px; font-size:18px; background:white; color:black; border-radius:8px; border:none; font-weight:bold;";
-btn.onclick = () => location.reload();
-loadingScreen.appendChild(btn);
-
-// Optional: Ensure the container doesn't have hidden padding
-imgEl.parentElement.style.padding = "0";
-imgEl.parentElement.style.margin = "0";
-
- 
+                                const btn = document.createElement('button');
+                                btn.textContent = "Scan Next";
+                                btn.style = "margin-top:20px; padding:15px 40px; font-size:18px; background:white; color:black; border-radius:8px; border:none; font-weight:bold;";
+                                btn.onclick = () => location.reload();
+                                loadingScreen.appendChild(btn);
+                                imgEl.parentElement.style.padding = "0";
+                                imgEl.parentElement.style.margin = "0";
                             } else {
                                 showToast(`✅ Correct: ${extractCorrect(data.filename)}`, true);
                             }
@@ -383,8 +366,32 @@ imgEl.parentElement.style.margin = "0";
             if (isInstant) handleProcError(loadingScreen, null, err.message);
             else showToast("Upload Failed.");
         }
-    }, 'image/jpeg', 0.5); // Slightly higher quality for the server
-};
+    }
+
+    captureBtn.onclick = async () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
+        const previewDataUrl = canvas.toDataURL('image/jpeg', 0.5);
+        canvas.toBlob((blob) => {
+            if (blob) processImage(blob, previewDataUrl);
+            else alert("Capture failed");
+        }, 'image/jpeg', 0.5);
+    };
+
+    // File Upload Handlers
+    fileBtn.onclick = () => fileInput.click();
+    fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            processImage(file, event.target.result);
+        };
+        reader.readAsDataURL(file);
+    };
 
 function handleProcError(overlay, interval, msg) {
     if (interval) clearInterval(interval);
@@ -415,11 +422,7 @@ function handleProcError(overlay, interval, msg) {
         });
       }
       video.srcObject = null;
-    //  if (document.referrer !== "") {
-    // //   window.location.href = document.referrer;
-   //   } else {
-        window.location.href = '/'; 
-   //   }
+      window.location.href = '/'; 
     };
 
     document.addEventListener('visibilitychange', () => {
