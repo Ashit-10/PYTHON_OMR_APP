@@ -141,14 +141,14 @@
     </div>
 <div class="file-actions">
   <span class="fname">
-    {% endif %}
-    {{ item.name }}
+    
     {# Logic to detect double underscores in output folders #}
     {% if (path == "output" or "class" in path) and item.name.split('_')|length > 2 %}
       <span style="color: #ef4444; margin-right: 8px; font-weight: bold;">
         ⚠️ Rename is recommended
       </span>
-    
+    {% endif %}
+    {{ item.name }}
   </span>
   <div>
     <button class="mini" onclick="renameFile('{{ path }}/{{ item.name }}')">✏️</button>
