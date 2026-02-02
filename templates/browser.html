@@ -139,19 +139,23 @@
     <div class="img-wrapper {% if path == 'input' or path == 'duplicates' or path == 'error_images' %}rotate-box{% endif %}">
       <img src="/file?path={{ path }}/{{ item.name }}" onclick="openPreview(this.src)" loading="lazy">
     </div>
-   <div class="file-actions">
+<div class="file-actions">
   <span class="fname">
-    {# Logic to detect double underscores in output folders #}
-    {% if (path == "output" or "class" in path) and item.name.split('_')|length > 2 %}
-      <span title="Rename is recommended" style="color: #eab308; margin-right: 5px; cursor: help;">⚠️ <small style="font-size: 10px;">Rename recommended</small></span>
     {% endif %}
     {{ item.name }}
+    {# Logic to detect double underscores in output folders #}
+    {% if (path == "output" or "class" in path) and item.name.split('_')|length > 2 %}
+      <span style="color: #ef4444; margin-right: 8px; font-weight: bold;">
+        ⚠️ Rename is recommended
+      </span>
+    
   </span>
   <div>
     <button class="mini" onclick="renameFile('{{ path }}/{{ item.name }}')">✏️</button>
     <button class="mini danger" onclick="deleteFile('{{ path }}/{{ item.name }}')">🗑️</button>
   </div>
 </div>
+
 
   </div>
   {% endif %}
