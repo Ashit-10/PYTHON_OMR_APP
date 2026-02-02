@@ -341,6 +341,24 @@ def create_folder():
         counter += 1
     return jsonify(folders=get_project_folders())
 
+
+
+@app.route('/run-recheck', methods=['POST'])
+def trigger_recheck():
+    try:
+        # Get the absolute path to the folder where your server is running
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        script_path = os.path.join(script_dir, "app.py")
+
+        # Use subprocess.Popen to run the script in the background
+        # Use "python" or "python3" depending on your system
+        subprocess.Popen(["python", script_path])
+        
+        return jsonify({"message": "recheck has started in the background!"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/browse")
 def browse():
     path = request.args.get("path")
