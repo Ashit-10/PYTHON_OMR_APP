@@ -112,41 +112,46 @@
     }
 
     /* ✨ Modified toast style */
-/* Container is now invisible so the image has no background */
+/* Container moved to the far right edge */
 #toast {
   position: fixed;
-  top: 20vh;
-  right: 20px;
-  background: transparent; /* No background here */
+  top: 15vh;
+  right: 0; /* Changed from 20px to 0 to touch the edge */
+  background: transparent;
   z-index: 9999;
   display: none;
-  flex-direction: column;
+  flex-direction: row-reverse; /* Puts image on right, text on left */
   align-items: center;
-  max-width: 80vw;
+  max-width: 100vw;
+  pointer-events: none; /* Allows clicking through the transparent area */
 }
 
 #toast img {
   display: block;
-  max-height: 200px; 
+  max-height: 250px; 
   width: auto;
-  border-radius: 8px;
+  border-radius: 8px 0 0 8px; /* Rounded only on the left side */
   transform: rotate(90deg);
-  /* Margin creates the 'physical' space for the rotated image */
-  margin: 60px 0; 
+  /* Adjust margins to pull the rotated image toward the right edge */
+  margin: 70px -40px 70px 0; 
   background: transparent;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.5); /* Optional: adds depth to the image only */
+  box-shadow: -4px 4px 15px rgba(0,0,0,0.5);
 }
 
-/* The black background is now only on the text label */
+/* The black background label now sits to the left of the image */
 .toast-text {
   background: rgba(34, 34, 34, 0.95);
   color: #fff;
-  padding: 10px 20px;
+  padding: 12px 20px;
   border-radius: 20px;
   border: 1px solid #444;
   font-weight: bold;
   white-space: nowrap;
+  margin-right: -20px; /* Slight overlap with the image area for a clean look */
+  z-index: 10;
+  pointer-events: auto; /* Re-enable clicks for the text if needed */
 }
+
 
 
     #exitBtn {
@@ -247,13 +252,12 @@ Just click Capture – it will process in background and show result here.
     toast.appendChild(img);
   }
 
-  // Create a separate div for the text to hold the background
   const textContainer = document.createElement('div');
   textContainer.className = 'toast-text';
   textContainer.innerHTML = msg;
   toast.appendChild(textContainer);
 
-  // Set to flex to ensure column alignment
+  // Set to flex to enable the row-reverse layout
   toast.style.display = 'flex';
 
   if (!permanent) {
@@ -262,6 +266,7 @@ Just click Capture – it will process in background and show result here.
     }, 10000);
   }
 }
+
 
 
 
