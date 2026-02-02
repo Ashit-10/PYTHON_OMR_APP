@@ -343,18 +343,23 @@ def create_folder():
 
 
 
+
+
 @app.route('/run-recheck', methods=['POST'])
 def trigger_recheck():
     try:
-        # Get the absolute path to the folder where your server is running
         script_dir = os.path.dirname(os.path.abspath(__file__))
         script_path = os.path.join(script_dir, "app.py")
 
-        # Use subprocess.Popen to run the script in the background
-        # Use "python" or "python3" depending on your system
-        subprocess.Popen(["python", script_path, "y"])
+        # .run() waits for the script to finish
+        # You can add your arguments inside the list here
+        result = subprocess.run(["python", script_path, "y"], capture_output=True, text=True)
         
-        return jsonify({"message": "recheck has started in the background!"}), 200
+        if result.returncode == 0:
+            return jsonify({"message": "Success"}), 200
+        else:
+            return jsonify({"error": result.stderr}), 500
+            
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
