@@ -116,29 +116,32 @@
 #toast {
   position: fixed;
   top: 15vh;
-  right: 0; /* Changed from 20px to 0 to touch the edge */
+  right: 0;
   background: transparent;
   z-index: 9999;
-  display: none;
-  flex-direction: row-reverse; /* Puts image on right, text on left */
+  display: flex; /* Changed from none for preview */
+  flex-direction: row-reverse;
   align-items: center;
-  max-width: 100vw;
-  pointer-events: none; /* Allows clicking through the transparent area */
+  pointer-events: none;
 }
 
 #toast img {
   display: block;
   max-height: 250px; 
   width: auto;
-  border-radius: 8px 0 0 8px; /* Rounded only on the left side */
-  transform: rotate(90deg);
-  /* Adjust margins to pull the rotated image toward the right edge */
-  margin: 70px -40px 70px 0; 
+  border-radius: 8px 0 0 8px;
+  
+  /* The Magic Sauce */
+  transform: rotate(90deg) translateY(-100%);
+  transform-origin: top right;
+  
+  /* Reset margins to 0 - no more magic numbers! */
+  margin: 0; 
+  
   background: transparent;
   box-shadow: -4px 4px 15px rgba(0,0,0,0.5);
 }
 
-/* The black background label now sits to the left of the image */
 .toast-text {
   background: rgba(34, 34, 34, 0.95);
   color: #fff;
@@ -147,10 +150,13 @@
   border: 1px solid #444;
   font-weight: bold;
   white-space: nowrap;
-  margin-right: -20px; /* Slight overlap with the image area for a clean look */
+  
+  /* Use a positive margin to push it away from the image pivot point */
+  margin-right: 10px; 
   z-index: 10;
-  pointer-events: auto; /* Re-enable clicks for the text if needed */
+  pointer-events: auto;
 }
+
 
 
 
