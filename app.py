@@ -5,6 +5,16 @@ import json
 import time
 import glob
 import shutil
+import sys
+
+# Assigning the arguments to variables
+try:
+    auto_y_n = sys.argv[1]  # "argument1"
+  #  arg2 = sys.argv[2]  # "argument2"
+    print(f"Running recheck with: {auto_y_n}")
+except:
+    auto_y_n = None
+
 
 def evaluate(image_file, out_put_path, answer_key_file, caption, has_darkness, allow_partial_mark):
     with open(answer_key_file, 'r') as readd:
@@ -49,8 +59,11 @@ def get_safe_name(dst_folder, filename):
 
 if omr_images:
     print(f"{len(omr_images)} OMR image(s) found in Download folder.")
-    print("Move them to input folder? [y/n]")
-    choice = input().strip().lower()
+    if auto_y_n:
+        choice = auto_y_n
+    else:
+        print("Move them to input folder? [y/n]")
+        choice = input().strip().lower()
 
     if choice == "y":
         moved_imgs = []
@@ -77,8 +90,11 @@ else:
 
 if_in_output = os.listdir("output/")
 if len(if_in_output) > 0:
-    print(f"{len(if_in_output)} photos found in output folder. Delete all ? [y/n]")
-    y_or_n = input()
+    if auto_y_n:
+        y_or_n = auto_y_n
+    else:
+        print(f"{len(if_in_output)} photos found in output folder. Delete all ? [y/n]")
+        y_or_n = input()
     if y_or_n.lower() == "y":
         os.system("rm -f output/*")
         os.system("rm -f duplicates/*")
