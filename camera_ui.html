@@ -135,34 +135,34 @@
       top: 20px;
       left: 10px;
       z-index: 9999;
-    }
-    #toast {
+    }#toast {
   position: fixed;
-  top: 60px; /* Moved lower to stay out of the way */
+  top: 60px;
   right: 20px;
   background: rgba(34, 34, 34, 0.95);
   color: #fff;
-  padding: 10px;
+  padding: 20px; /* Increased padding to cushion the rotation */
   border-radius: 12px;
   z-index: 9999;
   display: none;
   border: 1px solid #444;
   box-shadow: 0 8px 16px rgba(0,0,0,0.5);
   text-align: center;
+  max-width: 90vw;
 }
 
 #toast img {
   display: block;
-  max-width: 250px; /* Adjust width as needed for your "peek" size */
-  height: auto;
+  /* We limit the height because once rotated 90deg, 
+     the original height becomes the new width */
+  max-height: 200px; 
+  width: auto;
   border-radius: 8px;
-  margin: 10px auto;
-  /* Rotate 90deg Clockwise */
   transform: rotate(90deg);
-  /* This ensures the layout accounts for the rotated dimensions */
-  transform-origin: center;
+  /* The margin below creates the actual physical space 
+     the rotated image needs so it stays inside the black box */
+  margin: 60px auto; 
 }
-
 
 #toast b {
   color: limegreen;
