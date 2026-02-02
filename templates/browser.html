@@ -62,11 +62,36 @@
 
 /* Remove position: absolute and top/left values */
 .select-checkbox {
-  z-index: 10;
-  transform: scale(1.2); /* Reduced scale slightly to fit the bar better */
+  appearance: none; /* Removes default browser look */
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  background-color: #fff;
   cursor: pointer;
-  margin: 0;
+  display: inline-grid;
+  place-content: center;
+  margin-right: 8px;
+  transition: all 0.2s ease;
 }
+
+.select-checkbox:checked {
+  background-color: #2563eb;
+  border-color: #2563eb;
+}
+
+.select-checkbox:checked::before {
+  content: "✔";
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.select-checkbox:focus {
+  outline: 2px solid rgba(37, 99, 235, 0.3);
+}
+
 
 
 
@@ -117,7 +142,7 @@
 
 /* Ensure the fname span aligns items properly */
 .fname { 
-  font-size: 12px; 
+  font-size: 15px; 
   font-weight: bold; 
   color: #333; 
   display: flex; 
