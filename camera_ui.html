@@ -112,22 +112,42 @@
     }
 
     /* ✨ Modified toast style */
-    #toast {
-      position: fixed;
-      top: 20vh;
-      right: 30px;
-      background: #222;
-      color: #fff;
-      padding: 14px 22px;
-      border-radius: 8px;
-      font-weight: bold;
-      z-index: 9999;
-      font-size: 16px;      
-      display: none;
-      max-width: 80vw;
-      word-break: break-word;
-      transition: opacity 0.3s ease;
-    }
+  /* Container is now invisible so the image has no background */
+#toast {
+  position: fixed;
+  top: 15vh;
+  right: 20px;
+  background: transparent; /* No background here */
+  z-index: 9999;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  max-width: 80vw;
+}
+
+#toast img {
+  display: block;
+  max-height: 200px; 
+  width: auto;
+  border-radius: 8px;
+  transform: rotate(90deg);
+  /* Margin creates the 'physical' space for the rotated image */
+  margin: 60px 0; 
+  background: transparent;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.5); /* Optional: adds depth to the image only */
+}
+
+/* The black background is now only on the text label */
+.toast-text {
+  background: rgba(34, 34, 34, 0.95);
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 20px;
+  border: 1px solid #444;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
 
     #exitBtn {
       position: absolute;
@@ -137,18 +157,7 @@
     }
     
   
-#toast img {
-  display: block;
-  /* We limit the height because once rotated 90deg, 
-     the original height becomes the new width */
-  
-  width: auto;
-  border-radius: 8px;
-  transform: rotate(90deg);
-  /* The margin below creates the actual physical space 
-     the rotated image needs so it stays inside the black box */
-  
-}
+
 
 #toast b {
   color: limegreen;
@@ -235,13 +244,25 @@ Just click Capture – it will process in background and show result here.
   if (imageUrl) {
     const img = document.createElement('img');
     img.src = imageUrl;
-    
-    // Add extra margin to account for rotation overlap
-    // Since 90deg swap width/height, we add vertical margin
-    img.style.margin = "40px auto"; 
-    
     toast.appendChild(img);
   }
+
+  // Create a separate div for the text to hold the background
+  const textContainer = document.createElement('div');
+  textContainer.className = 'toast-text';
+  textContainer.innerHTML = msg;
+  toast.appendChild(textContainer);
+
+  // Set to flex to ensure column alignment
+  toast.style.display = 'flex';
+
+  if (!permanent) {
+    setTimeout(() => {
+      if (!permanentToast) toast.style.display = 'none';
+    }, 10000);
+  }
+}
+
 
   const text = document.createElement('div');
   text.innerHTML = msg;
