@@ -277,7 +277,7 @@ Just click Capture – it will process in background and show result here.
 
     function extractCorrect(filename) {
       const parts = filename.split("_");
-      return parts[parts.length - 1].split(".")[0];
+      return parts[1];
     }
 
     // Logic for processing (Shared between Capture and File Upload)
