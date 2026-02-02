@@ -60,15 +60,16 @@
     position: relative;
   }
 
-  /* CHECKBOX STYLE */
-  .select-checkbox {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    z-index: 10;
-    transform: scale(1.8);
-    cursor: pointer;
-  }
+/* Remove position: absolute and top/left values */
+.select-checkbox {
+  z-index: 10;
+  transform: scale(1.2); /* Reduced scale slightly to fit the bar better */
+  cursor: pointer;
+  margin: 0;
+}
+
+
+
 
   .img-wrapper {
     width: 100%;
@@ -114,7 +115,14 @@
     background: #f1f1f1;
   }
 
-  .fname { font-size: 12px; font-weight: bold; color: #333; }
+/* Ensure the fname span aligns items properly */
+.fname { 
+  font-size: 12px; 
+  font-weight: bold; 
+  color: #333; 
+  display: flex; 
+  align-items: center; 
+}
   #noMatch { display: none; padding: 20px; text-align: center; color: red; font-weight: bold; }
 
   .batch-actions {
@@ -171,13 +179,13 @@
   {% if not item.is_dir and ext in ['jpg', 'jpeg', 'png', 'webp'] %}
 
   <div class="image-card" data-name="{{ item.name }}">
-    <input type="checkbox" class="select-checkbox" data-path="{{ path }}/{{ item.name }}" onclick="updateBatchUI()">
+  
     <div class="img-wrapper {% if path == 'input' or path == 'duplicates' or path == 'error_images' %}rotate-box{% endif %}">
       <img src="/file?path={{ path }}/{{ item.name }}" onclick="openPreview(this.src)" loading="lazy">
     </div>
 <div class="file-actions">
   <span class="fname">
-    
+      <input type="checkbox" class="select-checkbox" data-path="{{ path }}/{{ item.name }}" onclick="updateBatchUI()">
     {# Logic to detect double underscores in output folders #}
     {% if (path == "output" or "class" in path) and item.name.split('_')|length > 2 %}
       <span style="color: #ef4444; margin-right: 8px; font-weight: bold;">
