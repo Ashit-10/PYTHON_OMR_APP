@@ -113,31 +113,34 @@
 
 #toast {
   position: fixed;
-  top: 15vh;
-  right: 0; /* Changed from 20px to 0 to touch the edge */
-  background: transparent;
+  top: 50vh;
   z-index: 9999;
-  display: none;
-  flex-direction: row-reverse; /* Puts image on right, text on left */
+  display: flex; 
+  /*flex-direction: row; Text on left, image on right */
   align-items: center;
-  max-width: 100vw;
-  pointer-events: none; /* Allows clicking through the transparent area */
+  pointer-events: none;
+  margin-right: 2px;
 }
 
 #toast img {
-  display: block;
-  max-height: 250px; 
+  display: flex;
+  max-height: 200px;
   width: auto;
-  border-radius: 8px 0 0 8px; /* Rounded only on the left side */
-  transform: rotate(90deg);
-  /* Adjust margins to pull the rotated image toward the right edge */
-  margin: 70px -40px 70px 0; 
-  background: transparent;
+  
+  /* Use the top-right corner as the anchor */
+  transform-origin: bottom right;
+  
+  /* Rotate 90deg, then move it down by its own width 
+     to bring it back into the viewport */
+  transform: rotate(90deg) translateY(100%);
+  
+  /* Ensures it sits flush against the edge */
+  margin: 0; 
   box-shadow: -4px 4px 15px rgba(0,0,0,0.5);
 }
 
-/* The black background label now sits to the left of the image */
 .toast-text {
+  /* Keep your existing text styling */
   background: rgba(34, 34, 34, 0.95);
   color: #fff;
   padding: 12px 20px;
@@ -145,12 +148,11 @@
   border: 1px solid #444;
   font-weight: bold;
   white-space: nowrap;
-  margin-right: -20px; /* Slight overlap with the image area for a clean look */
-  z-index: 10;
-  pointer-events: auto; /* Re-enable clicks for the text if needed */
+  pointer-events: auto;
+  /* If you want the text vertical too, keep the rotate */
+  transform: rotate(90deg); 
+  margin-bottom: 10px;
 }
-
-
 
 
 
