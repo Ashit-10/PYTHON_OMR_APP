@@ -136,7 +136,7 @@
   {% if not item.is_dir and ext in ['jpg', 'jpeg', 'png', 'webp'] %}
 
   <div class="image-card" data-name="{{ item.name }}">
-    <div class="img-wrapper {% if path == 'input' %}rotate-box{% endif %}">
+    <div class="img-wrapper {% if path == 'input' or path == 'duplicates' or path == 'error_images' %}rotate-box{% endif %}">
       <img src="/file?path={{ path }}/{{ item.name }}" onclick="openPreview(this.src)" loading="lazy">
     </div>
     <div class="file-actions">
