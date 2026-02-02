@@ -15,7 +15,7 @@
     top: 12px;
     right: 10px;
     z-index: 1001;
-    padding: 8px 12px;
+    padding: 4px 4px;
     background: #22c55e;
     color: white;
     border: none;
@@ -110,7 +110,9 @@
 </head>
 <body>
 
-<button class="recheck-btn" id="runRecheckBtn" onclick="runRecheck()">🔄 Recheck</button>
+{% if path == "input" or path == "output" %}
+<button class="recheck-btn" id="runRecheckBtn" onclick="runRecheck()">Recheck All</button>
+{% endif %}
 
 <header onclick="location.href='/'">
   ⬅ {{ path }} 
@@ -165,20 +167,27 @@
 // --- NEW RECHECK FUNCTION ---
 function runRecheck() {
     const btn = document.getElementById('runRecheckBtn');
-    if(!confirm("Run recheck ?")) return;
+    if(!confirm("Run recheck.py?")) return;
     
-    btn.innerText = "⏳ Running...";
+    // Immediate feedback
+    alert("Process has been started, check output folder.");
+    
+    btn.innerText = "⏳ Processing...";
     btn.disabled = true;
 
     fetch("/run-recheck", { method: "POST" })
         .then(res => res.json())
-        .then(data => alert(data.message || "Recheck triggered!"))
-        .catch(err => alert("Error starting recheck."))
+        .then(data => {
+            // This alert only triggers once the Python script is actually done
+            alert("✅ Task Finished!");
+        })
+        .catch(err => alert("Error during recheck."))
         .finally(() => {
             btn.innerText = "🔄 Recheck";
             btn.disabled = false;
         });
 }
+
 
 function searchRoll(){
   let val = document.getElementById("rollSearch").value.toLowerCase();
