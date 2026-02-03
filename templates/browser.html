@@ -205,13 +205,13 @@
   {% if not item.is_dir and ext in ['jpg', 'jpeg', 'png', 'webp'] %}
 
   <div class="image-card" data-name="{{ item.name }}">
-  
+  <input type="checkbox" class="select-checkbox" data-path="{{ path }}/{{ item.name }}" onclick="updateBatchUI()">
     <div class="img-wrapper {% if path == 'input' or path == 'duplicates' or path == 'error_images' %}rotate-box{% endif %}">
       <img src="/file?path={{ path }}/{{ item.name }}" onclick="openPreview(this.src)" loading="lazy">
     </div>
 <div class="file-actions">
   <span class="fname">
-      <input type="checkbox" class="select-checkbox" data-path="{{ path }}/{{ item.name }}" onclick="updateBatchUI()">
+      
     {# Logic to detect double underscores in output folders #}
     {% if (path == "output" or "class" in path) and item.name.split('_')|length > 2 %}
       <span style="color: #ef4444; margin-right: 8px; font-weight: bold;">
