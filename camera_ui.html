@@ -113,34 +113,31 @@
 
 #toast {
   position: fixed;
-  top: 50vh;
+  top: 50%;
+  left: 0;
+  width: 100vw; /* Stretch full width */
+  transform: translateY(-50%);
   z-index: 9999;
   display: flex; 
-  /*flex-direction: row; Text on left, image on right */
+  flex-direction: row; 
+  justify-content: space-between; /* Text left, Image right */
   align-items: center;
   pointer-events: none;
-  margin-right: 0px;
+  padding: 0;
 }
 
 #toast img {
-  display: flex;
+  display: block;
   max-height: 150px;
   width: auto;
-  
-  /* Use the top-right corner as the anchor */
   transform-origin: bottom right;
-  
-  /* Rotate 90deg, then move it down by its own width 
-     to bring it back into the viewport */
-  transform: rotate(90deg) translateY(52%);
-  
-  /* Ensures it sits flush against the edge */
+  /* Rotate 90deg, then push exactly 100% of width back into view */
+  transform: rotate(90deg) translateY(100%);
   margin: 0; 
   box-shadow: -4px 4px 15px rgba(0,0,0,0.5);
 }
 
 .toast-text {
-  /* Keep your existing text styling */
   background: rgba(34, 34, 34, 0.95);
   color: #fff;
   padding: 12px 20px;
@@ -149,9 +146,8 @@
   font-weight: bold;
   white-space: nowrap;
   pointer-events: auto;
-  /* If you want the text vertical too, keep the rotate */
   transform: rotate(90deg); 
-  margin-bottom: 0px;
+  margin-left: 10px; /* Space from extreme left edge */
 }
 
 
