@@ -62,18 +62,22 @@
 
 /* Remove position: absolute and top/left values */
 .select-checkbox {
-  appearance: none; /* Removes default browser look */
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 10;
+  appearance: none;
   -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
-  border: 2px solid #ddd;
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(0,0,0,0.2); /* Slight border for visibility on light images */
   border-radius: 4px;
-  background-color: #fff;
+  background-color: rgba(255,255,255,0.9); /* Semi-transparent white */
   cursor: pointer;
   display: inline-grid;
   place-content: center;
-  margin-right: 8px;
   transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .select-checkbox:checked {
@@ -84,7 +88,7 @@
 .select-checkbox:checked::before {
   content: "✔";
   color: white;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: bold;
 }
 
