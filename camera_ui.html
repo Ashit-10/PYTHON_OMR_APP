@@ -320,12 +320,12 @@ Just click Capture – it will process in background and show result here.
       advanced: [{ torch: torchOn }]
     });
 
-    flashBtn.textContent = torchOn ? 'Flash Off' : '🔦 Flash';
+    flashBtn.textContent = torchOn ? '🔦 Off' : '🔦 On';
   } catch (err) {
     console.error('Flash toggle failed:', err);
     alert('⚠️ Flash control failed.');
     torchOn = false;
-    flashBtn.textContent = '🔦 Flash';
+    flashBtn.textContent = '🔦 On';
   }
 }
 
