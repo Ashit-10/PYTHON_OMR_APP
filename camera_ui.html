@@ -330,7 +330,7 @@ Just click Capture – it will process in background and show result here.
 }
 
     function extractCorrect(filename) {
-      const parts = (filename.split("_")).split(".");
+      const parts = (filename.split("_"))[0].split(".");
       return parts[0];
     }
 
