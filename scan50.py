@@ -433,7 +433,7 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
             # circle_cods = []
             for (x, y) in circles:
             # for (x, y, r) in circles:
-                r = 11
+                r = 12
                 # circle_cods.append([x,y])
                 x_start, y_start = max(x-r, 0), max(y-r, 0)
                 x_end, y_end = min(x+r, width), min(y+r, height)
