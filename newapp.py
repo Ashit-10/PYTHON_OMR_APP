@@ -355,7 +355,7 @@ def results_page():
 def upload():
     global current_filename, processing
     file = request.files['image']
-    
+    os.system(f"rm -rf {output_folder}/*)
     # Get the roll number from the request (defaults to empty string)
     roll = request.form.get('roll', '').strip()
     timestamp = int(time.time())
