@@ -395,7 +395,7 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
             for roll_column in [roll_first_column, roll_second_column]:
                 for fi in roll_column:
                     [xr, yr] = fi
-                    r = 10
+                    r = 11
                     x_start_r, y_start_r = max(xr-r, 0), max(yr-r, 0)
                     x_end_r, y_end_r = min(xr+r, width), min(yr+r, height)
                     small_square_r = warped_gray[y_start_r:y_end_r, x_start_r:x_end_r]
