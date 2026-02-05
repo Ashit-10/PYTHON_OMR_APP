@@ -214,7 +214,9 @@
   {% set ext = item.name.split('.')[-1].lower() %}
   {% if not item.is_dir and ext in ['jpg', 'jpeg', 'png', 'webp'] %}
 
-  <div class="image-card" data-name="{{ item.name }}" data-date="{{ item.mtime }}">
+  <div class="image-card" 
+     data-name="{{ item.name }}" 
+     data-date="{{ item.mtime if item.mtime else 0 }}">
 
     <div class="img-wrapper {% if path == 'input' or path == 'duplicates' or path == 'error_images' %}rotate-box{% endif %}">
       <img src="/file?path={{ path }}/{{ item.name }}" onclick="openPreview(this.src)" loading="lazy">
@@ -262,19 +264,20 @@
 
     if (sortBy === "default") return;
 
+    // 1. Sort the array logic
     cards.sort((a, b) => {
+        if (sortBy === "date") {
+            const dateA = parseFloat(a.getAttribute("data-date")) || 0;
+            const dateB = parseFloat(b.getAttribute("data-date")) || 0;
+            // Newest first (Descending)
+            return dateB - dateA;
+        } 
+        
         const nameA = a.getAttribute("data-name").toLowerCase();
         const nameB = b.getAttribute("data-name").toLowerCase();
-        
-        // Extract parts for Roll and Marks (assuming roll_mark.jpg format)
         const partsA = nameA.split('_');
         const partsB = nameB.split('_');
 
-        if (sortBy === "date") {
-            // Sort by data-date attribute (descending - newest first)
-            return parseFloat(b.getAttribute("data-date")) - parseFloat(a.getAttribute("data-date"));
-        } 
-        
         if (sortBy === "roll") {
             const rollA = parseInt(partsA[0]) || 0;
             const rollB = parseInt(partsB[0]) || 0;
@@ -282,17 +285,23 @@
         } 
         
         if (sortBy === "marks") {
-            const markA = parseInt(partsA[1]) || 0;
-            const markB = parseInt(partsB[1]) || 0;
-            return markB - markA; // High to Low
+            const markA = parseInt(partsB[1]) || 0; // Use partsB for marks to get High-Low
+            const markB = parseInt(partsA[1]) || 0;
+            return markB - markA;
         }
-        
         return 0;
     });
 
-    // Re-append sorted elements to the container
-    cards.forEach(card => container.appendChild(card));
+    // 2. Refresh the UI: Clear container and re-append
+    // This forces the browser to re-render the list in the new order
+    container.innerHTML = ""; 
+    cards.forEach(card => {
+        container.appendChild(card);
+    });
+
+    console.log("Sorted by: " + sortBy);
 }
+
 
 // --- BATCH SELECTION LOGIC ---
 function toggleSelectAll() {
