@@ -424,12 +424,19 @@ def browse():
     if os.path.exists(full_path):
         for f in os.listdir(full_path):
             fp = os.path.join(full_path, f)
-            items.append({"name": f, "is_dir": os.path.isdir(fp)})
+            # Get modification time (mtime)
+            mtime = os.path.getmtime(fp) if os.path.exists(fp) else 0
+            items.append({
+                "name": f, 
+                "is_dir": os.path.isdir(fp),
+                "mtime": mtime  # Added this line
+            })
     
     def sort_key(x):
         if x["is_dir"]: return (0, x["name"])
         m = re.search(r"(\d+)", x["name"])
         return (1, int(m.group(1)) if m else 999999)
+        
     items.sort(key=sort_key)
     return render_template("browser.html", items=items, path=path)
 
