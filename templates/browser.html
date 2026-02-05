@@ -191,14 +191,14 @@
 
 <div class="search-bar">
   {% if path == "output" or "class" in path %}
-  <input id="rollSearch" placeholder="Search Roll Number..." oninput="searchRoll()">
+  <input id="rollSearch" placeholder="Search Roll No." oninput="searchRoll()">
   {% endif %}
   
   <select id="sortOption" onchange="sortFiles()" style="padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
-    <option value="default">Sort by...</option>
-    <option value="date">Date (Newest)</option>
-    <option value="roll">Roll Number</option>
-    <option value="marks">Marks (High-Low)</option>
+    <option value="default">Sort</option>
+    <option value="date">Date</option>
+    <option value="roll">Roll No</option>
+    <option value="marks">Marks</option>
   </select>
 
   <label style="font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 5px; cursor: pointer;">
