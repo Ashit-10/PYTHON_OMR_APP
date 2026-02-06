@@ -296,9 +296,12 @@
     }
 
     function extractCorrect(filename) {
-      const parts = filename.split("_");
-      return parts[1] || "N/A";
-    }
+  const parts = filename.split("_");
+  let score = parts[1] || "N/A";
+  // If .jpg exists in the score, remove it
+  return score.replace(".jpg", "");
+}
+
 
     async function processImage(blob, previewUrl) {
       const isInstant = instantToggle.checked;
