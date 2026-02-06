@@ -355,12 +355,13 @@ def results_page():
 def upload():
     global current_filename, processing
     file = request.files['image']
-    os.system(f"rm -rf {output_folder}/*")
-    # Get the roll number from the request (defaults to empty string)
+    
+    # We set processing to True immediately to tell the UI to wait
+    processing = True 
+    
     roll = request.form.get('roll', '').strip()
     timestamp = int(time.time())
 
-    # Build filename: Check if roll is provided and not empty
     if roll:
         current_filename = f"OMR_sheet_roll_{roll}_{timestamp}.jpg"
     else:
@@ -369,15 +370,20 @@ def upload():
     path = os.path.join(download_folder, current_filename)
     file.save(path)
     
+    # Trigger the background process immediately in a new thread
+    threading.Thread(target=move_and_process, args=(path,)).start()
+    
     return jsonify({"message": "OK", "filename": current_filename})
 
 @app.route('/status')
 def status():
+    # Return the current state
     return jsonify({
         "processing": processing,
         "filename": latest_output_filename,
         "input_filename": current_filename
     })
+
 
 @app.route("/create_folder", methods=["POST"])
 def create_folder():
