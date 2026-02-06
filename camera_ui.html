@@ -304,6 +304,8 @@
       const isInstant = instantToggle.checked;
       const rollNum = document.getElementById('rollInput').value;
       const uniqueId = Date.now();
+      document.getElementById('rollInput').value = '';
+
 
       if (isInstant && stream) {
         stream.getTracks().forEach(t => t.stop());
