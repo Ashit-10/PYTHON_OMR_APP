@@ -49,53 +49,55 @@ def open_chrome():
 def move_and_process(file_path):
     global processing, current_filename, latest_output_filename, error_occurred, scan_ready
     
+    # Reset states for the new scan
     processing = True
     scan_ready = False
     error_occurred = False
-    
-    # Clear the old filename immediately so the status check 
-    # doesn't accidentally return the previous result.
-    latest_output_filename = ""
+    latest_output_filename = "" # Clear old filename so UI doesn't grab it
 
     # Ensure directories exist
     os.makedirs(input_folder, exist_ok=True)
     os.makedirs(output_folder, exist_ok=True)
     os.makedirs("output", exist_ok=True)
 
-    # Clean previous temp files from BOTH folders
-    # This prevents the browser from finding old results
-    for f in os.listdir(input_folder):
-        try: os.remove(os.path.join(input_folder, f))
-        except: pass
-    for f in os.listdir(output_folder):
-        try: os.remove(os.path.join(output_folder, f))
-        except: pass
+    # 1. CLEANUP: Remove old files so the system doesn't get confused by previous results
+    for folder in [input_folder, output_folder]:
+        for f in os.listdir(folder):
+            try:
+                os.remove(os.path.join(folder, f))
+            except:
+                pass
 
+    # 2. PREPARE INPUT: Move the uploaded file into the temp_input folder
     current_filename = os.path.basename(file_path)
-    shutil.move(file_path, os.path.join(input_folder, current_filename))
+    try:
+        shutil.move(file_path, os.path.join(input_folder, current_filename))
+    except Exception as e:
+        print(f"Move Error: {e}")
+        error_occurred = True
+        processing = False
+        return
 
-    # Trigger OMR Logic
-    # We use a timeout or communicate to ensure it's finished
+    # 3. RUN OMR: Trigger the autoapp.py worker
+    print(f"Starting OMR analysis for: {current_filename}")
     process = subprocess.Popen(["python3", "autoapp.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
 
-    if stdout: print(f"OMR Output: {stdout.decode()}")
-    if stderr:
-        print(f"OMR Error: {stderr.decode()}", file=sys.stderr)
-        error_occurred = True
+    if stdout: print(f"Worker Output: {stdout.decode()}")
+    if stderr: print(f"Worker Error: {stderr.decode()}", file=sys.stderr)
 
-    # Identify output
+    # 4. IDENTIFY OUTPUT: Check if autoapp.py actually produced a result image
     files = [f for f in os.listdir(output_folder) if f.lower().endswith(extensions)]
     
     if files:
-        # Sort by time to get the absolute newest file
+        # Sort by time to get the absolute newest result
         files.sort(key=lambda x: os.path.getmtime(os.path.join(output_folder, x)))
         newest_file = files[-1]
         
         src_path = os.path.join(output_folder, newest_file)
         dest_path = os.path.join("output", newest_file)
         
-        # Handle duplicates in the permanent 'output' folder
+        # Prevent filename collisions in the permanent 'output' folder
         if os.path.exists(dest_path):
             name_part, ext_part = os.path.splitext(newest_file)
             count = 1
@@ -104,15 +106,22 @@ def move_and_process(file_path):
             newest_file = f"{name_part}_{count}{ext_part}"
             dest_path = os.path.join("output", newest_file)
         
+        # Finalize the result
         shutil.copy(src_path, dest_path)
         latest_output_filename = newest_file
         scan_ready = True
+        error_occurred = False
+        print(f"Success! Result saved as: {latest_output_filename}")
     else:
+        # ROOT FAILURE: autoapp.py finished but the output folder is empty
         latest_output_filename = ""
         scan_ready = False
+        error_occurred = True
+        print("!! ROOT FAILURE: autoapp.py finished but no output image was found !!")
 
-    # ONLY set processing to False once the file is copied and ready
+    # Final state: processing is done
     processing = False
+
 
 
 def watch_folder():
@@ -413,14 +422,14 @@ def upload():
 
 @app.route('/status')
 def status():
-    # If it's still processing, or if the filename hasn't been generated yet, 
-    # tell the browser to keep waiting.
     return jsonify({
-        "processing": processing or (not scan_ready and not error_occurred),
+        "processing": processing,
         "filename": latest_output_filename if scan_ready else "",
         "input_filename": current_filename,
-        "error": error_occurred
+        "error": error_occurred,  # Sends 'true' if the root step failed
+        "message": "OMR Analysis Failed" if error_occurred else ""
     })
+
 
 
 @app.route("/create_folder", methods=["POST"])
