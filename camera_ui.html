@@ -205,10 +205,14 @@
 
   <div id="toast"></div>
 
-  <script>
-    let currentScanId = 0; // Tracks the exact millisecond of the latest scan
 
+    <script>
+    let currentScanId = 0; 
     let stream, torchOn = false;
+    let toastTimer = null; 
+    let permanentToast = false;
+    let cameraStartTime = Date.now();
+
     const video = document.getElementById('video');
     const flashBtn = document.getElementById('flashBtn');
     const captureBtn = document.getElementById('captureBtn');
@@ -218,18 +222,10 @@
     const instantToggle = document.getElementById('instantToggle');
     const toast = document.getElementById('toast');
 
-    let permanentToast = false;
-
     instantToggle.checked = localStorage.getItem('instantMode') === 'true';
 
     if (!sessionStorage.getItem('initialShown')) {
-      alert(`📸 Instant ON:
-The processed OMR sheet will appear directly on screen.
-
-📥 Instant OFF:
-Just click Capture – it will process in background and show result here.
-
-💡 Recommended: Use Instant OFF for better performance and speed.`);
+      alert(`📸 Instant ON:\nThe processed OMR sheet will appear directly on screen.\n\n📥 Instant OFF:\nJust click Capture – it will process in background.\n\n💡 Recommended: Use Instant OFF.`);
       sessionStorage.setItem('initialShown', 'true');
     }
 
@@ -237,119 +233,104 @@ Just click Capture – it will process in background and show result here.
       localStorage.setItem('instantMode', instantToggle.checked);
     };
 
-    // Add this variable outside the function to track the timer globally
-let toastTimer = null;
+    // Helper to generate a string that the browser can't ignore
+    function getFreshKey() {
+        return Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    }
 
-let toastTimer = null; // To track and clear previous countdowns
+    function showToast(msg, permanent = false, imageUrl = null) {
+      permanentToast = permanent;
+      toast.innerHTML = ''; 
+      
+      if (toastTimer) clearTimeout(toastTimer);
 
-function showToast(msg, permanent = false, imageUrl = null) {
-  permanentToast = permanent;
-  toast.innerHTML = ''; 
-  
-  // Clear any existing countdown so old toasts don't hide new ones
-  if (toastTimer) clearTimeout(toastTimer);
+      const textContainer = document.createElement('div');
+      textContainer.className = 'toast-text';
+      textContainer.innerHTML = msg;
 
-  const textContainer = document.createElement('div');
-  textContainer.className = 'toast-text';
-  textContainer.innerHTML = msg;
+      if (imageUrl) {
+        const img = document.createElement('img');
+        // Attach a fresh key to the URL to kill any possible caching
+        img.src = `${imageUrl}${imageUrl.includes('?') ? '&' : '?'}refresh=${getFreshKey()}`; 
+        toast.appendChild(img);
+        toast.appendChild(textContainer);
+      } else {
+        toast.appendChild(textContainer);
+      }
 
-  if (imageUrl) {
-    const img = document.createElement('img');
-    // Using the same ScanId to ensure toast images are fresh
-    img.src = imageUrl; 
-    toast.appendChild(img);
-    toast.appendChild(textContainer);
-  } else {
-    toast.appendChild(textContainer);
-  }
+      toast.style.display = 'flex';
 
-  toast.style.display = 'flex';
-  toast.style.flexDirection = 'column';
-  toast.style.justifyContent = 'center';
-  toast.style.alignItems = 'center';
-
-  if (!permanent) {
-    toastTimer = setTimeout(() => {
-      toast.style.display = 'none';
-    }, 10000); // Stays for exactly 10 seconds
-  }
-}
+      if (!permanent) {
+        toastTimer = setTimeout(() => {
+          toast.style.display = 'none';
+        }, 10000);
+      }
+    }
 
     async function startCamera() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' },
-        width: { ideal: 1920 }, // High-res source
-        height: { ideal: 1080 }
-      }
-    });
+          video: { 
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          }
+        });
         video.srcObject = stream;
         video.play();
         
-         // --- ADD FOCUS LOGIC HERE ---
-    const track = stream.getVideoTracks()[0];
-    const capabilities = track.getCapabilities();
-
-    if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
-      await track.applyConstraints({
-        advanced: [{ focusMode: 'continuous' }]
-      });
-    }
-    // ----------------------------
-
+        const track = stream.getVideoTracks()[0];
+        const capabilities = track.getCapabilities();
+        if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+          await track.applyConstraints({
+            advanced: [{ focusMode: 'continuous' }]
+          });
+        }
         cameraStartTime = Date.now();
-        startAutoCooldownCheck();
       } catch (e) {
+        console.error(e);
         alert('Camera access denied.');
       }
     }
 
     async function toggleFlash() {
-  if (!stream) return;
-  try {
-    const track = stream.getVideoTracks()[0];
-    const capabilities = track.getCapabilities();
-    if (!capabilities.torch) {
-      alert('❌ Flash not supported.');
-      return;
+      if (!stream) return;
+      try {
+        const track = stream.getVideoTracks()[0];
+        const capabilities = track.getCapabilities();
+        if (!capabilities.torch) {
+          alert('❌ Flash not supported.');
+          return;
+        }
+        torchOn = !torchOn;
+        await track.applyConstraints({
+          advanced: [{ torch: torchOn }]
+        });
+        flashBtn.textContent = torchOn ? '🔦 Off' : '🔦 On';
+      } catch (err) {
+        alert('⚠️ Flash control failed.');
+      }
     }
-
-    // Toggle state
-    torchOn = !torchOn;
-
-    await track.applyConstraints({
-      advanced: [{ torch: torchOn }]
-    });
-
-    flashBtn.textContent = torchOn ? '🔦 Off' : '🔦 On';
-  } catch (err) {
-    console.error('Flash toggle failed:', err);
-    alert('⚠️ Flash control failed.');
-    torchOn = false;
-    flashBtn.textContent = '🔦 On';
-  }
-}
 
     function extractCorrect(filename) {
       const parts = filename.split("_");
-      return parts[1];
+      return parts[1] || "N/A";
     }
 
-    // Logic for processing (Shared between Capture and File Upload)
     async function processImage(blob, previewUrl) {
-    const isInstant = instantToggle.checked;
-    const rollNum = document.getElementById('rollInput').value;
+      const isInstant = instantToggle.checked;
+      const rollNum = document.getElementById('rollInput').value;
 
-    if (isInstant && stream) {
+      if (isInstant && stream) {
         stream.getTracks().forEach(t => t.stop());
-    }
+      }
 
-    const formData = new FormData();
-    formData.append('image', blob, 'capture.jpg');
-    formData.append('roll', rollNum);
+      const formData = new FormData();
+      formData.append('image', blob, 'capture.jpg');
+      formData.append('roll', rollNum);
 
-    let loadingScreen = null;
-    if (isInstant) {
+      let loadingScreen = null;
+      if (isInstant) {
         loadingScreen = document.createElement('div');
         loadingScreen.id = "instantOverlay";
         loadingScreen.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:black;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;padding:20px;box-sizing:border-box;";
@@ -358,172 +339,137 @@ function showToast(msg, permanent = false, imageUrl = null) {
             <h3 id="procStatus" style="margin:10px 0;">Processing...</h3>
             <p id="statusMsg" style="margin:5px 0;">Uploading to Server...</p>`;
         document.body.appendChild(loadingScreen);
-    } else {
+      } else {
         showToast("Uploading & Analyzing...", false, null); 
-    }
+      }
 
-    try {
+      try {
         const response = await fetch(`${window.location.origin}/upload`, {
             method: 'POST',
-            body: formData,
-            mode: 'cors'
+            body: formData
         });
 
         if (!response.ok) throw new Error("Upload Failed");
-
         if (isInstant) document.getElementById('statusMsg').textContent = "Analyzing OMR...";
 
         let attempts = 0;
-
         const checkStatus = async () => {
-            attempts++;
-            try {
-                const st = await fetch(`${window.location.origin}/status`);
-                const data = await st.json();
+          attempts++;
+          try {
+            const st = await fetch(`${window.location.origin}/status`);
+            const data = await st.json();
 
-                if (!data.processing && data.filename) {
-                    // SUCCESS: Use the precise scan timestamp to force a fresh image
-                    const resultUrl = `/temp_output/${data.filename}?v=${currentScanId}`;
-                    const scoreText = `<b>Correct: ${extractCorrect(data.filename)}</b>`;
+            if (!data.processing && data.filename) {
+              // Create the URL with a unique query string
+              const freshUrl = `/temp_output/${data.filename}?v=${getFreshKey()}`;
+              const scoreText = `<b>Correct: ${extractCorrect(data.filename)}</b>`;
 
-                    if (isInstant) {
-                        const imgEl = document.getElementById('procImg');
-                        imgEl.style.transform = "rotate(0deg)"; 
-                        imgEl.style.width = "100vw";
-                        imgEl.style.height = "auto";
-                        imgEl.style.maxWidth = "100vw";
-                        imgEl.style.objectFit = "cover";
-                        imgEl.src = resultUrl;
-
-                        document.getElementById('procStatus').textContent = "Analysis Complete";
-                        document.getElementById('statusMsg').innerHTML = `<span style="font-size:24px; color:limegreen;">${scoreText}</span>`;
-
-                        const btn = document.createElement('button');
-                        btn.textContent = "Scan Next";
-                        btn.style = "margin-top:20px; padding:15px 40px; font-size:18px; background:white; color:black; border-radius:8px; border:none; font-weight:bold; z-index:10001;";
-                        
-                        btn.onclick = () => {
-                            loadingScreen.remove();
-                            if (typeof startCamera === "function") startCamera(); 
-                        };
-                        loadingScreen.appendChild(btn);
-                    } else {
-                        showToast(scoreText, false, resultUrl);
-                    }
-                } else if (attempts < 100) {
-                    setTimeout(checkStatus, 300); // Poll every 300ms for speed
-                } else {
-                    throw new Error("Timeout");
-                }
-            } catch (e) {
-                if (attempts >= 100) {
-                    if (isInstant) handleProcError(loadingScreen, null, "Timeout");
-                    else showToast("Error processing result.");
-                } else {
-                    setTimeout(checkStatus, 300);
-                }
+              if (isInstant) {
+                const imgEl = document.getElementById('procImg');
+                imgEl.style.transform = "rotate(0deg)"; 
+                imgEl.style.width = "100vw";
+                imgEl.style.height = "auto";
+                imgEl.style.maxWidth = "100vw";
+                imgEl.style.objectFit = "cover";
+                imgEl.src = freshUrl;
+                document.getElementById('procStatus').textContent = "Analysis Complete";
+                document.getElementById('statusMsg').innerHTML = `<span style="font-size:24px; color:limegreen;">${scoreText}</span>`;
+                
+                const btn = document.createElement('button');
+                btn.textContent = "Scan Next";
+                btn.style = "margin-top:20px; padding:15px 40px; font-size:18px; background:white; color:black; border-radius:8px; border:none; font-weight:bold; z-index:10001;";
+                btn.onclick = () => {
+                  loadingScreen.remove();
+                  startCamera(); 
+                };
+                loadingScreen.appendChild(btn);
+              } else {
+                showToast(scoreText, false, freshUrl);
+              }
+            } else if (attempts < 100) {
+              setTimeout(checkStatus, 300); 
+            } else {
+              throw new Error("Timeout");
             }
+          } catch (e) {
+            if (attempts >= 100) {
+              if (isInstant) handleProcError(loadingScreen, "Timeout");
+              else showToast("Error processing result.");
+            } else {
+              setTimeout(checkStatus, 300);
+            }
+          }
         };
-
         checkStatus();
-
-    } catch (err) {
-        if (isInstant) handleProcError(loadingScreen, null, err.message);
+      } catch (err) {
+        if (isInstant) handleProcError(loadingScreen, err.message);
         else showToast("Upload Failed.");
+      }
     }
-}
 
-
-    captureBtn.onclick = async () => {
-    // Record the exact time of capture
-    currentScanId = Date.now(); 
-    
-    toast.innerHTML = ''; 
-    toast.style.display = 'none';
-    
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0);
-    
-    const previewDataUrl = canvas.toDataURL('image/jpeg', 0.5);
-    canvas.toBlob((blob) => {
+    captureBtn.onclick = () => {
+      currentScanId = Date.now(); 
+      toast.style.display = 'none';
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0);
+      const previewDataUrl = canvas.toDataURL('image/jpeg', 0.5);
+      canvas.toBlob((blob) => {
         if (blob) processImage(blob, previewDataUrl);
-        else alert("Capture failed");
-    }, 'image/jpeg', 0.5);
-};
+      }, 'image/jpeg', 0.5);
+    };
 
-    // File Upload Handlers
     fileBtn.onclick = () => fileInput.click();
     fileInput.onchange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    currentScanId = Date.now(); // SET THIS HERE TOO
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        processImage(file, event.target.result);
+      const file = e.target.files[0];
+      if (!file) return;
+      currentScanId = Date.now();
+      const reader = new FileReader();
+      reader.onload = (event) => processImage(file, event.target.result);
+      reader.readAsDataURL(file);
     };
-    reader.readAsDataURL(file);
-};
 
-
-function handleProcError(overlay, interval, msg) {
-    if (interval) clearInterval(interval);
-    const statusEl = document.getElementById('procStatus');
-    const detailEl = document.getElementById('statusMsg');
-    
-    if (statusEl) statusEl.innerHTML = `<span style="color:#ff4444">Error Occurred</span>`;
-    if (detailEl) detailEl.textContent = msg;
-
-    if (!document.getElementById('retryBtn')) {
+    function handleProcError(overlay, msg) {
+      const statusEl = document.getElementById('procStatus');
+      const detailEl = document.getElementById('statusMsg');
+      if (statusEl) statusEl.innerHTML = `<span style="color:#ff4444">Error Occurred</span>`;
+      if (detailEl) detailEl.textContent = msg;
+      if (!document.getElementById('retryBtn')) {
         const rb = document.createElement('button');
         rb.id = "retryBtn";
         rb.textContent = "Try Again";
         rb.style = "margin-top:20px; padding:12px 25px; background:#ff4444; color:white; border-radius:5px; border:none; font-weight:bold;";
         rb.onclick = () => location.reload();
         overlay.appendChild(rb);
+      }
     }
-}
-
 
     refreshBtn.onclick = () => location.reload();
     flashBtn.onclick = toggleFlash;
 
-    document.getElementById('exitBtn').onclick = function () {
-      if (stream) {
-        stream.getTracks().forEach(track => {
-          track.stop();
-        });
-      }
-      video.srcObject = null;
+    document.getElementById('exitBtn').onclick = () => {
+      if (stream) stream.getTracks().forEach(track => track.stop());
       window.location.href = '/'; 
     };
 
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        stopCamera();
-      } else {
-        startCamera();
-      }
+      document.hidden ? stopCamera() : startCamera();
     });
 
     function stopCamera() {
       if (stream) {
         stream.getTracks().forEach(t => t.stop());
         stream = null;
-        if (torchOn) {
-          torchOn = false;
-          flashBtn.textContent = '🔦 Flash';
-        }
+        torchOn = false;
+        flashBtn.textContent = '🔦 On';
       }
     }
 
-    let cameraStartTime = Date.now();
     function startAutoCooldownCheck() {
       setInterval(() => {
         if (stream && Date.now() - cameraStartTime > 240000) {
-          showCooldownWarning();
           stopCamera();
           let i = 10;
           const countdown = setInterval(() => {
@@ -537,12 +483,10 @@ function handleProcError(overlay, interval, msg) {
       }, 30000);
     }
 
-    function showCooldownWarning() {
-      toast.textContent = '🛑 Taking rest for 10 seconds for cooling down camera';
-      toast.style.display = 'block';
-    }
-
     startCamera();
+    startAutoCooldownCheck();
+
+
   </script>
 </body>
 </html>
