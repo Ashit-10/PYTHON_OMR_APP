@@ -111,37 +111,37 @@
       cursor: pointer;
     }
 
-#toast {
-  position: fixed;
-  top: 45vh;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(90deg); /* Rotate the whole container once */
-  z-index: 9999;
-  display: none; 
-  flex-direction: column;
-  align-items: center;
-  pointer-events: none;
-  gap: 40vw;
-}
+    #toast {
+      position: fixed;
+      top: 45vh;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(90deg);
+      z-index: 9999;
+      display: none; 
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+      gap: 40vw;
+    }
 
-#toast img {
-  max-height: 150px;
-  width: auto;
-  margin-bottom: 10px;
-  border: 2px solid white;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-}
+    #toast img {
+      max-height: 150px;
+      width: auto;
+      margin-bottom: 10px;
+      border: 2px solid white;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
 
-.toast-text {
-  background: rgba(34, 34, 34, 0.95);
-  color: #fff;
-  padding: 12px 20px;
-  border-radius: 20px;
-  border: 1px solid #444;
-  font-weight: bold;
-  white-space: nowrap;
-  pointer-events: auto;
-}
+    .toast-text {
+      background: rgba(34, 34, 34, 0.95);
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 20px;
+      border: 1px solid #444;
+      font-weight: bold;
+      white-space: nowrap;
+      pointer-events: auto;
+    }
 
     #exitBtn {
       position: absolute;
@@ -150,11 +150,10 @@
       z-index: 9999;
     }
 
-#toast b {
-  color: limegreen;
-  font-size: 18px;
-}
-
+    #toast b {
+      color: limegreen;
+      font-size: 18px;
+    }
   </style>
 </head>
 <body>
@@ -176,7 +175,7 @@
     <div id="toggleLabel">Instant</div>
   </div>
 
-<div class="controls">
+  <div class="controls">
     <input type="number" 
            id="rollInput" 
            placeholder="Roll" 
@@ -190,22 +189,19 @@
     
     <button id="flashBtn">🔦 On</button>
     <button id="captureBtn">Click</button>
-  <button id="refreshBtn">Refresh</button>
+    <button id="refreshBtn">Refresh</button>
     <button id="fileBtn">📁</button>
     <input type="file" id="fileInput" accept="image/*" style="display: none;">
-    
-</div>
+  </div>
 
   <div id="toast"></div>
 
-    <script>
+  <script>
     let currentScanId = 0; 
     let stream, torchOn = false;
     let toastTimer = null; 
     let permanentToast = false;
     let cameraStartTime = Date.now();
-    
-    // This prevents the "Instant Toast" of previous results
     let lastProcessedFile = ""; 
 
     const video = document.getElementById('video');
@@ -231,7 +227,6 @@
     function showToast(msg, permanent = false, imageUrl = null) {
       permanentToast = permanent;
       toast.innerHTML = ''; 
-      
       if (toastTimer) clearTimeout(toastTimer);
 
       const textContainer = document.createElement('div');
@@ -269,14 +264,10 @@
       });
         video.srcObject = stream;
         video.play();
-        
         const track = stream.getVideoTracks()[0];
         const capabilities = track.getCapabilities();
-
         if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
-          await track.applyConstraints({
-            advanced: [{ focusMode: 'continuous' }]
-          });
+          await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
         }
         cameraStartTime = Date.now();
         startAutoCooldownCheck();
@@ -295,9 +286,7 @@
           return;
         }
         torchOn = !torchOn;
-        await track.applyConstraints({
-          advanced: [{ torch: torchOn }]
-        });
+        await track.applyConstraints({ advanced: [{ torch: torchOn }] });
         flashBtn.textContent = torchOn ? '🔦 Off' : '🔦 On';
       } catch (err) {
         alert('⚠️ Flash control failed.');
@@ -348,30 +337,58 @@
         if (!response.ok) throw new Error("Upload Failed");
 
         let attempts = 0;
-                const checkStatus = async () => {
+        const checkStatus = async () => {
           attempts++;
           try {
             const st = await fetch(`${window.location.origin}/status`);
             const data = await st.json();
 
-            // 1. If server says error, STOP and show toast
+            // 1. Check for server-side error
             if (data.error) {
                 if (isInstant) {
                     handleProcError(loadingScreen, null, data.message || "Analysis Failed");
                 } else {
                     showToast("❌ " + (data.message || "Scan Failed"), true);
                 }
-                return; // Ends the function so it stops polling
+                return; 
             }
 
-            // 2. If success, show result
+            // 2. Check for success
             if (!data.processing && data.filename && data.filename !== lastProcessedFile) {
                 lastProcessedFile = data.filename; 
-                // ... (your existing success display logic) ...
+                const resultUrl = `/temp_output/${data.filename}?v=${uniqueId}`;
+                const scoreText = `<b>Correct: ${extractCorrect(data.filename)}</b>`;
+
+                if (isInstant) {
+                    const imgEl = document.getElementById('procImg');
+                    imgEl.style.transform = "rotate(0deg)"; 
+                    imgEl.style.width = "100vw";
+                    imgEl.style.height = "auto";
+                    imgEl.style.maxWidth = "100vw";
+                    imgEl.style.objectFit = "cover";
+                    imgEl.src = resultUrl;
+
+                    document.getElementById('procStatus').textContent = "Analysis Complete";
+                    document.getElementById('statusMsg').innerHTML = `<span style="font-size:24px; color:limegreen;">${scoreText}</span>`;
+
+                    const btn = document.createElement('button');
+                    btn.textContent = "Scan Next";
+                    btn.style = "margin-top:20px; padding:15px 40px; font-size:18px; background:white; color:black; border-radius:8px; border:none; font-weight:bold; z-index:10001;";
+                    btn.onclick = () => {
+                        loadingScreen.remove();
+                        startCamera(); 
+                    };
+                    loadingScreen.appendChild(btn);
+                } else {
+                    showToast(scoreText, false, resultUrl);
+                }
+                return;
             } 
-            // 3. Otherwise, keep trying
+            // 3. Continue polling
             else if (attempts < 150) {
                 setTimeout(checkStatus, 600); 
+            } else {
+                throw new Error("Timeout");
             }
           } catch (e) {
              setTimeout(checkStatus, 600);
@@ -405,9 +422,7 @@
       if (!file) return;
       currentScanId = Date.now();
       const reader = new FileReader();
-      reader.onload = (event) => {
-        processImage(file, event.target.result);
-      };
+      reader.onload = (event) => { processImage(file, event.target.result); };
       reader.readAsDataURL(file);
     };
 
@@ -431,31 +446,20 @@
     flashBtn.onclick = toggleFlash;
 
     document.getElementById('exitBtn').onclick = function () {
-      if (stream) {
-        stream.getTracks().forEach(track => {
-          track.stop();
-        });
-      }
+      if (stream) { stream.getTracks().forEach(track => { track.stop(); }); }
       video.srcObject = null;
       window.location.href = '/'; 
     };
 
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        stopCamera();
-      } else {
-        startCamera();
-      }
+      if (document.hidden) { stopCamera(); } else { startCamera(); }
     });
 
     function stopCamera() {
       if (stream) {
         stream.getTracks().forEach(t => t.stop());
         stream = null;
-        if (torchOn) {
-          torchOn = false;
-          flashBtn.textContent = '🔦 On';
-        }
+        if (torchOn) { torchOn = false; flashBtn.textContent = '🔦 On'; }
       }
     }
 
@@ -466,10 +470,7 @@
           let i = 10;
           const countdown = setInterval(() => {
             showToast(`🛑 Cooling camera: ${i--}s`);
-            if (i < 0) {
-              clearInterval(countdown);
-              startCamera();
-            }
+            if (i < 0) { clearInterval(countdown); startCamera(); }
           }, 1000);
         }
       }, 30000);
@@ -477,6 +478,5 @@
 
     startCamera();
   </script>
-
 </body>
 </html>
