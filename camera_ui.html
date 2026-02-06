@@ -235,11 +235,20 @@ Just click Capture – it will process in background and show result here.
       localStorage.setItem('instantMode', instantToggle.checked);
     };
 
-    function showToast(msg, permanent = false, imageUrl = null) {
+    // Add this variable outside the function to track the timer globally
+let toastTimer = null;
+
+function showToast(msg, permanent = false, imageUrl = null) {
   permanentToast = permanent;
   toast.innerHTML = ''; 
   
-  // Create a wrapper for the text to ensure it stays consistent
+  // Clear any existing timer so a previous toast's "fade out" 
+  // doesn't kill the new toast early.
+  if (toastTimer) {
+    clearTimeout(toastTimer);
+    toastTimer = null;
+  }
+
   const textContainer = document.createElement('div');
   textContainer.className = 'toast-text';
   textContainer.innerHTML = msg;
@@ -247,27 +256,26 @@ Just click Capture – it will process in background and show result here.
   if (imageUrl) {
     const img = document.createElement('img');
     img.src = imageUrl;
-    // When there's an image, we append both
     toast.appendChild(img);
     toast.appendChild(textContainer);
   } else {
-    // When no image, we just append text, but the #toast 
-    // container will still treat it as the primary flex item
     toast.appendChild(textContainer);
   }
 
-  // Force the toast to be visible and use flex positioning
   toast.style.display = 'flex';
-  toast.style.flexDirection = 'column'; // Stack them vertically
+  toast.style.flexDirection = 'column';
   toast.style.justifyContent = 'center';
   toast.style.alignItems = 'center';
 
   if (!permanent) {
-    setTimeout(() => {
-      if (!permanentToast) toast.style.display = 'none';
+    // Assign the timeout to our global variable
+    toastTimer = setTimeout(() => {
+      toast.style.display = 'none';
+      toastTimer = null; // Reset tracker
     }, 10000);
   }
 }
+
 
 
 
@@ -336,105 +344,110 @@ Just click Capture – it will process in background and show result here.
 
     // Logic for processing (Shared between Capture and File Upload)
     async function processImage(blob, previewUrl) {
-        const isInstant = instantToggle.checked;
-        const rollNum = document.getElementById('rollInput').value;
+    const isInstant = instantToggle.checked;
+    const rollNum = document.getElementById('rollInput').value;
 
-        if (isInstant && stream) {
-            stream.getTracks().forEach(t => t.stop());
-        }
-
-        const formData = new FormData();
-        formData.append('image', blob, 'capture.jpg');
-        formData.append('roll', rollNum);
-
-        let loadingScreen = null;
-        if (isInstant) {
-            loadingScreen = document.createElement('div');
-            loadingScreen.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:black;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;padding:20px;box-sizing:border-box;";
-            loadingScreen.innerHTML = `
-                 <img id="procImg" src="${previewUrl}" style="max-width:90%; max-height:60%; object-fit:contain; transform: rotate(-90deg); margin-bottom:40px; border:1px solid #444;">
-                <h3 id="procStatus" style="margin:10px 0;">Processing...</h3>
-                <p id="statusMsg" style="margin:5px 0;">Uploading to Server...</p>`;
-            document.body.appendChild(loadingScreen);
-        } else {
-            showToast("Uploading & Analyzing...", false);
-        }
-
-        try {
-            const response = await fetch(`${window.location.origin}/upload`, {
-                method: 'POST',
-                body: formData,
-                mode: 'cors'
-            });
-
-            if (!response.ok) throw new Error("Upload Failed");
-
-            if (isInstant) document.getElementById('statusMsg').textContent = "Analyzing OMR...";
-
-            let attempts = 0;
-            const checkStatus = setInterval(async () => {
-                attempts++;
-                try {
-                    const st = await fetch(`${window.location.origin}/status`);
-                    const data = await st.json();
-
-                    if (!data.processing) {
-                        clearInterval(checkStatus);
-                        if (data.filename) {
-                            if (isInstant) {
-                                const imgEl = document.getElementById('procImg');
-                                imgEl.style.transform = "rotate(0deg)"; 
-                                imgEl.style.width = "100vw";
-                                imgEl.style.height = "auto";
-                                imgEl.style.maxWidth = "100vw";
-                                imgEl.style.objectFit = "cover";
-                                imgEl.style.display = "block";
-                                imgEl.style.margin = "0";
-                                imgEl.src = `/temp_output/${data.filename}?v=${Date.now()}_${Math.random()}`;
-
-
-                                document.getElementById('procStatus').textContent = "Analysis Complete";
-                                document.getElementById('statusMsg').innerHTML = `<b style="font-size:24px; color:limegreen;">Correct: ${extractCorrect(data.filename)}</b>`;
-
-                                const btn = document.createElement('button');
-                                btn.textContent = "Scan Next";
-                                btn.style = "margin-top:20px; padding:15px 40px; font-size:18px; background:white; color:black; border-radius:8px; border:none; font-weight:bold;";
-                                btn.onclick = () => location.reload();
-                                loadingScreen.appendChild(btn);
-                                imgEl.parentElement.style.padding = "0";
-                                imgEl.parentElement.style.margin = "0";
-                            } else {
-            // NEW IMAGE TOAST LOGI
-            // NEW IMAGE TOAST LOGIC - Fixed for Accuracy
-//const resultUrl = `${window.location.origin}/temp_output/${data.filename}?nocache=${Date.now()}`;
-
-           // This creates a completely unique string for every single scan
-const cacheBuster = Date.now() + '-' + Math.random().toString(36).substr(7);
-const resultUrl = `/temp_output/${data.filename}?v=${cacheBuster}`;
-
-            const scoreText = `<b>Correct: ${extractCorrect(data.filename)}</b>`;
-            
-            showToast(scoreText, false, resultUrl);
-      
-
-                            }
-                        } else {
-                            throw new Error("No filename returned");
-                        }
-                    }
-                    if (attempts > 30) throw new Error("Timeout: Server took too long");
-                } catch (e) {
-                    clearInterval(checkStatus);
-                    if (isInstant) handleProcError(loadingScreen, checkStatus, e.message);
-                    else showToast("Error processing result.");
-                }
-            }, 700);
-
-        } catch (err) {
-            if (isInstant) handleProcError(loadingScreen, null, err.message);
-            else showToast("Upload Failed.");
-        }
+    if (isInstant && stream) {
+        stream.getTracks().forEach(t => t.stop());
     }
+
+    const formData = new FormData();
+    formData.append('image', blob, 'capture.jpg');
+    formData.append('roll', rollNum);
+
+    let loadingScreen = null;
+    if (isInstant) {
+        loadingScreen = document.createElement('div');
+        loadingScreen.id = "instantOverlay";
+        loadingScreen.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:black;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;padding:20px;box-sizing:border-box;";
+        loadingScreen.innerHTML = `
+             <img id="procImg" src="${previewUrl}" style="max-width:90%; max-height:60%; object-fit:contain; transform: rotate(-90deg); margin-bottom:40px; border:1px solid #444;">
+            <h3 id="procStatus" style="margin:10px 0;">Processing...</h3>
+            <p id="statusMsg" style="margin:5px 0;">Uploading to Server...</p>`;
+        document.body.appendChild(loadingScreen);
+    } else {
+        // Set to 10 seconds (10000ms)
+        showToast("Uploading & Analyzing...", false, null, 10000); 
+    }
+
+    try {
+        const response = await fetch(`${window.location.origin}/upload`, {
+            method: 'POST',
+            body: formData,
+            mode: 'cors'
+        });
+
+        if (!response.ok) throw new Error("Upload Failed");
+
+        if (isInstant) document.getElementById('statusMsg').textContent = "Analyzing OMR...";
+
+        let attempts = 0;
+
+        const checkStatus = async () => {
+            attempts++;
+            try {
+                const st = await fetch(`${window.location.origin}/status`);
+                const data = await st.json();
+
+                // 1. Check if processing is done AND we have a filename
+                if (!data.processing && data.filename) {
+                    const cacheBuster = Date.now() + '-' + Math.random().toString(36).substr(7);
+                    const resultUrl = `/temp_output/${data.filename}?v=${cacheBuster}`;
+                    const scoreText = `<b>Correct: ${extractCorrect(data.filename)}</b>`;
+
+                    if (isInstant) {
+                        const imgEl = document.getElementById('procImg');
+                        imgEl.style.transform = "rotate(0deg)"; 
+                        imgEl.style.width = "100vw";
+                        imgEl.style.height = "auto";
+                        imgEl.style.maxWidth = "100vw";
+                        imgEl.style.objectFit = "cover";
+                        imgEl.src = resultUrl;
+
+                        document.getElementById('procStatus').textContent = "Analysis Complete";
+                        document.getElementById('statusMsg').innerHTML = `<span style="font-size:24px; color:limegreen;">${scoreText}</span>`;
+
+                        const btn = document.createElement('button');
+                        btn.textContent = "Scan Next";
+                        btn.style = "margin-top:20px; padding:15px 40px; font-size:18px; background:white; color:black; border-radius:8px; border:none; font-weight:bold; z-index:10001;";
+                        
+                        btn.onclick = () => {
+                            loadingScreen.remove();
+                            if (typeof startCamera === "function") startCamera(); 
+                        };
+                        loadingScreen.appendChild(btn);
+                    } else {
+                        // Success Toast - explicitly set for 10 seconds
+                        showToast(scoreText, false, resultUrl, 10000);
+                    }
+                } 
+                // 2. If still processing, check again very quickly (300ms)
+                else if (attempts < 100) { 
+                    setTimeout(checkStatus, 300); 
+                } else {
+                    throw new Error("Timeout");
+                }
+            } catch (e) {
+                // Only show error if we've actually failed, not just waiting
+                if (attempts >= 100) {
+                    if (isInstant) handleProcError(loadingScreen, null, "Server Timeout");
+                    else showToast("Error processing result.", true);
+                } else {
+                    // If a single poll fails (network flicker), try again anyway
+                    setTimeout(checkStatus, 300);
+                }
+            }
+        };
+
+        // Start polling immediately after upload completes
+        checkStatus();
+
+    } catch (err) {
+        if (isInstant) handleProcError(loadingScreen, null, err.message);
+        else showToast("Upload Failed.", true);
+    }
+}
+
 
     captureBtn.onclick = async () => {
         toast.innerHTML = ''; 
