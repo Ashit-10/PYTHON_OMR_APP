@@ -118,19 +118,35 @@ def move_and_process(file_path):
 def watch_folder():
     """Background loop for file automation."""
     while True:
-        # 1. Sync Answer Keys
-        for f in glob.glob(os.path.join(download_folder, '*ans*_key*.txt*')):
-            try:
-                shutil.move(f, os.path.join(BASE, os.path.basename(f)))
-                print(f"Moved answer key: {f}")
-            except: pass
+        try:
+            # 1. Sync Answer Keys
+            for f in glob.glob(os.path.join(download_folder, '*ans*_key*.txt*')):
+                try:
+                    dest = os.path.join(BASE, os.path.basename(f))
+                    if not os.path.exists(dest):
+                        shutil.move(f, dest)
+                        print(f"Moved answer key: {f}")
+                except: pass
 
-        # 2. Sync OMR Scans
-        files = [f for f in os.listdir(download_folder) if f.startswith("OMR_") and f.endswith(extensions)]
-        for f in files:
-            path = os.path.join(download_folder, f)
-            move_and_process(path)
+            # 2. Sync OMR Scans
+            # Check 'processing' flag so we don't interfere with the Camera UI
+            if not processing:
+                files = [f for f in os.listdir(download_folder) if f.startswith("OMR_") and f.endswith(extensions)]
+                for f in files:
+                    path = os.path.join(download_folder, f)
+                    
+                    # CRITICAL: Check if file exists before trying to move it
+                    # This prevents the crash if /upload already moved the file
+                    if os.path.exists(path):
+                        print(f"Background worker processing: {f}")
+                        move_and_process(path)
+        
+        except Exception as e:
+            # This prevents the thread from dying if an error occurs
+            print(f"Watch folder loop error: {e}")
+
         time.sleep(1)
+
 
 # --- PROJECT MANAGEMENT LOGIC ---
 
