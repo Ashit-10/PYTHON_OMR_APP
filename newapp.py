@@ -36,6 +36,9 @@ processing = False
 current_filename = ""
 latest_output_filename = ""
 error_occurred = False
+# Add this to track if the current scan has a finished result
+scan_ready = False 
+
 
 
 # --- OMR BACKGROUND PROCESSING ---
@@ -44,56 +47,73 @@ def open_chrome():
 
 
 def move_and_process(file_path):
-    global processing, current_filename, latest_output_filename, error_occurred
+    global processing, current_filename, latest_output_filename, error_occurred, scan_ready
+    
     processing = True
+    scan_ready = False
     error_occurred = False
+    
+    # Clear the old filename immediately so the status check 
+    # doesn't accidentally return the previous result.
+    latest_output_filename = ""
 
     # Ensure directories exist
     os.makedirs(input_folder, exist_ok=True)
     os.makedirs(output_folder, exist_ok=True)
     os.makedirs("output", exist_ok=True)
 
-    # Clean previous temp files
-    shutil.rmtree(input_folder, ignore_errors=True)
-    shutil.rmtree(output_folder, ignore_errors=True)
-    os.makedirs(input_folder)
-    os.makedirs(output_folder)
+    # Clean previous temp files from BOTH folders
+    # This prevents the browser from finding old results
+    for f in os.listdir(input_folder):
+        try: os.remove(os.path.join(input_folder, f))
+        except: pass
+    for f in os.listdir(output_folder):
+        try: os.remove(os.path.join(output_folder, f))
+        except: pass
 
     current_filename = os.path.basename(file_path)
     shutil.move(file_path, os.path.join(input_folder, current_filename))
 
     # Trigger OMR Logic
+    # We use a timeout or communicate to ensure it's finished
     process = subprocess.Popen(["python3", "autoapp.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
 
-    if stdout: print(stdout.decode())
+    if stdout: print(f"OMR Output: {stdout.decode()}")
     if stderr:
-        print(stderr.decode(), file=sys.stderr)
+        print(f"OMR Error: {stderr.decode()}", file=sys.stderr)
         error_occurred = True
 
     # Identify output
-    files = [f for f in os.listdir(output_folder) if f.endswith(extensions)]
+    files = [f for f in os.listdir(output_folder) if f.lower().endswith(extensions)]
+    
     if files:
-        latest_output_filename = files[-1]
-        src_path = os.path.join(output_folder, latest_output_filename)
+        # Sort by time to get the absolute newest file
+        files.sort(key=lambda x: os.path.getmtime(os.path.join(output_folder, x)))
+        newest_file = files[-1]
         
-        # Handle duplicate filenames in the permanent output folder
-        dest_path = os.path.join("output", latest_output_filename)
+        src_path = os.path.join(output_folder, newest_file)
+        dest_path = os.path.join("output", newest_file)
+        
+        # Handle duplicates in the permanent 'output' folder
         if os.path.exists(dest_path):
+            name_part, ext_part = os.path.splitext(newest_file)
             count = 1
-            while True:
-                new_pre = latest_output_filename.split(".")[0]
-                new_name = f"{new_pre}_{count}.jpg"
-                dest_path = os.path.join("output", new_name)
-                if not os.path.exists(dest_path): break
+            while os.path.exists(os.path.join("output", f"{name_part}_{count}{ext_part}")):
                 count += 1
-            latest_output_filename = new_name
+            newest_file = f"{name_part}_{count}{ext_part}"
+            dest_path = os.path.join("output", newest_file)
         
-        shutil.copy(src_path, os.path.join("output", latest_output_filename))
+        shutil.copy(src_path, dest_path)
+        latest_output_filename = newest_file
+        scan_ready = True
     else:
         latest_output_filename = ""
+        scan_ready = False
 
+    # ONLY set processing to False once the file is copied and ready
     processing = False
+
 
 def watch_folder():
     """Background loop for file automation."""
@@ -377,11 +397,13 @@ def upload():
 
 @app.route('/status')
 def status():
-    # Return the current state
+    # If it's still processing, or if the filename hasn't been generated yet, 
+    # tell the browser to keep waiting.
     return jsonify({
-        "processing": processing,
-        "filename": latest_output_filename,
-        "input_filename": current_filename
+        "processing": processing or (not scan_ready and not error_occurred),
+        "filename": latest_output_filename if scan_ready else "",
+        "input_filename": current_filename,
+        "error": error_occurred
     })
 
 
