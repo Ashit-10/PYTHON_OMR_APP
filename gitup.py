@@ -110,8 +110,6 @@ def run():
     exam_no = get_next_exam_no(session, github_base, cls, clean_subject)
     print(f"📈 Setting Exam Number to: {exam_no}")
     
-    
-    
     folder_path = f"class-{cls}_{clean_subject}_{exam_no}"
     github_img_folder = f"{github_base}/{folder_path}/eval_files"
     
@@ -141,7 +139,7 @@ def run():
     
     total_possible_marks = get_total_marks()
 
-    # 3. HTML Generation
+    # 3. HTML Generation (With New Button Added)
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -166,9 +164,13 @@ def run():
         <ul class="nav nav-pills">
             <li class="nav-item me-2">
                <a href="{clean_subject.lower()}_{exam_no}_question.pdf" class="btn btn-outline-warning" target="_blank">
-  View question paper
-</a>
-
+                  View question paper
+               </a>
+            </li>
+            <li class="nav-item">
+               <a href="{site_link}/50?filename={github_base}/answer_key.txt" class="btn btn-outline-primary" target="_blank">
+                  View Answer Key
+               </a>
             </li>
         </ul>
     </nav>
@@ -232,6 +234,11 @@ def run():
     print(f"📤 Uploading HTML to GitHub...")
     html_success = upload_to_github(session, output_filename, f"{github_base}/{output_filename}")
     
+    # NEW: Upload answer_key.txt to the same directory as the HTML
+    if os.path.exists("answer_key.txt"):
+        print(f"📤 Uploading answer_key.txt to GitHub...")
+        upload_to_github(session, "answer_key.txt", f"{github_base}/answer_key.txt")
+    
     if html_success:
         print(f"🚀 Uploading {len(student_list)} images...")
         count = 0
@@ -240,14 +247,12 @@ def run():
             count += 1
             status = "✅" if img_success else "❌"
             print(f"[{count}/{len(student_list)}] {status} {s['name']}")
-            sys.stdout.flush() # Forces line to show in browser tray immediately
+            sys.stdout.flush() 
 
         os.remove(output_filename)
         print(f"\n✅ SYNC COMPLETE")
         print()
         print(f"The webpage will be available in 5 minutes: {site_link}/{github_base}/{output_filename}")
-        print()
-        print()
         print()
     else:
         print("❌ FAILED: Could not upload HTML file to GitHub.")
