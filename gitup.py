@@ -165,7 +165,10 @@ def run():
     <nav class="navbar bg-body-tertiary px-3 mb-3">
         <ul class="nav nav-pills">
             <li class="nav-item me-2">
-                <button class="btn btn-outline-warning">View question paper</button>
+               <a href="{clean_subject.lower()}_{exam_no}question.pdf" class="btn btn-outline-warning" target="_blank">
+  View question paper
+</a>
+
             </li>
         </ul>
     </nav>
