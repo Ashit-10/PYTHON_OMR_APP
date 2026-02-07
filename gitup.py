@@ -193,7 +193,7 @@ def run():
     for s in gallery_students:
         html_content += f"""
         <div class="imgs" style="text-align:center; margin-bottom:40px;">
-            <img src="{s['path']}" alt="{s['name']}" style="max-width:90%; height:auto; border:1px solid #ccc;"> 
+            <img src="{s['path']}" alt="{s['name']}" style="max-width:98%; height:auto; border:1px solid #ccc;"> 
             <p>{s['name']} (Roll: {s['roll']})</p>
         </div>"""
 
