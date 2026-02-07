@@ -168,17 +168,26 @@
   100% { opacity: 0; }
 }
 
-/* The flying thumbnail */
+/* The flying thumbnail - updated for smoothness */
 .flying-thumbnail {
   position: fixed;
   z-index: 10003;
   border: 2px solid white;
-  border-radius: 4px;
+  border-radius: 8px;
   pointer-events: none;
-  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  /* Increased duration to 1.2s and used a smoother curve */
+  transition: 
+    top 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95), 
+    left 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95), 
+    width 1.2s ease-in-out, 
+    height 1.2s ease-in-out, 
+    opacity 1.2s ease-in,
+    transform 1.2s ease-in-out;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
   transform-origin: center;
+  object-fit: cover;
 }
+
 
   </style>
 </head>
@@ -515,41 +524,47 @@
       }, 30000);
     }
 function animateCapture(dataUrl) {
-  // Create a white flash overlay
+  // 1. Quick Flash (keep this fast so it feels like a camera)
   const flash = document.createElement('div');
   flash.className = 'camera-flash';
   document.getElementById('wrap').appendChild(flash);
-  setTimeout(() => flash.remove(), 300);
+  setTimeout(() => flash.remove(), 250);
 
-  // Create the flying thumbnail
+  // 2. Create the Thumbnail
   const thumb = document.createElement('img');
   thumb.src = dataUrl;
   thumb.className = 'flying-thumbnail';
   
-  // Get initial position (from the video wrap)
+  // Get initial position (Video Box)
   const rect = document.getElementById('wrap').getBoundingClientRect();
+  
+  // Set STARTING styles
   thumb.style.top = rect.top + 'px';
   thumb.style.left = rect.left + 'px';
   thumb.style.width = rect.width + 'px';
   thumb.style.height = rect.height + 'px';
+  thumb.style.opacity = '1';
   
   document.body.appendChild(thumb);
 
-  // Get target position (the capture button)
+  // Get target position (Capture Button)
   const btnRect = captureBtn.getBoundingClientRect();
 
-  // Force reflow to ensure transition works
+  // 3. The "Double Frame" Trick
+  // This ensures the browser definitely renders the START position first
   requestAnimationFrame(() => {
-    thumb.style.top = (btnRect.top + btnRect.height / 2) + 'px';
-    thumb.style.left = (btnRect.left + btnRect.width / 2) + 'px';
-    thumb.style.width = '10px';
-    thumb.style.height = '10px';
-    thumb.style.opacity = '0';
-    thumb.style.transform = 'scale(0.1) rotate(10deg)';
+    requestAnimationFrame(() => {
+      thumb.style.top = (btnRect.top + (btnRect.height / 2) - 10) + 'px';
+      thumb.style.left = (btnRect.left + (btnRect.width / 2) - 10) + 'px';
+      thumb.style.width = '20px';
+      thumb.style.height = '20px';
+      thumb.style.opacity = '0.2';
+      thumb.style.transform = 'scale(0.1) rotate(15deg)';
+    });
   });
 
-  // Cleanup
-  setTimeout(() => thumb.remove(), 700);
+  // Cleanup after animation finishes (1.2s + small buffer)
+  setTimeout(() => thumb.remove(), 1300);
 }
 
     startCamera();
