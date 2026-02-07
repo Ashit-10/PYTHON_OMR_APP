@@ -136,6 +136,32 @@
       left: 10px;
       z-index: 9999;
     }
+    /* The flash effect when clicking */
+.camera-flash {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: white;
+  z-index: 10002;
+  animation: flashAnim 0.3s ease-out forwards;
+}
+
+@keyframes flashAnim {
+  0% { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+
+/* The flying thumbnail */
+.flying-thumbnail {
+  position: fixed;
+  z-index: 10003;
+  border: 2px solid white;
+  border-radius: 4px;
+  pointer-events: none;
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  transform-origin: center;
+}
+
   </style>
 </head>
 <body>
@@ -265,9 +291,24 @@ Just click Capture – it will process in background and show result here.
       return parts[parts.length - 1].split(".")[0];
     }
 
-    captureBtn.onclick = () => {
-      permanentToast = false;
-      toast.style.display = 'none';
+    captureBtn.onclick = async () => {
+  currentScanId = Date.now(); 
+  toast.style.display = 'none';
+
+  // 1. Create Canvas and capture the image
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  const previewDataUrl = canvas.toDataURL('image/jpeg', 0.5);
+
+  // 2. Trigger the Visual Animation
+  animateCapture(previewDataUrl);
+
+  // 3. Process the image (existing logic)
+  
+
 
       const isInstant = instantToggle.checked;
       const c = document.createElement('canvas');
@@ -349,6 +390,43 @@ Just click Capture – it will process in background and show result here.
         }
       }, 'image/jpeg', 0.5);
     };
+function animateCapture(dataUrl) {
+  // Create a white flash overlay
+  const flash = document.createElement('div');
+  flash.className = 'camera-flash';
+  document.getElementById('wrap').appendChild(flash);
+  setTimeout(() => flash.remove(), 300);
+
+  // Create the flying thumbnail
+  const thumb = document.createElement('img');
+  thumb.src = dataUrl;
+  thumb.className = 'flying-thumbnail';
+  
+  // Get initial position (from the video wrap)
+  const rect = document.getElementById('wrap').getBoundingClientRect();
+  thumb.style.top = rect.top + 'px';
+  thumb.style.left = rect.left + 'px';
+  thumb.style.width = rect.width + 'px';
+  thumb.style.height = rect.height + 'px';
+  
+  document.body.appendChild(thumb);
+
+  // Get target position (the capture button)
+  const btnRect = captureBtn.getBoundingClientRect();
+
+  // Force reflow to ensure transition works
+  requestAnimationFrame(() => {
+    thumb.style.top = (btnRect.top + btnRect.height / 2) + 'px';
+    thumb.style.left = (btnRect.left + btnRect.width / 2) + 'px';
+    thumb.style.width = '10px';
+    thumb.style.height = '10px';
+    thumb.style.opacity = '0';
+    thumb.style.transform = 'scale(0.1) rotate(10deg)';
+  });
+
+  // Cleanup
+  setTimeout(() => thumb.remove(), 700);
+}
 
     refreshBtn.onclick = () => location.reload();
     flashBtn.onclick = toggleFlash;
