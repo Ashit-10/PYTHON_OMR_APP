@@ -131,8 +131,8 @@ for photo in photos:
                 rolls.append(eval_data[4])
               #  print(eval_data[6])              
                 
-            os.system(f"cp '{ppath}/{photo}' original_images/input/")
-            os.system(f"cp '{eval_data[6]}' original_images/output/")
+          #  os.system(f"cp '{ppath}/{photo}' original_images/input/")
+          #  os.system(f"cp '{eval_data[6]}' original_images/output/")
         except:            
           #  print(eval_data)
             print(f"\033[1;91m{eval_data}\033[0m")
