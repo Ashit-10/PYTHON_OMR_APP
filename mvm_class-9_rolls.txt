@@ -1,1 +1,24 @@
-{}
+{
+    "1": "Om Prakash Bira",
+    "2": "Diptimayee Panigrahi ",
+    "3": "Swapnarani Behera",
+    "4": "Mamali Muduli",
+    "5": "Abhijeet Panigrahi ",
+    "6": "Smaranika Sahoo",
+    "7": "Aditya Rout",
+    "8": "Gurudev Mallick",
+    "9": "Subhankar Mallick ",
+    "10": "Sumit kumar Mallick ",
+    "11": "Ayush kumar Rout",
+    "12": "Bikash Maharana",
+    "13": "Sonam Muduli",
+    "14": "Sonali Behera",
+    "15": "Subham Barik",
+    "16": "Laxmipriya Rout",
+    "17": "Adyasha Swain",
+    "18": "Jagat jyoti Panigrahi ",
+    "19": "Ashish kumar Mahapatra",
+    "20": "Sandhya Behera",
+    "21": "Ankita Rout",
+    "22": "Jyoti prangya Mahanti"
+}
