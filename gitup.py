@@ -152,7 +152,7 @@ def run():
         body {{ font-family: Arial, sans-serif; padding: 5px; }}
         #search-bar {{ margin-bottom: 20px; width: 100%; padding: 10px; font-size: 16px; }}
         table {{ width: 100%; border-collapse: collapse; }}
-        th, td {{ text-align: left; padding: 8px; vertical-align: middle; }}
+        th, td {{ text-align: center; padding: 8px; vertical-align: middle; }}
         tr:nth-child(even) {{ background-color: #eee9e9; }}
         a {{ text-decoration: none !important; color: blue; }}
         a:hover {{ text-decoration: underline; }}
