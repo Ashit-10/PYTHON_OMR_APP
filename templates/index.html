@@ -20,9 +20,6 @@
     </div>
 </header>
 
-<section class="actions">
-  <button onclick="showModal()" style="display: none;">➕ Create Project Folder</button>
-</section>
 
 <section class="actions">
   <button class="btn-key" onclick="openAnswerKey()">
@@ -33,8 +30,6 @@
   </button>
 </section>
 
-
-    
 
 <div id="pixelModal" class="modal hidden">
   <div class="modal-content">
@@ -105,7 +100,7 @@
     <input id="gitSub" placeholder="Subject (e.g. Physics)">
     <div class="modal-buttons">
       <button onclick="submitGitUpload()">Upload</button>
-      <button onclick="closeGitModal()" style="background:#666;">Cancel</button>
+      <button onclick="closeGitModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -127,6 +122,11 @@
       </div>
     {% endfor %}
   </div>
+  
+  
+</section>
+<section class="actions">
+  <button onclick="showModal()" style="display: none;">➕ Create Project Folder</button>
 </section>
 
 <div id="modal" class="modal hidden">
