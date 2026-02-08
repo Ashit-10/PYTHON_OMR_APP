@@ -621,7 +621,11 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
 
     add_sign(original_with_contours, [], [], safe_coods[0] + 4, safe_coods[1] - 15)
     # add_sign(original_with_contours, roll_dst_pts, roll_rect, end_x, end_y - 15)
-    draw_color(original_with_contours, [], [], safe_coods[0] + 42, safe_coods[1] + 55, (0, 0, 200), 38)
+
+    ## draw cricle over marks
+    draw_color(original_with_contours, [], [], safe_coods[0] + 42, safe_coods[1] + 55, (0, 0, 200), 39)
+
+    
     # draw_color(original_with_contours, roll_dst_pts, roll_rect, end_x + 68, end_y + 100, (0, 0, 200), 48)
     write_text(original_with_contours, [], [], safe_coods[0] + 17, safe_coods[1] + 53, "______", (100, 0, 0))
     # write_text(original_with_contours, roll_dst_pts, roll_rect, end_x + 25, end_y + 100, "_______")
