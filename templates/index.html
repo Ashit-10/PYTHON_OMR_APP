@@ -22,9 +22,19 @@
 
 <section class="actions">
   <button onclick="showModal()" style="display: none;">➕ Create Project Folder</button>
-  <button onclick="openAnswerKey()">🗝 Answer Key</button>
-  <button onclick="showSignModal()" style="background-color: #5d4037; color: white;">✍️ Change Signature</button>
 </section>
+
+<section class="actions">
+  <button class="btn-key" onclick="openAnswerKey()">
+    <span>🗝</span> Answer Key
+  </button>
+  <button class="btn-sign" onclick="showSignModal()">
+    <span>✍️</span> Change Signature
+  </button>
+</section>
+
+
+    
 
 <div id="pixelModal" class="modal hidden">
   <div class="modal-content">
@@ -75,10 +85,14 @@
 </div>
 </section>
 <section class="actions">
-<button onclick="location.href='/scan'">📷 Scan OMR Sheet</button>
-
-<button onclick="showGitModal()" style="background-color: #24292e; color: white;">🐙 Upload to GitHub</button>
-<section/>
+  <button class="btn-scan" onclick="location.href='/scan'">
+    <span>📷</span> Scan OMR Sheet
+  </button>
+  <button class="btn-git" onclick="showGitModal()">
+    <span>🐙</span> Upload to GitHub
+  </button>
+</section>
+    
 <div id="gitModal" class="modal hidden">
   <div class="modal-content">
     <h3>GitHub Upload Details</h3>
