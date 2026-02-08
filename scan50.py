@@ -15,12 +15,12 @@ roll_first_column = [[257, 55], [257, 82], [257, 112], [257, 142], [257, 172], [
 roll_second_column = [[294, 55], [297, 82], [297, 112], [297, 142], [297, 172], [297, 202], [297, 232], [297, 262],[297, 292],[297, 324] ]
 
 location_file = "omr_50_locations.txt"
-
+sign_path = "static"
 
 def add_sign(base_image, dst_pts, rect, x, y, r = 0):
     try:
         sign_file = config.get('settings', 'signature')
-        signature_image = cv2.imread(sign_file, cv2.IMREAD_UNCHANGED)
+        signature_image = cv2.imread(f"{sign_path}/{sign_file}", cv2.IMREAD_UNCHANGED)
 
         # Resize the signature image to width 100 while maintaining the aspect ratio
         new_width = 85
