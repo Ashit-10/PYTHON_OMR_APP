@@ -583,8 +583,42 @@ RESULTS_HTML = """
 </html>
 """
 
+# if __name__ == '__main__':
+#    threading.Thread(target=watch_folder, daemon=True).start()
+#    threading.Timer(0.1, open_chrome).start()
+#    app.run(host='0.0.0.0', port=7860, ssl_context=('certs/cert.pem', 'certs/key.pem'), threaded=True)
+
+
+
+def kill_port_process(port):
+    try:
+        # Finds the Process ID (PID) using the specified port
+        # -t: silent/terse mode, -k: kill (we'll do it manually for safety)
+        pid = subprocess.check_output(["lsof", "-t", f"-i:{port}"]).decode().strip()
+        
+        if pid:
+            print(f"Port {port} is in use by PID {pid}. Terminating...")
+            # Convert string of PIDs (if multiple) to integers and kill them
+            for p in pid.split('\n'):
+                os.kill(int(p), signal.SIGKILL)
+            
+            # Give the OS a split second to actually release the socket
+            time.sleep(1) 
+    except subprocess.CalledProcessError:
+        # This error triggers if lsof finds nothing, which means port is free
+        pass
+    except Exception as e:
+        print(f"Error clearing port: {e}")
+
 if __name__ == '__main__':
+    PORT = 7860
+    
+    # 1. Clear the port first
+    kill_port_process(PORT)
+    
+    # 2. Start your threads
     threading.Thread(target=watch_folder, daemon=True).start()
     threading.Timer(0.1, open_chrome).start()
-    app.run(host='0.0.0.0', port=7860, ssl_context=('certs/cert.pem', 'certs/key.pem'), threaded=True)
-
+    
+    # 3. Run app
+    app.run(host='0.0.0.0', port=PORT, ssl_context=('certs/cert.pem', 'certs/key.pem'), threaded=True)
