@@ -42,15 +42,15 @@ header {
 .actions {
   display: flex;
   justify-content: center;
-  gap: 15px;
+  gap: 10vw;
   margin: 20px 12px;
 }
 
 /* Style to make buttons big and square */
 .actions button {
   flex: 1;               /* Makes buttons take equal width */
-  aspect-ratio: 1 / 1;    /* Keeps them perfectly square */
-  max-width: 160px;      /* Limits size on large screens */
+  aspect-ratio: 1.5 / 1;    /* Keeps them perfectly square */
+  max-width: 40vw;      /* Limits size on large screens */
   display: flex;
   flex-direction: column;
   align-items: center;
