@@ -327,13 +327,22 @@
 function toggleSelectAll() {
     const isChecked = document.getElementById('selectAll').checked;
     const checkboxes = document.querySelectorAll('.select-checkbox');
+    
     checkboxes.forEach(cb => {
-        if (cb.parentElement.style.display !== 'none') {
+        // Find the closest parent image-card to check if it's visible
+        const card = cb.closest('.image-card');
+        
+        // Only toggle the checkbox if the card is currently visible
+        if (card && card.style.display !== 'none') {
             cb.checked = isChecked;
+        } else {
+            // Ensure hidden cards remain unchecked
+            cb.checked = false;
         }
     });
     updateBatchUI();
 }
+
 
 function updateBatchUI() {
     const selected = document.querySelectorAll('.select-checkbox:checked');
