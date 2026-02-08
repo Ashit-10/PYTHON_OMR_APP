@@ -40,6 +40,8 @@ pkg install git -y
 pkg install build-essential
 pkg install zip -y
 pkg install dbus
+pkg install lsof
+
 termux-setup-storage
 cd /sdcard
 git clone https://github.com/Ashit-10/PYTHON_OMR_APP
