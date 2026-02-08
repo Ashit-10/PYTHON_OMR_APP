@@ -195,11 +195,12 @@
   {% endif %}
   
   <select id="sortOption" onchange="sortFiles()" style="padding: 10px; margin-right: 20px; border-radius: 5px; border: 1px solid #ccc;">
-    <option value="default">Sort</option>
-    <option value="date">Date</option>
-    <option value="roll">Roll No</option>
-    <option value="marks">Marks</option>
-  </select>
+  <option value="default">Sort</option>
+  <option value="date">Date</option>
+  <option value="roll">Roll No</option>
+  <option value="marks">Marks</option>
+  <option value="duplicates">Duplicates</option> </select>
+
 
   <label style="font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 0px; cursor: pointer;">
     <input type="checkbox" id="selectAll" onclick="toggleSelectAll()" style="transform: scale(1.3);"> Select All
@@ -262,10 +263,32 @@
     const container = document.getElementById("fileBox");
     const cards = Array.from(container.getElementsByClassName("image-card"));
 
-    if (sortBy === "default") return;
+    if (sortBy === "default") {
+        // Optional: Reset visibility if user switches back to default
+        cards.forEach(card => card.style.display = "block");
+        return;
+    }
+
+    // --- NEW: Duplicates Filter Logic ---
+    if (sortBy === "duplicates") {
+        cards.forEach(card => {
+            const name = card.getAttribute("data-name");
+            // Checks if there are at least two underscores
+            if ((name.match(/_/g) || []).length >= 2) {
+                card.style.display = "block";
+            } else {
+                card.style.display = "none";
+                card.querySelector('.select-checkbox').checked = false; // Uncheck hidden
+            }
+        });
+        updateBatchUI();
+        return; // Exit here as we are filtering, not sorting
+    }
+
+    // Ensure cards are visible when switching between other sort modes
+    cards.forEach(card => card.style.display = "block");
 
     cards.sort((a, b) => {
-        // --- Date Sort (Newest to Oldest) ---
         if (sortBy === "date") {
             const dateA = parseFloat(a.getAttribute("data-date")) || 0;
             const dateB = parseFloat(b.getAttribute("data-date")) || 0;
@@ -274,28 +297,26 @@
         
         const nameA = a.getAttribute("data-name").toLowerCase();
         const nameB = b.getAttribute("data-name").toLowerCase();
-        
-        // Match all numbers in the filename
-        // Example "101_95.jpg" -> ["101", "95"]
         const partsA = nameA.match(/\d+/g) || [];
         const partsB = nameB.match(/\d+/g) || [];
 
-        // --- Roll Number Sort (Low to High: 1, 2, 3...) ---
         if (sortBy === "roll") {
             const rollA = parseInt(partsA[0]) || 0;
             const rollB = parseInt(partsB[0]) || 0;
             return rollA - rollB; 
         } 
         
-        // --- Marks Sort (High to Low: 100, 90, 80...) ---
         if (sortBy === "marks") {
             const markA = parseInt(partsA[1]) || 0;
             const markB = parseInt(partsB[1]) || 0;
-            // To get High to Low, we subtract the first from the second
             return markB - markA; 
         }
         return 0;
     });
+
+    
+  
+
 
     // Clear and Re-append to force visual refresh
     container.replaceChildren(...cards);
