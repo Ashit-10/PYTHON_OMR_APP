@@ -72,7 +72,7 @@ header {
     .actions {
         display: flex;
         justify-content: center;
-        gap: 15px;
+        gap: 7vw;
         margin: 20px 12px;
     }
 
