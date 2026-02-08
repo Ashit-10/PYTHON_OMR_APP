@@ -45,6 +45,15 @@ header {
   gap: 10vw;
   margin: 20px 12px;
 }
+/* Style for the preview on the dashboard button */
+.btn-sign-preview {
+    background-size: contain !important;
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-color: #ffffff !important; /* White background makes the PNG pop */
+    color: #000 !important; /* Dark text for contrast */
+    text-shadow: 0px 0px 4px rgba(255,255,255,0.8); /* Glow to keep text readable */
+}
 
 /* Style to make buttons big and square */
 .actions button {
