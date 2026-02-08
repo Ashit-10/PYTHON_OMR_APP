@@ -58,20 +58,29 @@ header {
 
 /* Add this to keep the "Change Signature" text readable over the image */
 /* This handles the full-width translucent bar at the bottom of the square */
+/* Combined style for the button label bar */
 .btn-sign-preview b, .btn-sign-active b {
-    background: rgba(255, 255, 255, 0.7); /* Translucent white */
-    color: #000;
-    width: 100%;             /* Stretch to full width of the button */
-    padding: 8px 0;          /* Vertical padding for the bar height */
-    font-size: 0.85rem;
+    background: rgba(255, 255, 255, 0.75) !important; /* Slightly more opaque for better legibility */
+    color: #000 !important;
+    display: block !important;    /* Forces it to be a box */
+    width: 100% !important;       /* Forces box to fill the button width */
+    padding: 10px 0 !important;   /* Creates the bar height */
+    font-size: 0.9rem !important; /* Restores the font size */
+    font-weight: bold;
     text-align: center;
-    display: block;          /* Makes it a block/box instead of just text */
-    margin-top: auto;        /* Pushes the bar to the very bottom of the button */
+    margin-top: auto !important;  /* Sticks the bar to the bottom */
     
-    /* Optional: Rounds the bottom corners to match the button's 15px radius */
-    border-bottom-left-radius: 15px;
-    border-bottom-right-radius: 15px;
+    /* These match your button's border-radius: 15px */
+    border-bottom-left-radius: 13px; 
+    border-bottom-right-radius: 13px;
 }
+
+/* Ensure the button itself isn't squeezing the content */
+#mainSignBtn {
+    padding-bottom: 0 !important; /* Removes padding so the bar touches the bottom edge */
+    overflow: hidden !important;   /* Ensures the bar corners don't leak out */
+}
+
 
 
 
@@ -123,13 +132,7 @@ header {
         border: 2px solid #5d4037 !important;
     }
 
-    /* Keep the label readable over the image */
-    .btn-sign-active b {
-        background: rgba(255,255,255,0.7);
-        padding: 2px 6px;
-        border-radius: 4px;
-        margin-top: auto;
-    }
+
 
 /* =====================
    PROJECT FOLDERS
