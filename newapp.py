@@ -111,13 +111,13 @@ def move_and_process(file_path):
         latest_output_filename = newest_file
         scan_ready = True
         error_occurred = False
-       # print(f"Success! Result saved as: {latest_output_filename}")
+     #   print(f"Success! Result saved as: {latest_output_filename}")
     else:
         # ROOT FAILURE: autoapp.py finished but the output folder is empty
         latest_output_filename = ""
         scan_ready = False
         error_occurred = True
-        print("!! ROOT FAILURE: autoapp.py finished but no output image was found !!")
+      #  print("!! ROOT FAILURE: autoapp.py finished but no output image was found !!")
 
     # Final state: processing is done
     processing = False

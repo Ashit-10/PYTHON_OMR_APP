@@ -46,13 +46,14 @@ for photo in photos:
             #  print(eval_data[4])
              ret = eval_data[4]
         except:
-            os.system(f"mv -f {ppath}/{photo} {err_dir}/")
+            os.system(f"mv -f input/{photo} {err_dir}/")
+            print("❌❌", eval_data)
             pass
            
     
 end_time = time.time()
-time_diff= int(end_time) - int(start_time)
-print(f"Time taken: {time_diff} seconds")
+time_diff= (end_time) - (start_time)
+print(f"Time taken: {time_diff:.1f} seconds")
 #print("Duplicate photos found and copied them to duplicate folder.")
 #print(dup_rolls)
 print()
