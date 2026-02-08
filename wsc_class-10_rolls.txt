@@ -1,5 +1,5 @@
 {
-    "1": "Aditya Kumar Champatiii",
+    "1": "Aditya Kumar Champati",
     "2": "Adyasha Pattasani",
     "3": "Ajit Kumar Mahar",
     "4": "Anita Maharani",
