@@ -5,6 +5,63 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OMR Dashboard</title>
 <link rel="stylesheet" href="/static/style.css">
+<style>
+    /* Square Button Layout Logic */
+    .actions {
+        display: flex;
+        justify-content: center;
+        gap: 15px;
+        margin: 20px 12px;
+    }
+
+    .actions button {
+        flex: 1;
+        aspect-ratio: 1 / 1;
+        max-width: 160px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        font-weight: bold;
+        border-radius: 15px;
+        border: none;
+        cursor: pointer;
+        transition: transform 0.1s;
+        padding: 10px;
+        text-align: center;
+    }
+
+    .actions button:active { transform: scale(0.95); }
+    
+    .btn-key { background-color: #f57c00; color: white; }
+    .btn-sign { background-color: #5d4037; color: white; }
+    .btn-scan { background-color: #2e7d32; color: white; }
+    .btn-git { background-color: #24292e; color: white; }
+
+    .actions button span {
+        font-size: 2rem;
+        margin-bottom: 8px;
+    }
+
+    /* Style for the button when a signature is loaded */
+    .btn-sign-active {
+        background-size: contain !important;
+        background-repeat: no-repeat !important;
+        background-position: center !important;
+        background-color: #ffffff !important; /* White background for PNG contrast */
+        color: #000 !important;
+        border: 2px solid #5d4037 !important;
+    }
+
+    /* Keep the label readable over the image */
+    .btn-sign-active b {
+        background: rgba(255,255,255,0.7);
+        padding: 2px 6px;
+        border-radius: 4px;
+        margin-top: auto;
+    }
+</style>
 </head>
 <body>
 
@@ -20,17 +77,14 @@
     </div>
 </header>
 
-
 <section class="actions">
   <button class="btn-key" onclick="openAnswerKey()">
     <span>🗝</span> Answer Key
   </button>
- <button id="mainSignBtn" class="btn-sign" onclick="showSignModal()">
-    <span>✍️</span> Change Signature
-</button>
-
+  <button id="mainSignBtn" class="btn-sign" onclick="showSignModal()">
+    <span id="signEmoji">✍️</span> <b id="signText">Change Signature</b>
+  </button>
 </section>
-
 
 <div id="pixelModal" class="modal hidden">
   <div class="modal-content">
@@ -38,7 +92,7 @@
     <input type="number" id="pixelInput" placeholder="Value from config">
     <div class="modal-buttons">
       <button onclick="savePixelValue()">Save</button>
-      <button onclick="closePixelModal()"">Cancel</button>
+      <button onclick="closePixelModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -46,12 +100,12 @@
 <div id="signModal" class="modal hidden">
   <div class="modal-content">
     <h3>Select Signature</h3>
-    <div style="display: flex; flex-direction: column; gap: 20px; margin-top: 15px;">
-      <button style="font-size: 18px; border-radius: 6px; padding: 5px 30px;" onclick="updateSignature('ashit_sign.png')" style="background: #444;">Ashit</button>
-      <button style="font-size: 18px; border-radius: 6px; padding: 5px 30px;" onclick="updateSignature('rupa_sign.png')" style="background: #444;">Rupa</button>
-      <button style="font-size: 18px; border-radius: 6px; padding: 5px 30px;" onclick="updateSignature('lakhia_sign.png')" style="background: #444;">Lakhia Bhai</button>
-      <button style="font-size: 18px; border-radius: 6px; padding: 5px 30px;" onclick="updateSignature('ananta_sign.png')" style="background: #444;">Ananta</button>
-      <button onclick="closeSignModal()" style="font-size: 18px; border-radius: 6px; padding: 5px 30px; background: #24292e; color: white; margin-top: 10px;">Cancel</button>
+    <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
+      <button style="font-size: 18px; border-radius: 6px; padding: 10px;" onclick="updateSignature('ashit_sign.png')">Ashit</button>
+      <button style="font-size: 18px; border-radius: 6px; padding: 10px;" onclick="updateSignature('rupa_sign.png')">Rupa</button>
+      <button style="font-size: 18px; border-radius: 6px; padding: 10px;" onclick="updateSignature('lakhia_sign.png')">Lakhia Bhai</button>
+      <button style="font-size: 18px; border-radius: 6px; padding: 10px;" onclick="updateSignature('ananta_sign.png')">Ananta</button>
+      <button onclick="closeSignModal()" style="font-size: 18px; border-radius: 6px; padding: 10px; background: #24292e; color: white; margin-top: 10px;">Cancel</button>
     </div>
   </div>
 </div>
@@ -59,27 +113,28 @@
 <section class="card" style="margin: 12px;">
   <h3>Project Folders:</h3>
   <div style="text-align: left;">
-  <button onclick="confirmClearFolders()" style="background-color: #d32f2f; color: white; border: none; margin-top: 10px; padding: 8px 8px; border-radius: 18px; cursor: pointer; font-weight: bold;">
-    🗑️  Clear All Folders
-  </button>
-</div>
+    <button onclick="confirmClearFolders()" style="background-color: #d32f2f; color: white; border: none; margin-top: 10px; padding: 8px 8px; border-radius: 18px; cursor: pointer; font-weight: bold;">
+      🗑️ Clear All Folders
+    </button>
+  </div>
     
   <div id="folders">
-  {% set ordered_list = ['input', 'output', 'error_images', 'duplicates'] %}
-  {% for target in ordered_list %}
-    {% if target in folders %}
-      <div class="folder-card" onclick="openFolder('{{ target }}')" style="display: flex; justify-content: space-between; align-items: center;">
-        <span>📁 {{ target }}</span>
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <span style="background: #444; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; color: #fff;">
-            {{ folder_counts[target] }} Images
-          </span>
+    {% set ordered_list = ['input', 'output', 'error_images', 'duplicates'] %}
+    {% for target in ordered_list %}
+      {% if target in folders %}
+        <div class="folder-card" onclick="openFolder('{{ target }}')" style="display: flex; justify-content: space-between; align-items: center;">
+          <span>📁 {{ target }}</span>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="background: #444; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; color: #fff;">
+              {{ folder_counts[target] }} Images
+            </span>
+          </div>
         </div>
-      </div>
-    {% endif %}
-  {% endfor %}
-</div>
+      {% endif %}
+    {% endfor %}
+  </div>
 </section>
+
 <section class="actions">
   <button class="btn-scan" onclick="location.href='/scan'">
     <span>📷</span> Scan OMR Sheet
@@ -123,9 +178,8 @@
       </div>
     {% endfor %}
   </div>
-  
-  
 </section>
+
 <section class="actions">
   <button onclick="showModal()" style="display: none;">➕ Create Project Folder</button>
 </section>
@@ -143,28 +197,30 @@
 </div>
 
 <script>
-
+/* --- CONSOLIDATED FETCH LOGIC --- */
 function fetchPixelValue() {
     fetch("/get_config").then(r => r.json()).then(data => {
-        // 1. Handle Pixel Value
+        // Update Black Pixel
         const val = data.pixel_value || "--";
-        document.getElementById("pixelValDisplay").innerText = val;
-        document.getElementById("pixelInput").value = val;
+        const pixelBadge = document.getElementById("pixelValDisplay");
+        const pixelInp = document.getElementById("pixelInput");
+        if(pixelBadge) pixelBadge.innerText = val;
+        if(pixelInp) pixelInp.value = val;
 
-        // 2. Handle Signature Preview
+        // Update Signature Preview on Dashboard
         if (data.signature) {
             const signBtn = document.getElementById("mainSignBtn");
-            // Set the background image to the filename from config
-            signBtn.style.backgroundImage = `url('/${data.signature}')`;
-            signBtn.classList.add("btn-sign-preview");
-            // Optional: Hide the emoji icon to see the signature better
-            signBtn.querySelector('span').style.display = 'none';
+            const emoji = document.getElementById("signEmoji");
+            if (signBtn) {
+                // Point to root directory where png files are
+                signBtn.style.backgroundImage = `url('/${data.signature}')`;
+                signBtn.classList.add("btn-sign-active");
+                if (emoji) emoji.style.display = 'none'; // Hide emoji to show sign
+            }
         }
-    });
+    }).catch(err => console.error("Config load error:", err));
 }
 
-// Make sure to call this inside your updateSignature function too 
-// so the dashboard updates immediately without a refresh!
 function updateSignature(filename) {
     fetch("/update_config", {
         method: "POST",
@@ -173,19 +229,15 @@ function updateSignature(filename) {
     })
     .then(response => {
         if (response.ok) {
-            alert("Signature updated!");
-            fetchPixelValue(); // <--- Refresh the preview on the main button
+            alert("Signature updated to: " + filename);
+            fetchPixelValue(); // Immediate background update
             closeSignModal();
         }
     });
 }
 
-    
-/* --- NEW PIXEL LOGIC --- */
-function toggleMenu() {
-    document.getElementById("myDropdown").classList.toggle("show");
-    fetchPixelValue();
-}
+/* --- MENU & FOLDERS --- */
+function toggleMenu() { document.getElementById("myDropdown").classList.toggle("show"); }
 
 window.onclick = function(event) {
   if (!event.target.matches('.menu-btn')) {
@@ -197,46 +249,25 @@ window.onclick = function(event) {
 }
 
 function confirmClearFolders() {
-    // First Confirmation
-    const firstCheck = confirm("⚠️ This will permanently delete all images from 'input', 'output', 'error_images', and 'duplicates'. Do you want to proceed?");
-    
-    if (firstCheck) {
-        // Second Confirmation
-        const secondCheck = confirm("Are you absolutely sure? This action cannot be undone.");
-        
-        if (secondCheck) {
-            clearFolders();
-        }
+    if (confirm("⚠️ This will permanently delete all images. Proceed?")) {
+        if (confirm("Are you absolutely sure?")) { clearFolders(); }
     }
 }
 
 function clearFolders() {
-    fetch("/clear_project_folders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" }
-    })
-    .then(response => {
-        if (response.ok) {
-            alert("Folders cleared successfully.");
-            location.reload(); // Refresh to update the counts
-        } else {
-            alert("Error clearing folders. Please check the server logs.");
-        }
-    })
-    .catch(err => console.error("Request failed", err));
+    fetch("/clear_project_folders", { method: "POST" })
+    .then(res => res.ok ? location.reload() : alert("Error clearing folders."));
 }
 
-
-function fetchPixelValue() {
-    fetch("/get_config").then(r => r.json()).then(data => {
-        const val = data.pixel_value || "--";
-        document.getElementById("pixelValDisplay").innerText = val;
-        document.getElementById("pixelInput").value = val;
-    });
-}
-
+/* --- MODAL CONTROLS --- */
 function openPixelModal() { document.getElementById("pixelModal").classList.remove("hidden"); }
 function closePixelModal() { document.getElementById("pixelModal").classList.add("hidden"); }
+function showSignModal() { document.getElementById("signModal").classList.remove("hidden"); }
+function closeSignModal() { document.getElementById("signModal").classList.add("hidden"); }
+function showGitModal() { document.getElementById("gitModal").classList.remove("hidden"); }
+function closeGitModal() { document.getElementById("gitModal").classList.add("hidden"); }
+function showModal(){ document.getElementById("modal").classList.remove("hidden") }
+function closeModal(){ document.getElementById("modal").classList.add("hidden") }
 
 function savePixelValue() {
     const val = document.getElementById("pixelInput").value;
@@ -245,31 +276,10 @@ function savePixelValue() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pixel_value: val })
     }).then(() => {
-        document.getElementById("pixelValDisplay").innerText = val;
+        fetchPixelValue();
         closePixelModal();
     });
 }
-
-/* --- RESTORED ORIGINAL LOGIC --- */
-function showSignModal() { document.getElementById("signModal").classList.remove("hidden"); }
-function closeSignModal() { document.getElementById("signModal").classList.add("hidden"); }
-
-function updateSignature(filename) {
-    fetch("/update_config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signature: filename })
-    })
-    .then(response => {
-        if (response.ok) {
-            alert("Signature updated to: " + filename);
-            closeSignModal();
-        }
-    });
-}
-
-function showGitModal() { document.getElementById("gitModal").classList.remove("hidden"); }
-function closeGitModal() { document.getElementById("gitModal").classList.add("hidden"); }
 
 function submitGitUpload() {
     const tution = document.querySelector('input[name="tuition"]:checked').value;
@@ -281,8 +291,7 @@ function submitGitUpload() {
     const logContainer = document.getElementById("terminal-logs");
     logSection.classList.remove("hidden");
     logContainer.innerHTML = "Starting GitHub sync...<br>";
-    const url = `/run_gitup?tution=${tution}&class=${cls}&subject=${sub}`;
-    fetch(url).then(response => {
+    fetch(`/run_gitup?tution=${tution}&class=${cls}&subject=${sub}`).then(response => {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         function read() {
@@ -297,10 +306,6 @@ function submitGitUpload() {
     });
 }
 
-function openFolder(f){ window.location.href = "/browse?path=" + encodeURIComponent(f); }
-function showModal(){ document.getElementById("modal").classList.remove("hidden") }
-function closeModal(){ document.getElementById("modal").classList.add("hidden") }
-
 function createFolder(){
   const clsVal = document.getElementById("clsInput").value.trim();
   const subVal = document.getElementById("subInput").value.trim();
@@ -311,6 +316,7 @@ function createFolder(){
   }).then(() => location.reload());
 }
 
+function openFolder(f){ window.location.href = "/browse?path=" + encodeURIComponent(f); }
 function openAnswerKey() { window.location.href = "/answer_key?folder=input"; }
 
 window.onload = fetchPixelValue;
