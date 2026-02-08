@@ -57,29 +57,45 @@ header {
 }
 
 /* Add this to keep the "Change Signature" text readable over the image */
-/* This handles the full-width translucent bar at the bottom of the square */
-/* Combined style for the button label bar */
+/* This targets the Change Signature text specifically */
 .btn-sign-preview b, .btn-sign-active b {
-    background: rgba(255, 255, 255, 0.75) !important; /* Slightly more opaque for better legibility */
-    color: #000 !important;
-    display: block !important;    /* Forces it to be a box */
-    width: 100% !important;       /* Forces box to fill the button width */
-    padding: 10px 0 !important;   /* Creates the bar height */
-    font-size: 0.9rem !important; /* Restores the font size */
-    font-weight: bold;
-    text-align: center;
-    margin-top: auto !important;  /* Sticks the bar to the bottom */
+    /* 1. Make it a full-width bar */
+    display: block !important;
+    width: 100% !important;
     
-    /* These match your button's border-radius: 15px */
+    /* 2. Position it at the very bottom */
+    margin-top: auto !important; 
+    margin-bottom: 0 !important;
+
+    /* 3. Visual Styling */
+    background: rgba(255, 255, 255, 0.7) !important;
+    color: #000 !important;
+    padding: 10px 0 !important;
+    font-size: 0.9rem !important;
+    text-align: center;
+    
+    /* 4. Match the button's bottom curves (15px) */
     border-bottom-left-radius: 13px; 
     border-bottom-right-radius: 13px;
 }
 
-/* Ensure the button itself isn't squeezing the content */
+/* We must also adjust the button container to allow the bar to touch the edges */
 #mainSignBtn {
-    padding-bottom: 0 !important; /* Removes padding so the bar touches the bottom edge */
-    overflow: hidden !important;   /* Ensures the bar corners don't leak out */
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    padding-bottom: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: flex-start !important; /* Starts content from top */
+    overflow: hidden !important; /* Clips the background bar to the button corners */
 }
+
+/* Keep the emoji pushed down slightly so it's not at the very top */
+#mainSignBtn span {
+    margin-top: 15px;
+}
+
 
 
 
