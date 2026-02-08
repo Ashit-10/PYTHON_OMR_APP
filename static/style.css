@@ -38,89 +38,73 @@ header {
 /* =====================
    ACTION BUTTONS
 ===================== */
-/* Container for the square buttons */
 .actions {
   display: flex;
   justify-content: center;
-  gap: 10vw;
+  gap: 15px; /* Fixed gap for consistency */
   margin: 20px 12px;
 }
-/* Style for the preview on the dashboard button */
-/* Style for the preview on the dashboard button */
-.btn-sign-preview {
+
+.actions button {
+  flex: 1;
+  aspect-ratio: 1.5 / 1;
+  max-width: 40vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between; /* Pushes Emoji to top/middle and Text to bottom */
+  font-size: 1rem;
+  font-weight: bold;
+  border-radius: 15px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.1s;
+  padding: 0px; /* Crucial: Allows the bottom bar to touch the edges */
+  text-align: center;
+  overflow: hidden; /* Clips the translucent bar to the rounded corners */
+  position: relative;
+}
+
+.actions button:active { transform: scale(0.95); }
+
+.btn-key { background-color: #f57c00; color: white; }
+.btn-sign { background-color: #5d4037; color: white; }
+.btn-scan { background-color: #2e7d32; color: white; }
+.btn-git { background-color: #24292e; color: white; }
+
+.actions button span {
+  font-size: 2rem;
+  margin-top: auto;   /* Centers emoji vertically in the top space */
+  margin-bottom: auto; 
+}
+
+/* Signature Active States */
+.btn-sign-preview, .btn-sign-active {
     background-size: contain !important;
     background-repeat: no-repeat !important;
     background-position: center !important;
-    background-color: #ffffff !important; /* White background for PNG contrast */
-    color: #000 !important; /* Dark text to read over the white bg */
-    border: 2px solid #5d4037 !important; /* Keep the original theme border */
+    background-color: #ffffff !important;
+    color: #000 !important;
+    border: 2px solid #5d4037 !important;
 }
 
-/* Add this to keep the "Change Signature" text readable over the image */
-.btn-sign-preview b {
-    background: rgba(255, 255, 255, 0.7);
-    padding: 2px 6px;
-    border-radius: 4px;
+/* THE FIX: Full-width bottom bar */
+.btn-sign-preview b, .btn-sign-active b {
+    background: rgba(255, 255, 255, 0.75) !important;
+    width: 100% !important;
+    height: auto !important; /* Changed from 100% to auto to make it a bar */
+    padding: 10px 0 !important; /* Adjust this to make the bar taller or shorter */
+    display: block !important;
     font-size: 0.9rem;
-    margin-top: auto; /* Pushes text to the bottom of the square */
-}
-
-
- /* Square Button Layout Logic */
-    .actions {
-        display: flex;
-        justify-content: center;
-        gap: 15px;
-        margin: 20px 12px;
-    }
-
-    .actions button {
-        flex: 1;
-        aspect-ratio: 1.5 / 1;
-        max-width: 40vw;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        font-size: 1rem;
-        font-weight: bold;
-        border-radius: 15px;
-        border: none;
-        cursor: pointer;
-        transition: transform 0.1s;
-        padding: 10px;
-        text-align: center;
-    }
-
-    .actions button:active { transform: scale(0.95); }
+    color: #000;
+    margin-top: 0; /* Ensures it sits at the bottom due to justify-content */
     
-    .btn-key { background-color: #f57c00; color: white; }
-    .btn-sign { background-color: #5d4037; color: white; }
-    .btn-scan { background-color: #2e7d32; color: white; }
-    .btn-git { background-color: #24292e; color: white; }
-
-    .actions button span {
-        font-size: 2rem;
-        margin-bottom: 8px;
-    }
-
-    /* Style for the button when a signature is loaded */
-    .btn-sign-active {
-        background-size: contain !important;
-        background-repeat: no-repeat !important;
-        background-position: center !important;
-        background-color: #ffffff !important; /* White background for PNG contrast */
-        color: #000 !important;
-        border: 2px solid #5d4037 !important;
-    }
-
-    /* Keep the label readable over the image */
-    .btn-sign-active b {
-        background: rgba(255,255,255,0.7);
-        padding: 2px 6px;
-        border-radius: 4px;
-        margin-top: auto;
-    }
+    /* Match button's 15px border radius */
+    border-bottom-left-radius: 13px;
+    border-bottom-right-radius: 13px;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
 
 /* =====================
    PROJECT FOLDERS
@@ -323,9 +307,8 @@ button.danger {
   .file-container { grid-template-columns: repeat(auto-fill, minmax(90px,1fr)); }
 }
 
-
 /* =====================
-   MENU & PIXEL OVERLAY (New Only)
+   MENU & PIXEL OVERLAY
 ===================== */
 .menu-container {
   position: absolute;
@@ -358,7 +341,7 @@ button.danger {
 }
 
 .dropdown-content button {
-  width: 100% !important; /* Force menu buttons to fill dropdown width */
+  width: 100% !important;
   padding: 12px 16px !important;
   text-align: left;
   background: none !important;
@@ -380,4 +363,3 @@ button.danger {
 }
 
 .show { display: block !important; }
-
