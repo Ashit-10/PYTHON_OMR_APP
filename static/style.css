@@ -38,26 +38,47 @@ header {
 /* =====================
    ACTION BUTTONS
 ===================== */
+/* Container for the square buttons */
 .actions {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 12px;
+  justify-content: center;
+  gap: 15px;
+  margin: 20px 12px;
 }
 
+/* Style to make buttons big and square */
 .actions button {
-  padding: 12px;
+  flex: 1;               /* Makes buttons take equal width */
+  aspect-ratio: 1 / 1;    /* Keeps them perfectly square */
+  max-width: 160px;      /* Limits size on large screens */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: bold;
+  border-radius: 12px;
   border: none;
-  border-radius: 10px;
-  background: #2563eb;
-  color: #fff;
-  font-size: 16px;
-  font-weight: 500;
   cursor: pointer;
+  padding: 10px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+  transition: transform 0.1s;
 }
 
 .actions button:active {
-  background: #1e40af;
+  transform: scale(0.95);
+}
+
+/* Specific colors to match your original design */
+.btn-key { background-color: #f57c00; color: white; }
+.btn-sign { background-color: #5d4037; color: white; }
+.btn-scan { background-color: #2e7d32; color: white; }
+.btn-git { background-color: #24292e; color: white; }
+
+/* Ensure icons/emojis are larger */
+.actions button span {
+  font-size: 2rem;
+  margin-bottom: 8px;
 }
 
 /* =====================
