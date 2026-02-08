@@ -213,7 +213,7 @@ function fetchPixelValue() {
             const emoji = document.getElementById("signEmoji");
             if (signBtn) {
                 // Point to root directory where png files are
-                signBtn.style.backgroundImage = `url('/${data.signature}')`;
+                signBtn.style.backgroundImage = `url('/static/${data.signature}')`;
                 signBtn.classList.add("btn-sign-active");
                 if (emoji) emoji.style.display = 'none'; // Hide emoji to show sign
             }
