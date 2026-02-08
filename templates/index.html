@@ -25,9 +25,10 @@
   <button class="btn-key" onclick="openAnswerKey()">
     <span>🗝</span> Answer Key
   </button>
-  <button class="btn-sign" onclick="showSignModal()">
+ <button id="mainSignBtn" class="btn-sign" onclick="showSignModal()">
     <span>✍️</span> Change Signature
-  </button>
+</button>
+
 </section>
 
 
@@ -142,6 +143,44 @@
 </div>
 
 <script>
+
+function fetchPixelValue() {
+    fetch("/get_config").then(r => r.json()).then(data => {
+        // 1. Handle Pixel Value
+        const val = data.pixel_value || "--";
+        document.getElementById("pixelValDisplay").innerText = val;
+        document.getElementById("pixelInput").value = val;
+
+        // 2. Handle Signature Preview
+        if (data.signature) {
+            const signBtn = document.getElementById("mainSignBtn");
+            // Set the background image to the filename from config
+            signBtn.style.backgroundImage = `url('/${data.signature}')`;
+            signBtn.classList.add("btn-sign-preview");
+            // Optional: Hide the emoji icon to see the signature better
+            signBtn.querySelector('span').style.display = 'none';
+        }
+    });
+}
+
+// Make sure to call this inside your updateSignature function too 
+// so the dashboard updates immediately without a refresh!
+function updateSignature(filename) {
+    fetch("/update_config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signature: filename })
+    })
+    .then(response => {
+        if (response.ok) {
+            alert("Signature updated!");
+            fetchPixelValue(); // <--- Refresh the preview on the main button
+            closeSignModal();
+        }
+    });
+}
+
+    
 /* --- NEW PIXEL LOGIC --- */
 function toggleMenu() {
     document.getElementById("myDropdown").classList.toggle("show");
