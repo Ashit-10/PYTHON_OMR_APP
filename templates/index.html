@@ -200,7 +200,8 @@ window.onclick = function(event) {
 }
 
 function confirmClearFolders() {
-    if (confirm("⚠️ This will permanently delete all images. Proceed?")) {
+    if (confirm("⚠️ This will permanently delete all images from 'input', 'output',
+'error_images' and 'duplicates'. Do you want to proceed?")) {
         if (confirm("Are you absolutely sure?")) { clearFolders(); }
     }
 }
