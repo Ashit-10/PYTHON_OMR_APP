@@ -38,90 +38,94 @@ header {
 /* =====================
    ACTION BUTTONS
 ===================== */
+/* Container for the square buttons */
 .actions {
   display: flex;
   justify-content: center;
-  gap: 15px;
+  gap: 10vw;
   margin: 20px 12px;
 }
-
-/* Standard styling for all action buttons */
-.actions button {
-  flex: 1;
-  aspect-ratio: 1.5 / 1;
-  max-width: 40vw;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center; /* Default centering for normal buttons */
-  font-size: 1rem;
-  font-weight: bold;
-  border-radius: 15px;
-  border: none;
-  cursor: pointer;
-  transition: transform 0.1s;
-  padding: 10px;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.actions button:active { transform: scale(0.95); }
-
-.btn-key { background-color: #f57c00; color: white; }
-.btn-sign { background-color: #5d4037; color: white; }
-.btn-scan { background-color: #2e7d32; color: white; }
-.btn-git { background-color: #24292e; color: white; }
-
-.actions button span {
-  font-size: 2rem;
-  margin-bottom: 8px;
-}
-
-/* =====================
-   SIGNATURE BUTTON SPECIAL FIX
-===================== */
-
-/* Target ONLY the signature button to move text to bottom */
-#mainSignBtn {
-    padding: 0 !important; 
-    justify-content: flex-end !important; /* Pushes content to the bottom */
-}
-
-/* Keep the emoji in the middle of the signature button */
-#mainSignBtn span {
-    margin-top: auto;
-    margin-bottom: auto;
-}
-
-/* Signature Active States (Background Image) */
-.btn-sign-preview, .btn-sign-active {
+/* Style for the preview on the dashboard button */
+/* Style for the preview on the dashboard button */
+.btn-sign-preview {
     background-size: contain !important;
     background-repeat: no-repeat !important;
     background-position: center !important;
-    background-color: #ffffff !important;
-    color: #000 !important;
-    border: 2px solid #5d4037 !important;
+    background-color: #ffffff !important; /* White background for PNG contrast */
+    color: #000 !important; /* Dark text to read over the white bg */
+    border: 2px solid #5d4037 !important; /* Keep the original theme border */
 }
 
-/* The Translucent Bottom Bar */
-.btn-sign-preview b, .btn-sign-active b, #mainSignBtn b {
-    display: block !important;
-    width: 100% !important;
-    background: rgba(255, 255, 255, 0.75) !important;
-    color: #000 !important;
-    padding: 8px 0 !important;
-    font-size: 0.9rem !important;
-    font-weight: bold;
-    text-align: center;
+/* Add this to keep the "Change Signature" text readable over the image */
+.btn-sign-preview b {
+    background: rgba(255, 255, 255, 0.7);
+    width: 100%;
+    height:100%;
+    border-radius: 15px;
     
-    /* Ensure it sits at the very bottom */
-    margin-top: 0 !important; 
-    
-    /* Match button corners */
-    border-bottom-left-radius: 13px;
-    border-bottom-right-radius: 13px;
+    font-size: 0.9rem;
+    margin-top: auto; /* Pushes text to the bottom of the square */
 }
+
+
+ /* Square Button Layout Logic */
+    .actions {
+        display: flex;
+        justify-content: center;
+        gap: 15px;
+        margin: 20px 12px;
+    }
+
+    .actions button {
+        flex: 1;
+        aspect-ratio: 1.5 / 1;
+        max-width: 40vw;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        font-weight: bold;
+        border-radius: 15px;
+        border: none;
+        cursor: pointer;
+        transition: transform 0.1s;
+        padding: 0px;
+        text-align: center;
+    }
+
+    .actions button:active { transform: scale(0.95); }
+    
+    .btn-key { background-color: #f57c00; color: white; }
+    .btn-sign { background-color: #5d4037; color: white; }
+    .btn-scan { background-color: #2e7d32; color: white; }
+    .btn-git { background-color: #24292e; color: white; }
+
+    .actions button span {
+        font-size: 2rem;
+        margin-bottom: 8px;
+    }
+
+    /* Style for the button when a signature is loaded */
+    .btn-sign-active {
+        background-size: contain !important;
+        background-repeat: no-repeat !important;
+        background-position: center !important;
+        background-color: #ffffff !important; /* White background for PNG contrast */
+        color: #000 !important;
+        border: 2px solid #5d4037 !important;
+    }
+
+    /* Keep the label readable over the image */
+    .btn-sign-active b {
+        background: rgba(255,255,255,0.7);
+        width: 100%;
+        height: 100%;
+        text-align: bottom;
+        border-radius: 15px;
+        padding-top: 42%;
+        
+    }
 
 /* =====================
    PROJECT FOLDERS
@@ -324,8 +328,9 @@ button.danger {
   .file-container { grid-template-columns: repeat(auto-fill, minmax(90px,1fr)); }
 }
 
+
 /* =====================
-   MENU & PIXEL OVERLAY
+   MENU & PIXEL OVERLAY (New Only)
 ===================== */
 .menu-container {
   position: absolute;
@@ -358,7 +363,7 @@ button.danger {
 }
 
 .dropdown-content button {
-  width: 100% !important;
+  width: 100% !important; /* Force menu buttons to fill dropdown width */
   padding: 12px 16px !important;
   text-align: left;
   background: none !important;
@@ -380,3 +385,4 @@ button.danger {
 }
 
 .show { display: block !important; }
+
