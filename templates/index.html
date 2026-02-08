@@ -158,11 +158,19 @@ function fetchPixelValue() {
                 // Point to root directory where png files are
                 signBtn.style.backgroundImage = `url('/static/${data.signature}')`;
                 signBtn.classList.add("btn-sign-active");
-                if (emoji) emoji.style.display = 'none'; // Hide emoji to show sign
+                if (emoji) {
+                emoji.style.display = 'flex';
+                emoji.style.position = 'absolute';                
+                } 
             }
         }
     }).catch(err => console.error("Config load error:", err));
 }
+
+
+
+
+
 
 function updateSignature(filename) {
     fetch("/update_config", {
