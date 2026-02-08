@@ -41,10 +41,11 @@ header {
 .actions {
   display: flex;
   justify-content: center;
-  gap: 15px; /* Fixed gap for consistency */
+  gap: 15px;
   margin: 20px 12px;
 }
 
+/* Standard styling for all action buttons */
 .actions button {
   flex: 1;
   aspect-ratio: 1.5 / 1;
@@ -52,17 +53,17 @@ header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between; /* Pushes Emoji to top/middle and Text to bottom */
+  justify-content: center; /* Default centering for normal buttons */
   font-size: 1rem;
   font-weight: bold;
   border-radius: 15px;
   border: none;
   cursor: pointer;
   transition: transform 0.1s;
-  padding: 0px; /* Crucial: Allows the bottom bar to touch the edges */
+  padding: 10px;
   text-align: center;
-  overflow: hidden; /* Clips the translucent bar to the rounded corners */
   position: relative;
+  overflow: hidden;
 }
 
 .actions button:active { transform: scale(0.95); }
@@ -74,11 +75,26 @@ header {
 
 .actions button span {
   font-size: 2rem;
-  margin-top: auto;   /* Centers emoji vertically in the top space */
-  margin-bottom: auto; 
+  margin-bottom: 8px;
 }
 
-/* Signature Active States */
+/* =====================
+   SIGNATURE BUTTON SPECIAL FIX
+===================== */
+
+/* Target ONLY the signature button to move text to bottom */
+#mainSignBtn {
+    padding: 0 !important; 
+    justify-content: flex-end !important; /* Pushes content to the bottom */
+}
+
+/* Keep the emoji in the middle of the signature button */
+#mainSignBtn span {
+    margin-top: auto;
+    margin-bottom: auto;
+}
+
+/* Signature Active States (Background Image) */
 .btn-sign-preview, .btn-sign-active {
     background-size: contain !important;
     background-repeat: no-repeat !important;
@@ -88,22 +104,23 @@ header {
     border: 2px solid #5d4037 !important;
 }
 
-/* THE FIX: Full-width bottom bar */
-.btn-sign-preview b, .btn-sign-active b {
-    background: rgba(255, 255, 255, 0.75) !important;
-    width: 100% !important;
-    height: auto !important; /* Changed from 100% to auto to make it a bar */
-    padding: 10px 0 !important; /* Adjust this to make the bar taller or shorter */
+/* The Translucent Bottom Bar */
+.btn-sign-preview b, .btn-sign-active b, #mainSignBtn b {
     display: block !important;
-    font-size: 0.9rem;
-    color: #000;
-    margin-top: 0; /* Ensures it sits at the bottom due to justify-content */
+    width: 100% !important;
+    background: rgba(255, 255, 255, 0.75) !important;
+    color: #000 !important;
+    padding: 8px 0 !important;
+    font-size: 0.9rem !important;
+    font-weight: bold;
+    text-align: center;
     
-    /* Match button's 15px border radius */
+    /* Ensure it sits at the very bottom */
+    margin-top: 0 !important; 
+    
+    /* Match button corners */
     border-bottom-left-radius: 13px;
     border-bottom-right-radius: 13px;
-    border-top-left-radius: 0;
-    border-top-right-radius: 0;
 }
 
 /* =====================
