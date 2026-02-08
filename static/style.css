@@ -56,46 +56,38 @@ header {
     border: 2px solid #5d4037 !important; /* Keep the original theme border */
 }
 
-/* Add this to keep the "Change Signature" text readable over the image */
-/* This targets the Change Signature text specifically */
-.btn-sign-preview b, .btn-sign-active b {
-    /* 1. Make it a full-width bar */
-    display: block !important;
-    width: 100% !important;
-    
-    /* 2. Position it at the very bottom */
-    margin-top: auto !important; 
-    margin-bottom: 0 !important;
+/* Add this to keep the "Change Signature" text readable over the image *//* 1. Reset the button container to allow content to touch the edges */
+#mainSignBtn {
+    padding: 0 !important;       /* Removes the gap at the edges */
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important; /* Pushes text to bottom */
+    align-items: center !important;
+    overflow: hidden !important; /* Clips the bar to the button's rounded corners */
+}
 
-    /* 3. Visual Styling */
-    background: rgba(255, 255, 255, 0.7) !important;
+/* 2. Style the emoji/icon to sit in the middle-top */
+#mainSignBtn span {
+    margin-top: auto; 
+    margin-bottom: auto;
+    font-size: 2rem;
+}
+
+/* 3. Force the label to be a full-width bar at the bottom */
+.btn-sign-preview b, .btn-sign-active b {
+    display: block !important;
+    width: 100% !important;      /* Forces it to stretch left-to-right */
+    background: rgba(255, 255, 255, 0.75) !important; /* Translucent white */
     color: #000 !important;
-    padding: 10px 0 !important;
+    padding: 12px 0 !important;  /* Height of the bar */
     font-size: 0.9rem !important;
     text-align: center;
+    line-height: 1.2;            /* Keeps text clean on one or two lines */
     
-    /* 4. Match the button's bottom curves (15px) */
+    /* Matches your button's 15px border radius */
     border-bottom-left-radius: 13px; 
     border-bottom-right-radius: 13px;
 }
-
-/* We must also adjust the button container to allow the bar to touch the edges */
-#mainSignBtn {
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    padding-bottom: 0 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: flex-start !important; /* Starts content from top */
-    overflow: hidden !important; /* Clips the background bar to the button corners */
-}
-
-/* Keep the emoji pushed down slightly so it's not at the very top */
-#mainSignBtn span {
-    margin-top: 15px;
-}
-
 
 
 
