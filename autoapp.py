@@ -22,6 +22,7 @@ def evaluate(image_file, photo, out_put_path, answer_key_file, caption, has_dark
 start_time = time.time()
 
 ppath = "temp_input/"
+err_dir = "error_images"
 #os.system(f"rm -f {ppath}/*")
 photos = os.listdir(ppath)
 rolls = []
@@ -45,11 +46,13 @@ for photo in photos:
             #  print(eval_data[4])
              ret = eval_data[4]
         except:
+            os.system(f"mv -f {ppath}/{photo} {err_dir}/")
             pass
            
     
 end_time = time.time()
-print()
+time_diff= int(end_time) - int(start_time)
+print(f"Time taken: {time_diff} seconds")
 #print("Duplicate photos found and copied them to duplicate folder.")
 #print(dup_rolls)
 print()
