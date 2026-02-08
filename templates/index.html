@@ -49,8 +49,12 @@
     </div>
   </div>
 </div>
-
-
+<div style="margin: 12px; text-align: left;">
+  <button onclick="confirmClearFolders()" style="background-color: #d32f2f; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+    🗑️ Clear All Folders
+  </button>
+</div>
+    
 <section class="card" style="margin: 12px;">
   <h3>Project Folders</h3>
   <div id="folders">
@@ -137,6 +141,37 @@ window.onclick = function(event) {
     }
   }
 }
+
+function confirmClearFolders() {
+    // First Confirmation
+    const firstCheck = confirm("⚠️ This will permanently delete all images from 'input', 'output', 'error_images', and 'duplicates'. Do you want to proceed?");
+    
+    if (firstCheck) {
+        // Second Confirmation
+        const secondCheck = confirm("Are you absolutely sure? This action cannot be undone.");
+        
+        if (secondCheck) {
+            clearFolders();
+        }
+    }
+}
+
+function clearFolders() {
+    fetch("/clear_project_folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+    })
+    .then(response => {
+        if (response.ok) {
+            alert("Folders cleared successfully.");
+            location.reload(); // Refresh to update the counts
+        } else {
+            alert("Error clearing folders. Please check the server logs.");
+        }
+    })
+    .catch(err => console.error("Request failed", err));
+}
+
 
 function fetchPixelValue() {
     fetch("/get_config").then(r => r.json()).then(data => {
