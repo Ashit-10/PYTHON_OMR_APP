@@ -220,11 +220,11 @@
            max="99"
            oninput="if(this.value.length > 2) this.value = this.value.slice(0, 2);"
            onkeydown="return ['Backspace','Delete','ArrowLeft','ArrowRight','Tab'].includes(event.code) || /[0-9]/.test(event.key)"
-           style="width: 60px; padding: 10px; border-radius: 5px; border: 1px solid white; background: #222; color: white; font-size: 16px;">
+           style="width: 30px; padding: 10px; border-radius: 5px; border: 1px solid white; background: #222; color: white; font-size: 16px;">
     
-    <button id="flashBtn">🔦 On</button>
-    <button id="captureBtn">Click</button>
-    <button id="refreshBtn">Refresh</button>
+    <button id="flashBtn">🔦</button>
+    <button id="captureBtn" style="min-width: 30vw;">📸</button>
+    <button id="refreshBtn">🌀</button>
     <button id="fileBtn">📁</button>
     <input type="file" id="fileInput" accept="image/*" style="display: none;">
   </div>
@@ -322,11 +322,11 @@
         }
         torchOn = !torchOn;
         await track.applyConstraints({ advanced: [{ torch: torchOn }] });
-        flashBtn.textContent = torchOn ? '🔦 Off' : '🔦 On';
+        flashBtn.textContent = torchOn ? '🔦 Off' : '🔦';
       } catch (err) {
         alert('⚠️ Flash control failed.');
         torchOn = false;
-        flashBtn.textContent = '🔦 On';
+        flashBtn.textContent = '🔦';
       }
     }
 
