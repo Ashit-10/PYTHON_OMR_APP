@@ -13,6 +13,16 @@ from flask import Flask, send_from_directory, render_template, render_template_s
 from datetime import datetime
 from flask import Flask, render_template, render_template_string, jsonify, request, send_file, Response
 
+import zipfile
+import io
+import requests
+
+
+# Configuration
+TELEGRAM_BOT_TOKEN = "1848113090:AAE_TOG0Jji_NWqoi8iJ3uXItcTPGKmcb9o"
+TELEGRAM_CHAT_ID = "-1001393678025"
+
+
 # --- LOGGING FILTER ---
 class FilterRequests(logging.Filter):
     def filter(self, record):
@@ -170,6 +180,53 @@ def get_project_folders():
 
 # --- MAIN ROUTES ---
 
+
+
+@app.route("/send-telegram", methods=["POST"])
+def send_telegram():
+    data = request.json
+    folder_name = data.get("path", "")
+    
+    # Security/Path setup
+    folder_name = os.path.normpath(folder_name).replace("..", "")
+    target_folder = os.path.join(BASE, folder_name)
+
+    if not os.path.exists(target_folder):
+        return jsonify({"error": "Folder not found"}), 404
+
+    try:
+        # 1. Create ZIP in memory
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for root, dirs, files in os.walk(target_folder):
+                for file in files:
+                    if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+                        file_path = os.path.join(root, file)
+                        # Add to zip, using arcname to avoid full system paths in the zip
+                        zip_file.write(file_path, arcname=file)
+
+        zip_buffer.seek(0) # Reset buffer pointer to start
+
+        # 2. Send to Telegram
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
+        files = {
+            'document': (f"{folder_name}_images.zip", zip_buffer, 'application/zip')
+        }
+        payload = {
+            'chat_id': TELEGRAM_CHAT_ID,
+            'caption': f"📂 Folder: {folder_name}\n🖼️ Images compiled from File Browser."
+        }
+
+        response = requests.post(url, data=payload, files=files)
+        res_data = response.json()
+
+        if response.ok:
+            return jsonify({"status": "success"})
+        else:
+            return jsonify({"error": res_data.get("description", "Telegram API Error")}), 500
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 import configparser
 
