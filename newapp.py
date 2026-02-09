@@ -173,6 +173,31 @@ def get_project_folders():
 
 import configparser
 
+@app.route("/api/files")
+def list_files_for_count():
+    # 1. Get the folder name from the URL (e.g., /api/files?path=input)
+    folder_name = request.args.get("path", "input")
+    
+    # 2. Build the full path
+    target_folder = os.path.join(BASE, folder_name)
+    
+    if not os.path.exists(target_folder) or not os.path.isdir(target_folder):
+        return jsonify({"items": []})
+
+    # 3. List the files and filter for images
+    try:
+        files = os.listdir(target_folder)
+        image_items = []
+        for f in files:
+            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+                # We send a dictionary so the JavaScript .filter() works
+                image_items.append({"name": f, "is_dir": False})
+        
+        # 4. Return the list as JSON
+        return jsonify({"items": image_items})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/clear_project_folders', methods=['POST'])
 def clear_project_folders():
     target_folders = ['input', 'output', 'error_images', 'duplicates']
