@@ -172,59 +172,92 @@ function resetKillButton() {
 }
 
 // Function to generate the 'Bomb' beep sound
-function playBeep(frequency, duration) {
+function playDramaticBeep(isFinal) {
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioCtx.createOscillator();
+    
+    // Create nodes
+    const osc1 = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
 
-    oscillator.connect(gainNode);
+    osc1.connect(gainNode);
+    osc2.connect(gainNode);
     gainNode.connect(audioCtx.destination);
 
-    oscillator.type = 'square'; // 'square' gives it that retro digital bomb feel
-    oscillator.frequency.value = frequency;
-    
-    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration / 1000);
+    if (isFinal) {
+        // THE FINAL BOOM: Low, distorted thud
+        osc1.type = 'sawtooth';
+        osc2.type = 'sine';
+        osc1.frequency.setValueAtTime(150, audioCtx.currentTime);
+        osc2.frequency.setValueAtTime(40, audioCtx.currentTime);
+        
+        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1.5);
+        
+        osc1.start(); osc2.start();
+        osc1.stop(audioCtx.currentTime + 1.5);
+        osc2.stop(audioCtx.currentTime + 1.5);
+    } else {
+        // THE TENSION BEEP: High-pitched dual tone
+        osc1.type = 'sawtooth'; 
+        osc2.type = 'square';
+        
+        // Slightly detuned frequencies for a "scary" vibrating effect
+        osc1.frequency.setValueAtTime(880, audioCtx.currentTime); 
+        osc2.frequency.setValueAtTime(885, audioCtx.currentTime);
 
-    oscillator.start();
-    oscillator.stop(audioCtx.currentTime + duration / 1000);
+        gainNode.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.05); // Rapid fade in
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.4); // Longer tail
+
+        osc1.start(); osc2.start();
+        osc1.stop(audioCtx.currentTime + 0.4);
+        osc2.stop(audioCtx.currentTime + 0.4);
+    }
 }
 
+
 function endProcessing() {
-    if (!confirm("⚠️ FIRST WARNING: Stop Python Server?")) return resetKillButton();
-    if (!confirm("🚨 FINAL WARNING: Terminate everything?")) return resetKillButton();
+    if (!confirm("⚠️ FIRST WARNING: Shutdown System?")) return resetKillButton();
+    if (!confirm("🚨 FINAL WARNING: Detonate Server?")) return resetKillButton();
 
     const killBtn = document.getElementById('killBtn');
     let seconds = 3;
     
-    killBtn.onclick = null; // Disable double clicks
+    killBtn.onclick = null; 
     killBtn.style.background = "#000";
-    killBtn.style.boxShadow = "0 0 30px #ef4444";
+    killBtn.style.border = "2px solid #ff0000";
+    killBtn.style.boxShadow = "0 0 40px #ff0000";
 
     const timer = setInterval(() => {
-        // Play beep: frequency increases as time decreases
-        // 3 sec = 800Hz, 2 sec = 1000Hz, 1 sec = 1200Hz
-        const freq = 800 + ((3 - seconds) * 200);
-        playBeep(freq, 150);
-
-        killBtn.innerHTML = `<span style="font-size: 12px; color: #ef4444;">DETONATING IN</span><br><span style="font-size: 32px; color: #ef4444;">${seconds}</span>`;
-        
-        if (seconds <= 0) {
-            clearInterval(timer);
-            playBeep(400, 500); // Final low "thud" sound
-            killBtn.innerHTML = "<span style='font-size:14px'>GOODBYE</span>";
+        if (seconds > 0) {
+            playDramaticBeep(false); // Play tension beep
             
-            fetch("/stop-server", { method: "POST" })
-            .then(() => {
-                window.location.href = "about:blank";
-            })
-            .catch(() => {
-                window.location.href = "about:blank";
-            });
+            // Add a vibrating shake effect via inline style
+            killBtn.style.transform = "translate(2px, 2px)";
+            setTimeout(() => killBtn.style.transform = "translate(-2px, -2px)", 50);
+            
+            killBtn.innerHTML = `
+                <span style="font-size: 10px; color: #ff0000; letter-spacing: 2px;">CRITICAL FAILURE</span><br>
+                <span style="font-size: 38px; color: #fff; text-shadow: 0 0 10px #ff0000;">0${seconds}</span>
+            `;
+        } else {
+            clearInterval(timer);
+            playDramaticBeep(true); // Play final boom
+            
+            killBtn.innerHTML = "<span style='font-size:16px; color:#ff0000;'>SYSTEM DEAD</span>";
+            
+            // Wait slightly for the final boom sound to finish before killing server
+            setTimeout(() => {
+                fetch("/stop-server", { method: "POST" })
+                .then(() => window.location.href = "about:blank")
+                .catch(() => window.location.href = "about:blank");
+            }, 1000);
         }
         seconds--;
     }, 1000);
 }
+
 
     
 /* --- CONSOLIDATED FETCH LOGIC --- */
