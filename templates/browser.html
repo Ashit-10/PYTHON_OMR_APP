@@ -599,7 +599,7 @@ async function runRecheck() {
             const remainingSec = Math.ceil(remainingMs / 1000);
             etaText.innerText = `ETA: ${remainingSec}s remaining`;
         }
-    }, 2000); // Polls every 2 seconds to avoid server spam
+    }, 1000); // Polls every 2 seconds to avoid server spam
 }
 
 
