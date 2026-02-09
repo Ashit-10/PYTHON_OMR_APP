@@ -138,8 +138,26 @@
     </div>
   </div>
 </div>
+<button id="endProcessBtn" onclick="endProcessing()" style="background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer; margin: 10px;">
+    🛑 END PROCESSING (Kill App)
+</button>
 
+    
 <script>
+function endProcessing() {
+    if (!confirm("This will stop the server and you will need to restart it from Termux manually. Proceed?")) return;
+
+    fetch("/stop-server", { method: "POST" })
+    .then(() => {
+        alert("Signal sent. The terminal process has been stopped.");
+        window.close(); // Optional: tries to close the tab
+    })
+    .catch(err => {
+        // Since the server dies, a 'TypeError' or 'Failed to fetch' is actually a success
+        alert("Server stopped.");
+    });
+}
+    
 /* --- CONSOLIDATED FETCH LOGIC --- */
 function fetchPixelValue() {
     fetch("/get_config").then(r => r.json()).then(data => {
