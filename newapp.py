@@ -180,6 +180,16 @@ def get_project_folders():
 
 # --- MAIN ROUTES ---
 
+import signal
+
+@app.route("/stop-server", methods=["POST"])
+def stop_server():
+    try:
+        # This sends the SIGINT signal (equivalent to Ctrl+C) to the current process
+        os.kill(os.getpid(), signal.SIGINT)
+        return jsonify({"status": "Server shutting down..."})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/send-telegram", methods=["POST"])
 def send_telegram():
