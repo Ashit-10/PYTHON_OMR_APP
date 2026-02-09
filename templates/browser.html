@@ -174,12 +174,20 @@
 </head>
 <body>
 {% set input_count = [] %}
-{% for item in items %}
-  {% set ext = item.name.split('.')[-1].lower() %}
-  {# This assumes the 'items' list contains the files you want to count #}
-  {% if not item.is_dir and ext in ['jpg', 'jpeg', 'png', 'webp'] %}{% set _ = input_count.append(1) %}{% endif %}
-{% endfor %}
-<script>window.inputImageCount = {{ input_count|length }};</script>
+{% if path == "input" %}
+  {% for item in items %}
+    {% set ext = item.name.split('.')[-1].lower() %}
+    {% if not item.is_dir and ext in ['jpg', 'jpeg', 'png', 'webp'] %}
+      {% set _ = input_count.append(1) %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+
+<script>
+  // If we are in the input folder, use the real count.
+  // If not, we default to 0 (or you can hardcode a fallback).
+  window.inputImageCount = {{ input_count|length if path == "input" else 0 }};
+</script>
 
 
   
