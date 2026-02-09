@@ -175,8 +175,11 @@
 <body>
 
 {% if path == "input" or path == "output" %}
-<button class="recheck-btn" id="runRecheckBtn" onclick="runRecheck()">🔄 Recheck</button>
+<button class="recheck-btn" id="runRecheckBtn" onclick="runRecheck()">
+    🔄 Recheck <span id="recheckTimer" style="display:none; font-size: 0.9em; color: #fff;"></span>
+</button>
 {% endif %}
+
 
 <button id="batchDeleteBtn" class="batch-delete-floating" onclick="deleteSelectedFiles()">
     🗑️ Delete Selected (<span id="selectedCount">0</span>)
@@ -414,27 +417,48 @@ async function deleteSelectedFiles() {
 // --- NEW RECHECK FUNCTION ---
 function runRecheck() {
     const btn = document.getElementById('runRecheckBtn');
+    const timerSpan = document.getElementById('recheckTimer');
+    
     if(!confirm("Run recheck ?")) return;
     
-    // Immediate feedback
+    // 1. Get image count from the header text
+    // We scrape the count from the "(X Images)" text in your header
+    const headerText = document.querySelector('header span').innerText;
+    const imgCount = parseInt(headerText.match(/\d+/)) || 0;
+    
+    // 2. Calculate ETA: (Files / 2) + 8 seconds
+    let secondsLeft = Math.ceil(imgCount / 2) + 8;
+    
     alert("Process has been started, check output folder.");
     
-    btn.innerText = "⏳ Processing...";
     btn.disabled = true;
+    timerSpan.style.display = 'inline';
+    
+    // 3. Start the UI Countdown
+    const countdown = setInterval(() => {
+        if (secondsLeft <= 0) {
+            timerSpan.innerText = " (Wrapping up...)";
+        } else {
+            timerSpan.innerText = ` (ETA: ${secondsLeft}s)`;
+            secondsLeft--;
+        }
+    }, 1000);
 
     fetch("/run-recheck", { method: "POST" })
         .then(res => res.json())
         .then(data => {
-            // This alert only triggers once the Python script is actually done
+            clearInterval(countdown);
             alert("✅ Task Finished!");
             location.reload();
         })
-        .catch(err => alert("Error during recheck."))
-        .finally(() => {
-            btn.innerText = "🔄 Recheck";
+        .catch(err => {
+            clearInterval(countdown);
+            alert("Error during recheck.");
             btn.disabled = false;
+            timerSpan.style.display = 'none';
         });
 }
+
 
 
 function searchRoll(){
