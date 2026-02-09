@@ -144,7 +144,7 @@
         <span style="font-size: 12px; margin-top: 5px;">UNLOCK<br>SYSTEM</span>
     </button>
 
-    <button id="killBtn" class="round-btn hidden" onclick="endProcessing()" style="width: 140px; height: 140px; border-radius: 50%; border: none; background: #ef4444; color: white; font-weight: bold; cursor: pointer; box-shadow: 0 0 20px rgba(239, 68, 68, 0.6); display: none; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto;">
+    <button id="killBtn" onclick="endProcessing()" class="round-btn hidden" style="width: 140px; height: 140px; border-radius: 50%; border: none; background: #ef4444; color: white; font-weight: bold; cursor: pointer; box-shadow: 0 0 20px rgba(239, 68, 68, 0.6); flex-direction: column; align-items: center; justify-content: center; margin: 0 auto; animation: pulse 1.5s infinite;">
         <span style="font-size: 30px;">🛑</span>
         <span style="font-size: 13px; margin-top: 5px;">TERMINATE<br>TERMUX</span>
     </button>
@@ -155,7 +155,6 @@
     
 <script>
 function revealKillButton() {
-    // Hide the unlock button and show the kill button using classList
     document.getElementById('unlockBtn').classList.add('hidden');
     const killBtn = document.getElementById('killBtn');
     killBtn.classList.remove('hidden'); 
@@ -163,30 +162,44 @@ function revealKillButton() {
 }
 
 function resetKillButton() {
-    // Revert back to Unlock state
     const killBtn = document.getElementById('killBtn');
     killBtn.classList.add('hidden');
     killBtn.style.display = 'none';
+    // Restore original text/emoji in case a timer was running
+    killBtn.innerHTML = '<span style="font-size: 30px;">🛑</span><span style="font-size: 13px; margin-top: 5px;">TERMINATE<br>TERMUX</span>';
     document.getElementById('unlockBtn').classList.remove('hidden');
 }
 
 function endProcessing() {
-    // Double Step Verification
     const warn1 = confirm("⚠️ FIRST WARNING: This will kill the Python server immediately.");
     if (!warn1) return resetKillButton();
 
     const warn2 = confirm("🚨 FINAL WARNING: Termux will be forced to close. Are you 100% sure?");
     if (!warn2) return resetKillButton();
 
-    // Visual feedback before kill
+    // Start 3-second countdown
     const killBtn = document.getElementById('killBtn');
-    killBtn.classList.add('btn-nuke'); // Matches the black background in your CSS
-    killBtn.innerHTML = "<span style='font-size:14px'>BYE...</span>";
+    let seconds = 3;
+    
+    // Disable clicks during countdown so you don't trigger it twice
+    killBtn.onclick = null; 
+    killBtn.classList.add('btn-nuke');
 
-    fetch("/stop-server", { method: "POST" })
-    .then(() => alert("System Terminated."))
-    .catch(err => console.log("Server stopped."));
+    const timer = setInterval(() => {
+        killBtn.innerHTML = `<span style="font-size: 20px;">SHUTDOWN IN</span><br><span style="font-size: 30px;">${seconds}</span>`;
+        
+        if (seconds <= 0) {
+            clearInterval(timer);
+            killBtn.innerHTML = "<span style='font-size:14px'>BYE...</span>";
+            
+            fetch("/stop-server", { method: "POST" })
+            .then(() => alert("System Terminated."))
+            .catch(err => console.log("Server stopped."));
+        }
+        seconds--;
+    }, 1000);
 }
+
 
 
     
