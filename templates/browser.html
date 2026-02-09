@@ -208,12 +208,24 @@
 </div>
 
 
+{% set roll_tracker = {} %}
+
 <div id="noMatch">❌ Roll Number Not Found</div>
 
 <div class="file-container" id="fileBox">
 {% for item in items %}
   {% set ext = item.name.split('.')[-1].lower() %}
   {% if not item.is_dir and ext in ['jpg', 'jpeg', 'png', 'webp'] %}
+  
+  {# --- NEW LOGIC TO DETECT DUPLICATE ROLLS --- #}
+  {% set roll_num = item.name.split('_')[0] %}
+  {% set is_duplicate_roll = false %}
+  {% if roll_num in roll_tracker %}
+    {% set is_duplicate_roll = true %}
+  {% else %}
+    {% set _ = roll_tracker.update({roll_num: True}) %}
+  {% endif %}
+  {# ------------------------------------------- #}
 
   <div class="image-card" 
      data-name="{{ item.name }}" 
@@ -224,16 +236,25 @@
     </div>
 <div class="file-actions">
   <span class="fname">
-        <input type="checkbox" class="select-checkbox" data-path="{{ path }}/{{ item.name }}" onclick="updateBatchUI()">
-    {# Logic to detect double underscores in output folders #}
+    <input type="checkbox" class="select-checkbox" data-path="{{ path }}/{{ item.name }}" onclick="updateBatchUI()">
+    
+    {# Warning for Output folder (Existing) #}
     {% if (path == "output" or "class" in path) and item.name.split('_')|length > 2 %}
       <span style="color: #ef4444; margin-right: 8px; font-weight: bold;">
         ⚠️ Rename is recommended
       </span>
     {% endif %}
+
+    {# NEW: Warning for Input folder duplicate rolls #}
+    {% if path == "input" and is_duplicate_roll %}
+      <span style="color: #f59e0b; margin-right: 8px; font-weight: bold;">
+        ⚠️ Duplicate Roll
+      </span>
+    {% endif %}
+
     {{ item.name }}
   </span>
-  <div>
+<div>
     <button class="mini" onclick="renameFile('{{ path }}/{{ item.name }}')">✏️</button>
     <button class="mini danger" onclick="deleteFile('{{ path }}/{{ item.name }}')">🗑️</button>
   </div>
