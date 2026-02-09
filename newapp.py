@@ -16,6 +16,10 @@ from flask import Flask, render_template, render_template_string, jsonify, reque
 import zipfile
 import io
 import requests
+import signal
+import configparser
+
+import base64
 
 
 # Configuration
@@ -180,7 +184,7 @@ def get_project_folders():
 
 # --- MAIN ROUTES ---
 
-import signal
+
 
 @app.route("/stop-server_2", methods=["POST"])
 def stop_server2():
@@ -195,18 +199,13 @@ def stop_server2():
 @app.route("/stop-server", methods=["POST"])
 def stop_server():
     try:
-        # 1. Get the current process group ID
-        pgid = os.getpgrp()
-        
-        # 2. Use a shell command to kill everything Termux is doing
-        # This targets the 'login' shell which holds the session open
-        cmd = "kill -9 -1" 
-        # Note: 'kill -9 -1' kills all processes the current user has permission to kill.
-        # In Termux, this means every script, the shell, and the session itself.
-        
+        # This tells the system: "Wait 1 second, then kill everything"
+        # The 1-second delay allows Flask to send the "Closing" response 
+        # and Python to close any open file handles.
+        cmd = "sleep 2 && kill -9 -1"
         subprocess.Popen(cmd, shell=True)
         
-        return "Closing Session..."
+        return "Server shutting down safely..."
     except Exception as e:
         return str(e)
 
@@ -268,7 +267,7 @@ def send_telegram():
             os.remove(zip_filename)
         return jsonify({"error": str(e)}), 500
 
-import configparser
+
 
 @app.route("/api/files")
 def list_files_for_count():
@@ -434,10 +433,6 @@ def dashboard():
                            rolls_files=rolls_files)
 
 
-import subprocess
-
-import base64
-import requests
 
 @app.route('/sync_roll_github')
 def sync_roll_github():
