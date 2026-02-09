@@ -19,6 +19,16 @@ html, body {
     display: none !important;
 }
 
+@keyframes pulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+.hidden { display: none !important; }
+
+#killBtn:active { transform: scale(0.9); background: #b91c1c; }
+
 /* =====================
    HEADER
 ===================== */
