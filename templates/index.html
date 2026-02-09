@@ -172,67 +172,97 @@ function resetKillButton() {
 }
 
 // Function to generate the 'Bomb' beep sound
-function playClearBeep(isFinal) {
+function playSound(type) {
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
+    
+    if (type === 'beep') {
+        // --- CLEAN DIGITAL BEEP ---
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.1);
+        
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
 
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
+    } else if (type === 'blast') {
+        // --- BOMB BLAST SOUND ---
+        // 1. Create Noise (The explosion 'crackle')
+        const bufferSize = audioCtx.sampleRate * 1.5;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) { data[i] = Math.random() * 2 - 1; }
 
-    // Square wave gives that retro, digital "bomb" beep
-    oscillator.type = 'square'; 
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
 
-    if (isFinal) {
-        // A deeper, longer beep for the final shutdown
-        oscillator.frequency.setValueAtTime(400, audioCtx.currentTime);
-        gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.8);
-        oscillator.start();
-        oscillator.stop(audioCtx.currentTime + 0.8);
-    } else {
-        // High-pitched, sharp digital beep
-        oscillator.frequency.setValueAtTime(1000, audioCtx.currentTime);
-        gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
-        // This creates a very sharp cutoff so it sounds "clear"
-        gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.1); 
-        oscillator.start();
-        oscillator.stop(audioCtx.currentTime + 0.1);
+        // 2. Create Thump (The deep impact)
+        const thump = audioCtx.createOscillator();
+        thump.type = 'sine';
+        thump.frequency.setValueAtTime(100, audioCtx.currentTime);
+        thump.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.5);
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 400;
+
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1.2);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        thump.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        noise.start();
+        thump.start();
+        noise.stop(audioCtx.currentTime + 1.2);
+        thump.stop(audioCtx.currentTime + 1.2);
     }
 }
-
 function endProcessing() {
     if (!confirm("⚠️ FIRST WARNING: Shutdown System?")) return resetKillButton();
-    if (!confirm("🚨 FINAL WARNING: Terminate everything?")) return resetKillButton();
+    if (!confirm("🚨 FINAL WARNING: Detonate?")) return resetKillButton();
 
     const killBtn = document.getElementById('killBtn');
     let seconds = 3;
     
     killBtn.onclick = null; 
     killBtn.style.background = "#000";
-    killBtn.style.boxShadow = "0 0 30px #ef4444";
+    killBtn.style.boxShadow = "0 0 50px #ff4400"; // Orange glow for bomb
 
     const timer = setInterval(() => {
         if (seconds > 0) {
-            playClearBeep(false); // Sharp beep
+            playSound('beep'); // Clear digital beep
             killBtn.innerHTML = `
-                <span style="font-size: 11px; color: #ef4444;">TERMINATING IN</span><br>
-                <span style="font-size: 32px; color: #fff;">${seconds}</span>
+                <span style="font-size: 11px; color: #ff4400;">BOOM IN</span><br>
+                <span style="font-size: 36px; color: #fff;">${seconds}</span>
             `;
         } else {
             clearInterval(timer);
-            playClearBeep(true); // Final deep beep
-            killBtn.innerHTML = "<span style='font-size:14px; color:#ef4444;'>SHUTDOWN</span>";
+            playSound('blast'); // THE EXPLOSION
+            
+            // Visual "Flash" effect
+            document.body.style.backgroundColor = "white";
+            killBtn.innerHTML = "<span style='font-size:18px; color:#000;'>BOOM!</span>";
             
             setTimeout(() => {
+                document.body.style.backgroundColor = "#f5f5f5";
                 fetch("/stop-server", { method: "POST" })
                 .then(() => window.location.href = "about:blank")
                 .catch(() => window.location.href = "about:blank");
-            }, 800);
+            }, 1200); // Wait for the blast to fade
         }
         seconds--;
     }, 1000);
 }
+
 
     
 /* --- CONSOLIDATED FETCH LOGIC --- */
