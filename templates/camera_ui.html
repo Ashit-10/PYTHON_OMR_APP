@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OMR Sheet Scanner</title>
+  <style>
+    body, html {
+      margin: 0; padding: 0;
+      background: black;
+      color: white;
+      font-family: sans-serif;
+      height: 100%;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #wrap {
+      position: relative;
+      height: 80vh;
+      aspect-ratio: 3.15/8;
+      border: 4px solid white;
+      flex-shrink: 0;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+    }
+
+    .qr-box {
+      border: 2px solid lime;
+      width: 30px; height: 30px;
+      position: absolute;
+    }
+
+    .qr-tl { top: 10px; left: 15px; }
+    .qr-tr { top: 10px; right: 30px; }
+    .qr-bl { bottom: 10px; left: 15px; }
+    .qr-br { bottom: 10px; right: 30px; }
+
+    #toggleContainer {
+      position: absolute;
+      top: 50px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+    }
+
+    #instantToggle {
+      appearance: none;
+      width: 40px;
+      height: 20px;
+      background: #555;
+      border-radius: 10px;
+      position: relative;
+      cursor: pointer;
+    }
+
+    #instantToggle::before {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 14px; height: 14px;
+      background: white;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+
+    #instantToggle:checked {
+      background: limegreen;
+    }
+
+    #instantToggle:checked::before {
+      transform: translateX(20px);
+    }
+
+    #toggleLabel {
+      font-size: 14px;
+      color: white;
+    }
+
+    .controls {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      font-size: 16px;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 5px;
+      background: white;
+      color: black;
+      cursor: pointer;
+    }
+
+    #toast {
+      position: fixed;
+      top: 45vh;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(90deg);
+      z-index: 9999;
+      display: none; 
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+      gap: 40vw;
+    }
+
+    #toast img {
+      max-height: 150px;
+      width: auto;
+      margin-bottom: 10px;
+      border: 2px solid white;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+
+    .toast-text {
+      background: rgba(34, 34, 34, 0.95);
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 20px;
+      border: 1px solid #444;
+      font-weight: bold;
+      white-space: nowrap;
+      pointer-events: auto;
+    }
+
+    #exitBtn {
+      position: absolute;
+      top: 20px;
+      left: 10px;
+      z-index: 9999;
+    }
+
+    #toast b {
+      color: limegreen;
+      font-size: 18px;
+    }
+    /* The flash effect when clicking */
+.camera-flash {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: white;
+  z-index: 10002;
+  animation: flashAnim 2.0s ease-out forwards;
+}
+
+@keyframes flashAnim {
+  0% { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+
+/* The flying thumbnail - updated for smoothness */
+.flying-thumbnail {
+  position: fixed;
+  z-index: 10003;
+  border: 2px solid white;
+  border-radius: 8px;
+  pointer-events: none;
+  /* Increased duration to 1.2s and used a smoother curve */
+  transition: 
+    top 2.2s cubic-bezier(0.45, 0.05, 0.55, 0.95), 
+    left 2.2s cubic-bezier(0.45, 0.05, 0.55, 0.95), 
+    width 2.2s ease-in-out, 
+    height 2.2s ease-in-out, 
+    opacity 2.2s ease-in,
+    transform 2.2s ease-in-out;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+  transform-origin: center;
+  object-fit: cover;
+}
+
+
+  </style>
+</head>
+<body>
+
+  <button id="exitBtn">Exit</button>
+
+  <div id="wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <div class="overlay">
+      <div class="qr-box qr-tl"></div>
+      <div class="qr-box qr-tr"></div>
+      <div class="qr-box qr-bl"></div>
+      <div class="qr-box qr-br"></div>
+    </div>
+  </div>
+
+  <div id="toggleContainer">
+    <input type="checkbox" id="instantToggle">
+    <div id="toggleLabel">Instant</div>
+  </div>
+
+  <div class="controls">
+    <input type="number" 
+           id="rollInput" 
+           placeholder="Roll" 
+           inputmode="numeric" 
+           pattern="[0-9]*" 
+           min="1"
+           max="99"
+           oninput="if(this.value.length > 2) this.value = this.value.slice(0, 2);"
+           onkeydown="return ['Backspace','Delete','ArrowLeft','ArrowRight','Tab'].includes(event.code) || /[0-9]/.test(event.key)"
+           style="width: 30px; padding: 10px; border-radius: 5px; border: 1px solid white; background: #222; color: white; font-size: 16px;">
+    
+    <button id="flashBtn">🔦</button>
+    <button id="captureBtn" style="min-width: 30vw;">📸</button>
+    <button id="refreshBtn">🌀</button>
+    <button id="fileBtn">📁</button>
+    <input type="file" id="fileInput" accept="image/*" style="display: none;">
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    let currentScanId = 0; 
+    let stream, torchOn = false;
+    let toastTimer = null; 
+    let permanentToast = false;
+    let cameraStartTime = Date.now();
+    let lastProcessedFile = ""; 
+
+    const video = document.getElementById('video');
+    const flashBtn = document.getElementById('flashBtn');
+    const captureBtn = document.getElementById('captureBtn');
+    const fileBtn = document.getElementById('fileBtn');
+    const fileInput = document.getElementById('fileInput');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const instantToggle = document.getElementById('instantToggle');
+    const toast = document.getElementById('toast');
+
+    instantToggle.checked = localStorage.getItem('instantMode') === 'true';
+
+    if (!sessionStorage.getItem('initialShown')) {
+      alert(`📸 Instant ON:\nThe processed OMR sheet will appear directly on screen.\n\n📥 Instant OFF:\nJust click Capture – it will process in background.\n\n💡 Recommended: Use Instant OFF.`);
+      sessionStorage.setItem('initialShown', 'true');
+    }
+
+    instantToggle.onchange = () => {
+      localStorage.setItem('instantMode', instantToggle.checked);
+    };
+
+    function showToast(msg, permanent = false, imageUrl = null) {
+      permanentToast = permanent;
+      toast.innerHTML = ''; 
+      if (toastTimer) clearTimeout(toastTimer);
+
+      const textContainer = document.createElement('div');
+      textContainer.className = 'toast-text';
+      textContainer.innerHTML = msg;
+
+      if (imageUrl) {
+        const img = document.createElement('img');
+        img.src = imageUrl + "?v=" + Date.now(); 
+        toast.appendChild(img);
+        toast.appendChild(textContainer);
+      } else {
+        toast.appendChild(textContainer);
+      }
+
+      toast.style.display = 'flex';
+      toast.style.flexDirection = 'column';
+      toast.style.justifyContent = 'center';
+      toast.style.alignItems = 'center';
+
+      if (!permanent) {
+        toastTimer = setTimeout(() => {
+          if (!permanentToast) toast.style.display = 'none';
+        }, 10000);
+      }
+    }
+
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
+      });
+        video.srcObject = stream;
+        video.play();
+        const track = stream.getVideoTracks()[0];
+        const capabilities = track.getCapabilities();
+        if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+          await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+        }
+        cameraStartTime = Date.now();
+        startAutoCooldownCheck();
+      } catch (e) {
+        alert('Camera access denied.');
+      }
+    }
+
+    async function toggleFlash() {
+      if (!stream) return;
+      try {
+        const track = stream.getVideoTracks()[0];
+        const capabilities = track.getCapabilities();
+        if (!capabilities.torch) {
+          alert('❌ Flash not supported.');
+          return;
+        }
+        torchOn = !torchOn;
+        await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+        flashBtn.textContent = torchOn ? '🔦 Off' : '🔦';
+      } catch (err) {
+        alert('⚠️ Flash control failed.');
+        torchOn = false;
+        flashBtn.textContent = '🔦';
+      }
+    }
+
+    function extractCorrect(filename) {
+  const parts = filename.split("_");
+  let score = parts[1] || "N/A";
+  // If .jpg exists in the score, remove it
+  return score.replace(".jpg", "");
+}
+
+
+    async function processImage(blob, previewUrl) {
+      const isInstant = instantToggle.checked;
+      const rollNum = document.getElementById('rollInput').value;
+      const uniqueId = Date.now();
+      document.getElementById('rollInput').value = '';
+
+
+      if (isInstant && stream) {
+        stream.getTracks().forEach(t => t.stop());
+      }
+
+      const formData = new FormData();
+      formData.append('image', blob, 'capture.jpg');
+      formData.append('roll', rollNum);
+
+      let loadingScreen = null;
+      if (isInstant) {
+        loadingScreen = document.createElement('div');
+        loadingScreen.id = "instantOverlay";
+        loadingScreen.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:black;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;padding:20px;box-sizing:border-box;";
+        loadingScreen.innerHTML = `
+             <img id="procImg" src="${previewUrl}" style="max-width:90%; max-height:60%; object-fit:contain; transform: rotate(-90deg); margin-bottom:40px; border:1px solid #444;">
+            <h3 id="procStatus" style="margin:10px 0;">Processing...</h3>
+            <p id="statusMsg" style="margin:5px 0;">Uploading to Server...</p>`;
+        document.body.appendChild(loadingScreen);
+      } else {
+        showToast("Uploading & Analyzing...", false, null); 
+      }
+
+      try {
+        const response = await fetch(`${window.location.origin}/upload`, {
+          method: 'POST',
+          body: formData,
+          mode: 'cors'
+        });
+
+        if (!response.ok) throw new Error("Upload Failed");
+
+        let attempts = 0;
+        const checkStatus = async () => {
+          attempts++;
+          try {
+            const st = await fetch(`${window.location.origin}/status`);
+            const data = await st.json();
+
+            // 1. Check for server-side error
+            if (data.error) {
+                if (isInstant) {
+                    handleProcError(loadingScreen, null, data.message || "Analysis Failed");
+                } else {
+                    showToast("❌ " + (data.message || "Scan Failed"), true);
+                }
+                return; 
+            }
+
+            // 2. Check for success
+            if (!data.processing && data.filename && data.filename !== lastProcessedFile) {
+                lastProcessedFile = data.filename; 
+                const resultUrl = `/temp_output/${data.filename}?v=${uniqueId}`;
+                const scoreText = `<b>Correct: ${extractCorrect(data.filename)}</b>`;
+
+                if (isInstant) {
+                    const imgEl = document.getElementById('procImg');
+                    imgEl.style.transform = "rotate(0deg)"; 
+                    imgEl.style.width = "100vw";
+                    imgEl.style.height = "auto";
+                    imgEl.style.maxWidth = "100vw";
+                    imgEl.style.objectFit = "cover";
+                    imgEl.src = resultUrl;
+
+                    document.getElementById('procStatus').textContent = "Analysis Complete";
+                    document.getElementById('statusMsg').innerHTML = `<span style="font-size:24px; color:limegreen;">${scoreText}</span>`;
+
+                    const btn = document.createElement('button');
+                    btn.textContent = "Scan Next";
+                    btn.style = "margin-top:20px; padding:15px 40px; font-size:18px; background:white; color:black; border-radius:8px; border:none; font-weight:bold; z-index:10001;";
+                    btn.onclick = () => {
+                        loadingScreen.remove();
+                        startCamera(); 
+                    };
+                    loadingScreen.appendChild(btn);
+                } else {
+                    showToast(scoreText, false, resultUrl);
+                }
+                return;
+            } 
+            // 3. Continue polling
+            else if (attempts < 150) {
+                setTimeout(checkStatus, 600); 
+            } else {
+                throw new Error("Timeout");
+            }
+          } catch (e) {
+             setTimeout(checkStatus, 600);
+          }
+        };
+
+        checkStatus();
+      } catch (err) {
+        if (isInstant) handleProcError(loadingScreen, null, err.message);
+        else showToast("Upload Failed.");
+      }
+    }
+
+    captureBtn.onclick = async () => {
+  currentScanId = Date.now(); 
+  toast.style.display = 'none';
+
+  const canvas = document.createElement('canvas');
+  
+  // 1. Get dimensions
+  const videoWidth = video.videoWidth;
+  const videoHeight = video.videoHeight;
+  const wrapRect = document.getElementById('wrap').getBoundingClientRect();
+  const wrapAspect = wrapRect.width / wrapRect.height;
+
+  // 2. Calculate the "Visible" Crop 
+  // We determine what portion of the raw video is actually visible in the 3:8 wrap
+  let sourceWidth, sourceHeight, startX, startY;
+
+  const videoAspect = videoWidth / videoHeight;
+
+  if (videoAspect > wrapAspect) {
+    // Video is wider than the container (common)
+    sourceHeight = videoHeight;
+    sourceWidth = videoHeight * wrapAspect;
+    startX = (videoWidth - sourceWidth) / 2;
+    startY = 0;
+  } else {
+    // Video is taller than container
+    sourceWidth = videoWidth;
+    sourceHeight = videoWidth / wrapAspect;
+    startX = 0;
+    startY = (videoHeight - sourceHeight) / 2;
+  }
+
+  // 3. Set Canvas to the narrow aspect ratio
+  canvas.width = sourceWidth;
+  canvas.height = sourceHeight;
+
+  const ctx = canvas.getContext('2d');
+  
+  // 4. Draw only the cropped portion
+  ctx.drawImage(
+    video, 
+    startX, startY, sourceWidth, sourceHeight, // Source (the crop)
+    0, 0, sourceWidth, sourceHeight            // Destination
+  );
+
+  const previewDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+  // 5. Trigger Animation and Processing
+  animateCapture(previewDataUrl);
+
+  canvas.toBlob((blob) => {
+    if (blob) processImage(blob, previewDataUrl);
+  }, 'image/jpeg', 0.8);
+};
+
+
+
+    fileBtn.onclick = () => fileInput.click();
+    fileInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      currentScanId = Date.now();
+      const reader = new FileReader();
+      reader.onload = (event) => { processImage(file, event.target.result); };
+      reader.readAsDataURL(file);
+    };
+
+    function handleProcError(overlay, interval, msg) {
+      if (interval) clearInterval(interval);
+      const statusEl = document.getElementById('procStatus');
+      const detailEl = document.getElementById('statusMsg');
+      if (statusEl) statusEl.innerHTML = `<span style="color:#ff4444">Error Occurred</span>`;
+      if (detailEl) detailEl.textContent = msg;
+      if (!document.getElementById('retryBtn')) {
+        const rb = document.createElement('button');
+        rb.id = "retryBtn";
+        rb.textContent = "Try Again";
+        rb.style = "margin-top:20px; padding:12px 25px; background:#ff4444; color:white; border-radius:5px; border:none; font-weight:bold;";
+        rb.onclick = () => location.reload();
+        overlay.appendChild(rb);
+      }
+    }
+
+    refreshBtn.onclick = () => location.reload();
+    flashBtn.onclick = toggleFlash;
+
+    document.getElementById('exitBtn').onclick = function () {
+      if (stream) { stream.getTracks().forEach(track => { track.stop(); }); }
+      video.srcObject = null;
+      window.location.href = '/'; 
+    };
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { stopCamera(); } else { startCamera(); }
+    });
+
+    function stopCamera() {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+        if (torchOn) { torchOn = false; flashBtn.textContent = '🔦 On'; }
+      }
+    }
+
+    function startAutoCooldownCheck() {
+      setInterval(() => {
+        if (stream && Date.now() - cameraStartTime > 240000) {
+          stopCamera();
+          let i = 10;
+          const countdown = setInterval(() => {
+            showToast(`🛑 Cooling camera: ${i--}s`);
+            if (i < 0) { clearInterval(countdown); startCamera(); }
+          }, 1000);
+        }
+      }, 30000);
+    }
+function animateCapture(dataUrl) {
+  // 1. Quick Flash (keep this fast so it feels like a camera)
+  const flash = document.createElement('div');
+  flash.className = 'camera-flash';
+  document.getElementById('wrap').appendChild(flash);
+  setTimeout(() => flash.remove(), 250);
+
+  // 2. Create the Thumbnail
+  const thumb = document.createElement('img');
+  thumb.src = dataUrl;
+  thumb.className = 'flying-thumbnail';
+  
+  // Get initial position (Video Box)
+  const rect = document.getElementById('wrap').getBoundingClientRect();
+  
+  // Set STARTING styles
+  thumb.style.top = rect.top + 'px';
+  thumb.style.left = rect.left + 'px';
+  thumb.style.width = rect.width + 'px';
+  thumb.style.height = rect.height + 'px';
+  thumb.style.opacity = '1';
+  
+  document.body.appendChild(thumb);
+
+  // Get target position (Capture Button)
+  const btnRect = captureBtn.getBoundingClientRect();
+
+  // 3. The "Double Frame" Trick
+  // This ensures the browser definitely renders the START position first
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      thumb.style.top = (btnRect.top + (btnRect.height / 2) - 10) + 'px';
+      thumb.style.left = (btnRect.left + (btnRect.width / 2) - 10) + 'px';
+      thumb.style.width = '20px';
+      thumb.style.height = '20px';
+      thumb.style.opacity = '0.2';
+      thumb.style.transform = 'scale(0.1) rotate(1deg)';
+    });
+  });
+
+  // Cleanup after animation finishes (1.2s + small buffer)
+  setTimeout(() => thumb.remove(), 1300);
+}
+
+    startCamera();
+  </script>
+</body>
+</html>
