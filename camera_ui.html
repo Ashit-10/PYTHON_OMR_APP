@@ -446,22 +446,57 @@
   currentScanId = Date.now(); 
   toast.style.display = 'none';
 
-  // 1. Create Canvas and capture the image
   const canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(video, 0, 0);
-  const previewDataUrl = canvas.toDataURL('image/jpeg', 0.5);
+  
+  // 1. Get dimensions
+  const videoWidth = video.videoWidth;
+  const videoHeight = video.videoHeight;
+  const wrapRect = document.getElementById('wrap').getBoundingClientRect();
+  const wrapAspect = wrapRect.width / wrapRect.height;
 
-  // 2. Trigger the Visual Animation
+  // 2. Calculate the "Visible" Crop 
+  // We determine what portion of the raw video is actually visible in the 3:8 wrap
+  let sourceWidth, sourceHeight, startX, startY;
+
+  const videoAspect = videoWidth / videoHeight;
+
+  if (videoAspect > wrapAspect) {
+    // Video is wider than the container (common)
+    sourceHeight = videoHeight;
+    sourceWidth = videoHeight * wrapAspect;
+    startX = (videoWidth - sourceWidth) / 2;
+    startY = 0;
+  } else {
+    // Video is taller than container
+    sourceWidth = videoWidth;
+    sourceHeight = videoWidth / wrapAspect;
+    startX = 0;
+    startY = (videoHeight - sourceHeight) / 2;
+  }
+
+  // 3. Set Canvas to the narrow aspect ratio
+  canvas.width = sourceWidth;
+  canvas.height = sourceHeight;
+
+  const ctx = canvas.getContext('2d');
+  
+  // 4. Draw only the cropped portion
+  ctx.drawImage(
+    video, 
+    startX, startY, sourceWidth, sourceHeight, // Source (the crop)
+    0, 0, sourceWidth, sourceHeight            // Destination
+  );
+
+  const previewDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+  // 5. Trigger Animation and Processing
   animateCapture(previewDataUrl);
 
-  // 3. Process the image (existing logic)
   canvas.toBlob((blob) => {
     if (blob) processImage(blob, previewDataUrl);
-  }, 'image/jpeg', 0.5);
+  }, 'image/jpeg', 0.8);
 };
+
 
 
     fileBtn.onclick = () => fileInput.click();
