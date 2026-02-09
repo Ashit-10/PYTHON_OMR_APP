@@ -522,7 +522,7 @@ def rename():
 @app.route("/scan")
 def scan_ui():
     """Camera interface for scanning."""
-    with open("camera_ui.html") as f:
+    with open("templates/camera_ui.html") as f:
         return f.read()
 
 @app.route("/results")
