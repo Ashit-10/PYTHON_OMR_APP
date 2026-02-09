@@ -173,21 +173,7 @@
 </style>
 </head>
 <body>
-{% set input_count = [] %}
-{% if path == "input" %}
-  {% for item in items %}
-    {% set ext = item.name.split('.')[-1].lower() %}
-    {% if not item.is_dir and ext in ['jpg', 'jpeg', 'png', 'webp'] %}
-      {% set _ = input_count.append(1) %}
-    {% endif %}
-  {% endfor %}
-{% endif %}
 
-<script>
-  // If we are in the input folder, use the real count.
-  // If not, we default to 0 (or you can hardcode a fallback).
-  window.inputImageCount = {{ input_count|length if path == "input" else 0 }};
-</script>
 
 
   
@@ -299,6 +285,33 @@
 </div>
 
 <script>
+  
+  // Function to fetch the input count regardless of current path
+  async function syncInputCount() {
+    try {
+      // We fetch the 'input' folder list in the background
+      const response = await fetch('/api/files?path=input'); // Adjust this URL to your file-list API
+      const data = await response.json();
+      const count = data.items.filter(item => 
+        !item.is_dir && /\.(jpg|jpeg|png|webp)$/i.test(item.name)
+      ).length;
+      
+      window.inputImageCount = count;
+      console.log("Global Input Count Synced:", count);
+    } catch (e) {
+      console.error("Could not sync input count background");
+    }
+  }
+
+  // Initialize with 0 or the current count if we happen to be in input
+  window.inputImageCount = {{ input_count|length if path == "input" else 0 }};
+
+  // If we aren't in the input folder, go get the number
+  if ("{{ path }}" !== "input") {
+    syncInputCount();
+  }
+
+
   function sortFiles() {
     const sortBy = document.getElementById("sortOption").value;
     const container = document.getElementById("fileBox");
