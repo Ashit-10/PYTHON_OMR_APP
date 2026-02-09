@@ -174,6 +174,17 @@
 </head>
 <body>
 
+<body>
+{# This counts images ONLY if the current folder is "input" #}
+{% set input_images_list = [] %}
+{% if path == "input" %}
+  {% for item in items %}
+    {% set ext = item.name.split('.')[-1].lower() %}
+    {% if not item.is_dir and ext in ['jpg', 'jpeg', 'png', 'webp'] %}
+      {% set _ = input_images_list.append(1) %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
 
 
   
@@ -287,10 +298,19 @@
 <script>
   
   // Function to fetch the input count regardless of current path
+  
+  // Initialize with the count from Jinja2 (will be > 0 only if currently in 'input')
+  window.inputImageCount = {{ input_images_list|length }};
+
   async function syncInputCount() {
+    // If we already have a count from Jinja (because we are in 'input'), don't fetch
+    if (window.inputImageCount > 0) return;
+
     try {
-      // We fetch the 'input' folder list in the background
-      const response = await fetch('/api/files?path=input'); // Adjust this URL to your file-list API
+      // NOTE: Ensure your Python backend has a route for /api/files or /files
+      const response = await fetch('/api/files?path=input'); 
+      if (!response.ok) throw new Error("API not found");
+      
       const data = await response.json();
       const count = data.items.filter(item => 
         !item.is_dir && /\.(jpg|jpeg|png|webp)$/i.test(item.name)
@@ -299,17 +319,15 @@
       window.inputImageCount = count;
       console.log("Global Input Count Synced:", count);
     } catch (e) {
-      console.error("Could not sync input count background");
+      console.warn("Background sync failed. If you don't have a JSON API route, this is expected.");
     }
   }
 
-  // Initialize with 0 or the current count if we happen to be in input
-  window.inputImageCount = {{ input_count|length if path == "input" else 0 }};
-
-  // If we aren't in the input folder, go get the number
+  // Run the sync if we aren't in the input folder
   if ("{{ path }}" !== "input") {
     syncInputCount();
   }
+
 
 
   function sortFiles() {
