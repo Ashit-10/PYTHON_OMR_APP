@@ -138,25 +138,58 @@
     </div>
   </div>
 </div>
-<button id="endProcessBtn" onclick="endProcessing()" style="background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer; margin: 10px;">
-    🛑 END PROCESSING (Kill App)
-</button>
+<div id="shutdown-wrapper" style="text-align: center; margin: 30px 0; padding-bottom: 20px;">
+    
+    <button id="unlockBtn" onclick="revealKillButton()" style="width: 120px; height: 120px; border-radius: 50%; border: 4px solid #ef4444; background: transparent; color: #ef4444; font-weight: bold; cursor: pointer; transition: all 0.3s ease; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto;">
+        <span style="font-size: 24px;">🔓</span>
+        <span style="font-size: 12px; margin-top: 5px;">UNLOCK<br>SYSTEM</span>
+    </button>
+
+    <button id="killBtn" onclick="endProcessing()" class="hidden" style="width: 140px; height: 140px; border-radius: 50%; border: none; background: #ef4444; color: white; font-weight: bold; cursor: pointer; box-shadow: 0 0 20px rgba(239, 68, 68, 0.6); display: none; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto; animation: pulse 1.5s infinite;">
+        <span style="font-size: 30px;">🛑</span>
+        <span style="font-size: 13px; margin-top: 5px;">TERMINATE<br>TERMUX</span>
+    </button>
+</div>
+
 
     
 <script>
+function revealKillButton() {
+    // Hide the unlock button and show the kill button
+    document.getElementById('unlockBtn').classList.add('hidden');
+    const killBtn = document.getElementById('killBtn');
+    killBtn.style.display = 'flex'; // Use flex to center text/emoji
+}
+
 function endProcessing() {
-    if (!confirm("This will stop the server and you will need to restart it from Termux manually. Proceed?")) return;
+    // Double Step Verification
+    const warn1 = confirm("⚠️ FIRST WARNING: This will kill the Python server immediately.");
+    if (!warn1) return resetKillButton();
+
+    const warn2 = confirm("🚨 FINAL WARNING: Termux will be forced to close. Any unsaved logs will be lost. Are you 100% sure?");
+    if (!warn2) return resetKillButton();
+
+    // Visual feedback before kill
+    const killBtn = document.getElementById('killBtn');
+    killBtn.innerText = "BYE...";
+    killBtn.style.background = "#000";
 
     fetch("/stop-server", { method: "POST" })
     .then(() => {
-        alert("Signal sent. The terminal process has been stopped.");
-        window.close(); // Optional: tries to close the tab
+        alert("System Terminated.");
     })
     .catch(err => {
-        // Since the server dies, a 'TypeError' or 'Failed to fetch' is actually a success
-        alert("Server stopped.");
+        // Server dies, which is expected
+        console.log("Server stopped successfully.");
     });
 }
+
+// Optional: Reset if they cancel the confirmation
+function resetKillButton() {
+    document.getElementById('killBtn').style.display = 'none';
+    document.getElementById('unlockBtn').classList.remove('hidden');
+}
+
     
 /* --- CONSOLIDATED FETCH LOGIC --- */
 function fetchPixelValue() {
