@@ -344,17 +344,51 @@
 
 {% if items %}
 <div class="batch-actions">
-    <button class="btn-delete-all" onclick="deleteAllFiles()">
-        🗑️ DELETE ALL IN THIS FOLDER
+    <button class="btn-send-telegram" id="telegramBtn" onclick="sendToTelegram()" style="width: 95%; padding: 15px; background-color: #0088cc; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer;">
+        ✈️ SEND ALL IMAGES TO TELEGRAM
     </button>
 </div>
 {% endif %}
+
 
 <div id="preview" onclick="this.style.display='none'" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:1000; justify-content:center; align-items:center;">
   <img id="previewImg" style="max-width:98%; max-height:98%;">
 </div>
 
 <script>
+async function sendToTelegram() {
+    const btn = document.getElementById('telegramBtn');
+    const folderPath = "{{ path }}"; // Gets current folder (input, output, etc.)
+
+    if (!confirm(`Create ZIP and send all images in "${folderPath}" to Telegram?`)) return;
+
+    btn.disabled = true;
+    btn.innerText = "📦 Zipping & Sending...";
+    btn.style.backgroundColor = "#666";
+
+    try {
+        const response = await fetch("/send-telegram", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path: folderPath })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert("✅ Successfully sent to Telegram!");
+        } else {
+            alert("❌ Error: " + (result.error || "Unknown error"));
+        }
+    } catch (err) {
+        console.error(err);
+        alert("❌ Failed to connect to server.");
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "✈️ SEND ALL IMAGES TO TELEGRAM";
+        btn.style.backgroundColor = "#0088cc";
+    }
+}
 
   // 1. Initialize with Jinja2 count (works instantly if you are in 'input')
   window.inputImageCount = {{ input_images_list|length if input_images_list is defined else 0 }};
