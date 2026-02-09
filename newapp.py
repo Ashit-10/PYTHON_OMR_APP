@@ -181,7 +181,6 @@ def get_project_folders():
 # --- MAIN ROUTES ---
 
 
-
 @app.route("/send-telegram", methods=["POST"])
 def send_telegram():
     data = request.json
@@ -190,42 +189,52 @@ def send_telegram():
     # Security/Path setup
     folder_name = os.path.normpath(folder_name).replace("..", "")
     target_folder = os.path.join(BASE, folder_name)
+    zip_filename = f"{folder_name}_transfer.zip"
 
     if not os.path.exists(target_folder):
         return jsonify({"error": "Folder not found"}), 404
 
     try:
-        # 1. Create ZIP in memory
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        # 1. Create ZIP on Disk (not in memory)
+        with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for root, dirs, files in os.walk(target_folder):
                 for file in files:
                     if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
                         file_path = os.path.join(root, file)
-                        # Add to zip, using arcname to avoid full system paths in the zip
-                        zip_file.write(file_path, arcname=file)
+                        zipf.write(file_path, arcname=file)
 
-        zip_buffer.seek(0) # Reset buffer pointer to start
+        # Verify file was created
+        if not os.path.exists(zip_filename):
+            return jsonify({"error": "Failed to create ZIP file"}), 500
 
-        # 2. Send to Telegram
+        # 2. Send to Telegram with a longer timeout (60 seconds)
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
-        files = {
-            'document': (f"{folder_name}_images.zip", zip_buffer, 'application/zip')
-        }
-        payload = {
-            'chat_id': TELEGRAM_CHAT_ID,
-            'caption': f"📂 Folder: {folder_name}\n🖼️ Images compiled from File Browser."
-        }
-
-        response = requests.post(url, data=payload, files=files)
+        
+        with open(zip_filename, 'rb') as f:
+            files = {'document': (f"{folder_name}.zip", f)}
+            payload = {
+                'chat_id': TELEGRAM_CHAT_ID,
+                'caption': f"📂 Folder: {folder_name}"
+            }
+            # Added timeout=60 to prevent the 'RemoteDisconnected' error
+            response = requests.post(url, data=payload, files=files, timeout=60)
+        
         res_data = response.json()
+
+        # 3. Cleanup: Delete the ZIP from your project after sending
+        # (Comment out the line below if you want to keep the zip file)
+        os.remove(zip_filename)
 
         if response.ok:
             return jsonify({"status": "success"})
         else:
             return jsonify({"error": res_data.get("description", "Telegram API Error")}), 500
 
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "Telegram took too long to respond. File might be too large."}), 504
     except Exception as e:
+        if os.path.exists(zip_filename):
+            os.remove(zip_filename)
         return jsonify({"error": str(e)}), 500
 
 import configparser
