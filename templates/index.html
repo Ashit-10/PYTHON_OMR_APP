@@ -174,58 +174,69 @@ function resetKillButton() {
 // Function to generate the 'Bomb' beep sound
 function playSound(type) {
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const masterGain = audioCtx.createGain();
+    masterGain.connect(audioCtx.destination);
     
     if (type === 'beep') {
-        // --- CLEAN DIGITAL BEEP ---
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = 'square';
         osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
         osc.connect(gain);
-        gain.connect(audioCtx.destination);
+        gain.connect(masterGain);
         
-        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        masterGain.gain.setValueAtTime(0.3, audioCtx.currentTime); // Louder beep
         gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.1);
         
         osc.start();
         osc.stop(audioCtx.currentTime + 0.1);
 
     } else if (type === 'blast') {
-        // --- BOMB BLAST SOUND ---
-        // 1. Create Noise (The explosion 'crackle')
-        const bufferSize = audioCtx.sampleRate * 1.5;
+        // --- HIGH POWER BOMB BLAST ---
+        masterGain.gain.setValueAtTime(1.5, audioCtx.currentTime); // Boosted Master Volume
+
+        // 1. The Low-End Thump (The "Boom")
+        const thump = audioCtx.createOscillator();
+        const thumpGain = audioCtx.createGain();
+        thump.type = 'sine';
+        thump.frequency.setValueAtTime(150, audioCtx.currentTime);
+        thump.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.8);
+        
+        thumpGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+        thumpGain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1.0);
+        
+        thump.connect(thumpGain);
+        thumpGain.connect(masterGain);
+
+        // 2. The Distorted White Noise (The "Shatter")
+        const bufferSize = audioCtx.sampleRate * 2;
         const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < bufferSize; i++) { data[i] = Math.random() * 2 - 1; }
 
         const noise = audioCtx.createBufferSource();
+        const noiseFilter = audioCtx.createBiquadFilter();
+        const noiseGain = audioCtx.createGain();
+
         noise.buffer = buffer;
+        noiseFilter.type = 'lowpass';
+        noiseFilter.frequency.setValueAtTime(800, audioCtx.currentTime); // Higher cut-off for more 'crunch'
+        
+        noiseGain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+        noiseGain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1.5);
 
-        // 2. Create Thump (The deep impact)
-        const thump = audioCtx.createOscillator();
-        thump.type = 'sine';
-        thump.frequency.setValueAtTime(100, audioCtx.currentTime);
-        thump.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.5);
+        noise.connect(noiseFilter);
+        noiseFilter.connect(noiseGain);
+        noiseGain.connect(masterGain);
 
-        const filter = audioCtx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 400;
-
-        const gain = audioCtx.createGain();
-        gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1.2);
-
-        noise.connect(filter);
-        filter.connect(gain);
-        thump.connect(gain);
-        gain.connect(audioCtx.destination);
-
-        noise.start();
+        // Start everything
         thump.start();
-        noise.stop(audioCtx.currentTime + 1.2);
-        thump.stop(audioCtx.currentTime + 1.2);
+        noise.start();
+        thump.stop(audioCtx.currentTime + 1.5);
+        noise.stop(audioCtx.currentTime + 1.5);
     }
 }
+
 function endProcessing() {
     if (!confirm("⚠️ FIRST WARNING: Shutdown System?")) return resetKillButton();
     if (!confirm("🚨 FINAL WARNING: Detonate?")) return resetKillButton();
