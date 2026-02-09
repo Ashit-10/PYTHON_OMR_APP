@@ -183,7 +183,7 @@ def get_project_folders():
 import signal
 
 @app.route("/stop-server_2", methods=["POST"])
-def stop_server():
+def stop_server2():
     try:
         # This sends the SIGINT signal (equivalent to Ctrl+C) to the current process
         os.kill(os.getpid(), signal.SIGINT)
@@ -191,13 +191,25 @@ def stop_server():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 @app.route("/stop-server", methods=["POST"])
 def stop_server():
-    # This command attempts to close the terminal session and exit the app
-    os.system("am force-stop com.termux") # This requires Termux-API or Root
-    # If not rooted, the best we can do is:
-    os.system("killall -9 termux")
-    return "Closing"
+    try:
+        # 1. Get the current process group ID
+        pgid = os.getpgrp()
+        
+        # 2. Use a shell command to kill everything Termux is doing
+        # This targets the 'login' shell which holds the session open
+        cmd = "kill -9 -1" 
+        # Note: 'kill -9 -1' kills all processes the current user has permission to kill.
+        # In Termux, this means every script, the shell, and the session itself.
+        
+        subprocess.Popen(cmd, shell=True)
+        
+        return "Closing Session..."
+    except Exception as e:
+        return str(e)
+
 
 
 @app.route("/send-telegram", methods=["POST"])
