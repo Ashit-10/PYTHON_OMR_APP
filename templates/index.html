@@ -171,37 +171,60 @@ function resetKillButton() {
     document.getElementById('unlockBtn').classList.remove('hidden');
 }
 
+// Function to generate the 'Bomb' beep sound
+function playBeep(frequency, duration) {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    oscillator.type = 'square'; // 'square' gives it that retro digital bomb feel
+    oscillator.frequency.value = frequency;
+    
+    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration / 1000);
+
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + duration / 1000);
+}
+
 function endProcessing() {
-    const warn1 = confirm("⚠️ FIRST WARNING: This will kill the Python server immediately.");
-    if (!warn1) return resetKillButton();
+    if (!confirm("⚠️ FIRST WARNING: Stop Python Server?")) return resetKillButton();
+    if (!confirm("🚨 FINAL WARNING: Terminate everything?")) return resetKillButton();
 
-    const warn2 = confirm("🚨 FINAL WARNING: Termux will be forced to close. Are you 100% sure?");
-    if (!warn2) return resetKillButton();
-
-    // Start 3-second countdown
     const killBtn = document.getElementById('killBtn');
     let seconds = 3;
     
-    // Disable clicks during countdown so you don't trigger it twice
-    killBtn.onclick = null; 
-    killBtn.classList.add('btn-nuke');
+    killBtn.onclick = null; // Disable double clicks
+    killBtn.style.background = "#000";
+    killBtn.style.boxShadow = "0 0 30px #ef4444";
 
     const timer = setInterval(() => {
-        killBtn.innerHTML = `<span style="font-size: 50px;">${seconds}</span>`;
+        // Play beep: frequency increases as time decreases
+        // 3 sec = 800Hz, 2 sec = 1000Hz, 1 sec = 1200Hz
+        const freq = 800 + ((3 - seconds) * 200);
+        playBeep(freq, 150);
+
+        killBtn.innerHTML = `<span style="font-size: 12px; color: #ef4444;">DETONATING IN</span><br><span style="font-size: 32px; color: #ef4444;">${seconds}</span>`;
         
         if (seconds <= 0) {
             clearInterval(timer);
-            killBtn.innerHTML = "<span style='font-size:14px'>BYE...</span>";
+            playBeep(400, 500); // Final low "thud" sound
+            killBtn.innerHTML = "<span style='font-size:14px'>GOODBYE</span>";
             
             fetch("/stop-server", { method: "POST" })
-            .then(() => alert("Termux Server Terminated."))
-            .catch(err => console.log("Server stopped."));
+            .then(() => {
+                window.location.href = "about:blank";
+            })
+            .catch(() => {
+                window.location.href = "about:blank";
+            });
         }
         seconds--;
     }, 1000);
 }
-
-
 
     
 /* --- CONSOLIDATED FETCH LOGIC --- */
