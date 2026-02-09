@@ -182,7 +182,7 @@ def get_project_folders():
 
 import signal
 
-@app.route("/stop-server", methods=["POST"])
+@app.route("/stop-server_2", methods=["POST"])
 def stop_server():
     try:
         # This sends the SIGINT signal (equivalent to Ctrl+C) to the current process
@@ -190,6 +190,15 @@ def stop_server():
         return jsonify({"status": "Server shutting down..."})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route("/stop-server", methods=["POST"])
+def stop_server():
+    # This command attempts to close the terminal session and exit the app
+    os.system("am force-stop com.termux") # This requires Termux-API or Root
+    # If not rooted, the best we can do is:
+    os.system("killall -9 termux")
+    return "Closing"
+
 
 @app.route("/send-telegram", methods=["POST"])
 def send_telegram():
