@@ -238,7 +238,7 @@ function playSound(type) {
 }
 
 function endProcessing() {
-    if (!confirm("⚠️ FIRST WARNING: This will Kill thr Python server immediately.")) return resetKillButton();
+    if (!confirm("⚠️ FIRST WARNING: This will Kill the Python server immediately.")) return resetKillButton();
     if (!confirm("🚨 FINAL WARNING: Termux will be forced to close. Are you 100% sure?")) return resetKillButton();
 
     const killBtn = document.getElementById('killBtn');
