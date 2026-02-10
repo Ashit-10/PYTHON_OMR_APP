@@ -16,6 +16,9 @@
             <button onclick="openPixelModal()">
                 ⚫ Black Pixel <span id="pixelValDisplay" class="pixel-badge">--</span>
             </button>
+            <button onclick="openLivePage()">
+                View Live OMR Results
+            </button>
         </div>
     </div>
 </header>
@@ -155,6 +158,12 @@
 
     
 <script>
+function openLivePage() {
+    // window.location.assign is the standard way to redirect
+    alert("Open this in a different device to view Live result");
+    if (confirm("Open Live Feed?")) { window.location.href = "/results"; }
+}
+
 function revealKillButton() {
     document.getElementById('unlockBtn').classList.add('hidden');
     const killBtn = document.getElementById('killBtn');
