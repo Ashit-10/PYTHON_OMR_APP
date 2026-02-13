@@ -27,4 +27,4 @@ android.permissions = CAMERA, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
 android.bootstrap = webview
 android.entrypoint_port = 7860
 # Forces buildozer to use the most recent fixes for Python 3.11
-p4a.branch = master
+p4a.branch = develop
