@@ -55,11 +55,12 @@
     <p style="font-size: 0.8rem; color: #666;">Threshold for Roll Number detection</p>
     <input type="number" id="rollPixelInput" placeholder="Value from config">
     <div class="modal-buttons">
-      <button onclick="saveRollPixelValue()">Save</button>
+      <button onclick="saveRollPixelValue()">Save</button> 
       <button onclick="closeRollPixelModal()">Cancel</button>
     </div>
   </div>
 </div>
+
 
 <div id="signModal" class="modal hidden">
   <div class="modal-content">
@@ -310,12 +311,14 @@ function saveRollPixelValue() {
     fetch("/update_config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roll_pixel: val }) // Matches config.cfg key
+        // Ensure this matches exactly what your Python backend expects
+        body: JSON.stringify({ roll_pixel: val }) 
     }).then(() => {
-        fetchPixelValue(); // Refresh display
+        fetchPixelValue(); // This updates the UI badges
         closeRollPixelModal();
     });
 }
+
 
 
     
