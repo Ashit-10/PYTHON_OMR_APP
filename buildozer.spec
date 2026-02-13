@@ -15,7 +15,7 @@ android.blacklist_requirements = wsgiref
 android.accept_sdk_license = True
 
 # Add this line below your requirements
-android.recipes = opencv,numpy,flask
+
 # Add this to tell the builder to ignore the broken wsgiref package
 
 
