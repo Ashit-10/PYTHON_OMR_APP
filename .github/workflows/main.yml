@@ -33,6 +33,7 @@ jobs:
         run: |
           mkdir -p wsgiref
           touch wsgiref/__init__.py
+          pip install "python-for-android@git+https://github.com/kivy/python-for-android.git@develop"
           export ANDROID_NDK_HOME=$HOME/.buildozer/android/platform/android-ndk-r25b
           find $HOME/.buildozer -name "clang" -exec chmod +x {} + 2>/dev/null || true
           export P4A_IGNORE_SSL_ERRORS=1
