@@ -347,6 +347,9 @@ def update_config():
     if 'pixel_value' in data:
         config.set('settings', 'pixel_value', str(data['pixel_value']))
 
+    if 'roll_pixel' in data:
+        config.set('settings', 'roll_pixel', str(data['roll_pixel']))
+        
     # Save the changes back to the file
     with open('config.cfg', 'w') as configfile:
         config.write(configfile)
