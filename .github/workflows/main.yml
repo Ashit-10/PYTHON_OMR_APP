@@ -33,6 +33,8 @@ jobs:
         run: |
           mkdir -p wsgiref
           touch wsgiref/__init__.py
+          export ANDROID_NDK_HOME=$HOME/.buildozer/android/platform/android-ndk-r25b
+          find $HOME/.buildozer -name "clang" -exec chmod +x {} + 2>/dev/null || true
           export P4A_IGNORE_SSL_ERRORS=1
           buildozer android debug
         env:
