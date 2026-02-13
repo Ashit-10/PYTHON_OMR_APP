@@ -10,19 +10,20 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt update
+          # Added patchelf, libffi-dev, and python3-dev
           sudo apt install -y libncurses5 libtinfo5 cmake libffi-dev build-essential \
-          python3-dev sdkmanager autoconf libtool pkg-config zlib1g-dev
+          python3-dev sdkmanager autoconf libtool pkg-config zlib1g-dev patchelf
           pip install --upgrade pip
-          # LOCK CYTHON TO STOP THE CONSTRUCTOR ERROR
+          # LOCKED CYTHON VERSION
           pip install "setuptools<60.0" "Cython==0.29.33" buildozer
 
       - name: Build with Buildozer
         run: |
-          # DONT REMOVE THIS - it fixes the wsgiref print error
+          # Fakes a wsgiref folder so pip doesn't try to download the broken one
           mkdir -p wsgiref
           touch wsgiref/__init__.py
           
-          # Force build using the develop branch for 3.11 compatibility
+          # Direct build command
           buildozer android debug
         env:
           ACCEPT_SDK_LICENSE: "yes"
