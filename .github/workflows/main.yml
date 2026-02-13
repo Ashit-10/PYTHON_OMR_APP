@@ -3,26 +3,28 @@ on: [push]
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      # This gives the virtual machine more space for OpenCV/Android SDK
+      # Give the VM more space for the heavy OpenCV build
       - name: Free Disk Space
         run: |
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo rm -rf "/usr/local/share/boost"
 
+      # Use the current supported buildozer action
       - name: Build with Buildozer
-        uses: ArtemSerebriakov/buildozer-action@v1
+        uses: digreatbrian/buildozer-action@v2
         with:
-          buildozer_version: master
+          buildozer_version: stable
           command: buildozer android debug
           repository_root: .
 
+      # Use v4 of upload-artifact (v3 is now blocked)
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: OMR-Scanner-App
           path: bin/*.apk
