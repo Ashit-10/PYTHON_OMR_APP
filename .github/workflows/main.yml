@@ -7,12 +7,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Install System Dependencies
         run: |
           sudo apt update
-          sudo apt install -y libncurses5 libtinfo5 cmake
-          # Ensure we have the latest pip to avoid old package errors
-          pip install --upgrade pip setuptools
+          sudo apt install -y libncurses5 libtinfo5 cmake libffi-dev build-essential
+          pip install --upgrade pip setuptools cython
 
       - name: Build with Buildozer
         uses: digreatbrian/buildozer-action@v2
