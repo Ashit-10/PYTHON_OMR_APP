@@ -20,7 +20,6 @@ jobs:
          libffi-dev libssl-dev \
          zlib1g-dev \
          libncurses5 libncurses5-dev libtinfo5 \
-         libc6:i386 libstdc++6:i386 zlib1g:i386 \
          patchelf python3-dev
          pip install --upgrade pip
          # LOCKED CYTHON VERSION
