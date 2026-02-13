@@ -24,7 +24,8 @@ jobs:
           touch wsgiref/__init__.py
           
           # Direct build command
-          buildozer android clean
+          
+          
           buildozer android debug
         env:
           ACCEPT_SDK_LICENSE: "yes"
