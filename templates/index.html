@@ -16,6 +16,15 @@
             <button onclick="openPixelModal()">
                 ⚫ Black Pixel <span id="pixelValDisplay" class="pixel-badge">--</span>
             </button>
+            <button onclick="openPixelModal()">
+    ⚫ Black Pixel <span id="pixelValDisplay" class="pixel-badge">--</span>
+</button>
+
+<button onclick="openRollPixelModal()">
+    🔢 Roll Pixel <span id="rollPixelValDisplay" class="pixel-badge">--</span>
+</button>
+
+
             <button onclick="openLivePage()">
                 View Live OMR Results
             </button>
@@ -39,6 +48,17 @@
     <div class="modal-buttons">
       <button onclick="savePixelValue()">Save</button>
       <button onclick="closePixelModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+<div id="rollPixelModal" class="modal hidden">
+  <div class="modal-content">
+    <h3>Edit Roll Pixel Value</h3>
+    <p style="font-size: 0.8rem; color: #666;">Threshold for Roll Number detection</p>
+    <input type="number" id="rollPixelInput" placeholder="Value from config">
+    <div class="modal-buttons">
+      <button onclick="saveRollPixelValue()">Save</button>
+      <button onclick="closeRollPixelModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -282,35 +302,58 @@ function endProcessing() {
         seconds--;
     }, 1000);
 }
+// New Modal Controls
+function openRollPixelModal() { document.getElementById("rollPixelModal").classList.remove("hidden"); }
+function closeRollPixelModal() { document.getElementById("rollPixelModal").classList.add("hidden"); }
+
+// New Save Function
+function saveRollPixelValue() {
+    const val = document.getElementById("rollPixelInput").value;
+    fetch("/update_config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roll_pixel: val }) // Matches config.cfg key
+    }).then(() => {
+        fetchPixelValue(); // Refresh display
+        closeRollPixelModal();
+    });
+}
 
 
     
 /* --- CONSOLIDATED FETCH LOGIC --- */
 function fetchPixelValue() {
     fetch("/get_config").then(r => r.json()).then(data => {
-        // Update Black Pixel
+        // --- Existing Black Pixel Update ---
         const val = data.pixel_value || "--";
         const pixelBadge = document.getElementById("pixelValDisplay");
         const pixelInp = document.getElementById("pixelInput");
         if(pixelBadge) pixelBadge.innerText = val;
         if(pixelInp) pixelInp.value = val;
 
-        // Update Signature Preview on Dashboard
+        // --- NEW Roll Pixel Update ---
+        const rollVal = data.roll_pixel || "--";
+        const rollBadge = document.getElementById("rollPixelValDisplay");
+        const rollInp = document.getElementById("rollPixelInput");
+        if(rollBadge) rollBadge.innerText = rollVal;
+        if(rollInp) rollInp.value = rollVal;
+
+        // --- Existing Signature Update ---
         if (data.signature) {
             const signBtn = document.getElementById("mainSignBtn");
             const emoji = document.getElementById("signEmoji");
             if (signBtn) {
-                // Point to root directory where png files are
                 signBtn.style.backgroundImage = `url('/static/${data.signature}')`;
                 signBtn.classList.add("btn-sign-active");
                 if (emoji) {
-                emoji.style.display = 'flex';
-                emoji.style.position = 'absolute';                
+                    emoji.style.display = 'flex';
+                    emoji.style.position = 'absolute';                
                 } 
             }
         }
     }).catch(err => console.error("Config load error:", err));
 }
+
 
 
 
