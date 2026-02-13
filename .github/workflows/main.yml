@@ -1,0 +1,28 @@
+name: Build APK
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      # This gives the virtual machine more space for OpenCV/Android SDK
+      - name: Free Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+
+      - name: Build with Buildozer
+        uses: ArtemSerebriakov/buildozer-action@v1
+        with:
+          buildozer_version: master
+          command: buildozer android debug
+          repository_root: .
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: OMR-Scanner-App
+          path: bin/*.apk
