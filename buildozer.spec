@@ -7,7 +7,8 @@ source.include_exts = py,png,jpg,html,css,js
 version = 0.1
 
 # IMPORTANT: Flask is the requirement here
-requirements = python3,flask,opencv-python,numpy,werkzeug,jinja2,itsdangerous,click
+requirements = python3,flask,opencv-python,numpy,werkzeug,jinja2,itsdangerous,click,hostpython3
+
 android.blacklist_requirements = wsgiref
 android.accept_sdk_license = True
 
@@ -23,3 +24,5 @@ android.permissions = CAMERA, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
 # This tells Buildozer to use a WebView to show your Flask app
 android.bootstrap = webview
 android.entrypoint_port = 7860
+# Forces buildozer to use the most recent fixes for Python 3.11
+p4a.branch = develop
