@@ -13,6 +13,7 @@ jobs:
           # Added multilib and libtool-bin to fix the 'C compiler cannot create executables' error
           sudo apt install -y libncurses5 libtinfo5 cmake libffi-dev build-essential \
           python3-dev sdkmanager autoconf libtool libtool-bin pkg-config zlib1g-dev \
+          libffi-dev libssl-dev liblzma-dev \
           patchelf gcc-multilib g++-multilib
           pip install --upgrade pip
           # Lock versions to stop the constructor error
@@ -23,7 +24,7 @@ jobs:
           # Keep this - it fixed the first wsgiref error
           mkdir -p wsgiref
           touch wsgiref/__init__.py
-          
+          export P4A_IGNORE_SSL_ERRORS=1
           buildozer android debug
         env:
           ACCEPT_SDK_LICENSE: "yes"
