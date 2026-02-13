@@ -5,9 +5,9 @@ package.domain = org.ashit
 source.dir = .
 source.include_exts = py,png,jpg,html,css,js
 version = 0.1
-android.minapi = 24
+android.minapi = 25
 android.ndk = 23b
-android.ndk_api = 24
+android.ndk_api = 25
 # IMPORTANT: Flask is the requirement here
 requirements = python3,flask,opencv-python,numpy,werkzeug,jinja2,itsdangerous,click,hostpython3
 
