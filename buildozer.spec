@@ -6,11 +6,11 @@ source.dir = .
 source.include_exts = py,png,jpg,html,css,js
 version = 0.1
 android.minapi = 25
-android.ndk = 25c
+android.ndk = 25b
 android.ndk_api = 25
 # IMPORTANT: Flask is the requirement here
 #requirements = python3,flask,opencv-python,numpy,werkzeug,jinja2,itsdangerous,click,hostpython3
-requirements = python3,flask,numpy,opencv,werkzeug,jinja2,itsdangerous,click,cython==0.29.36
+requirements = python3,flask,opencv,werkzeug,jinja2,itsdangerous,click,cython==0.29.36
 android.blacklist_requirements = wsgiref
 android.accept_sdk_license = True
 
@@ -27,4 +27,4 @@ android.permissions = CAMERA, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
 android.bootstrap = webview
 android.entrypoint_port = 7860
 # Forces buildozer to use the most recent fixes for Python 3.11
-p4a.branch = develop
+p4a.branch = master
