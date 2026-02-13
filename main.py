@@ -751,15 +751,35 @@ def kill_port_process(port):
     except Exception as e:
         print(f"Error clearing port: {e}")
 
+# if __name__ == '__main__':
+#    PORT = 7860
+    
+    # 1. Clear the port first
+#    kill_port_process(PORT)
+    
+    # 2. Start your threads
+  #  threading.Thread(target=watch_folder, daemon=True).start()
+  #  threading.Timer(0.1, open_chrome).start()
+    
+    # 3. Run app
+   # app.run(host='0.0.0.0', port=PORT, ssl_context=('certs/cert.pem', 'certs/key.pem'), threaded=True)
+
+
+
+# ... keep your existing imports and logic (watch_folder, etc.) ...
+
 if __name__ == '__main__':
     PORT = 7860
     
-    # 1. Clear the port first
-    kill_port_process(PORT)
+    # NOTE: On Android, we don't kill ports or open Chrome manually.
+    # The 'webview' bootstrap handles the display for us.
     
-    # 2. Start your threads
+    # Start your background logic
     threading.Thread(target=watch_folder, daemon=True).start()
-    threading.Timer(0.1, open_chrome).start()
     
-    # 3. Run app
-    app.run(host='0.0.0.0', port=PORT, ssl_context=('certs/cert.pem', 'certs/key.pem'), threaded=True)
+    # Run Flask WITHOUT SSL for the internal build 
+    # (Buildozer handles the internal connection)
+    app.run(host='0.0.0.0', port=PORT, threaded=True)
+
+
+
