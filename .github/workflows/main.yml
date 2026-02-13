@@ -7,26 +7,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
       - name: Install System Dependencies
         run: |
           sudo apt update
+          # Added multilib and libtool-bin to fix the 'C compiler cannot create executables' error
           sudo apt install -y libncurses5 libtinfo5 cmake libffi-dev build-essential \
-          python3-dev sdkmanager autoconf libtool pkg-config zlib1g-dev \
-          libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libsqlite3-dev sqlite3 bzip2 libbz2-dev
+          python3-dev sdkmanager autoconf libtool libtool-bin pkg-config zlib1g-dev \
+          patchelf gcc-multilib g++-multilib
           pip install --upgrade pip
+          # Lock versions to stop the constructor error
           pip install "setuptools<60.0" "Cython==0.29.36" buildozer
+
       - name: Build with Buildozer
         run: |
-          # The MAGIC step: Create a fake wsgiref folder so pip think it's already there
+          # Keep this - it fixed the first wsgiref error
           mkdir -p wsgiref
           touch wsgiref/__init__.py
           
-          # Run the build and skip the broken dependency check
           buildozer android debug
         env:
           ACCEPT_SDK_LICENSE: "yes"
