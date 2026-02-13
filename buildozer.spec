@@ -8,6 +8,10 @@ version = 0.1
 
 # IMPORTANT: Flask is the requirement here
 requirements = python3,flask,opencv-python,numpy,werkzeug,jinja2,itsdangerous,click
+# Add this line below your requirements
+android.recipes = opencv,numpy,flask
+# Add this to tell the builder to ignore the broken wsgiref package
+android.blacklist_requirements = wsgiref
 
 
 orientation = portrait
