@@ -7,33 +7,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
       - name: Install System Dependencies
         run: |
-         sudo apt update
-
-         sudo apt install -y \
-         git zip unzip \
-         openjdk-17-jdk \
-         autoconf automake libtool \
-         pkg-config build-essential \      
-         cmake ninja-build \
-         libffi-dev libssl-dev \
-         zlib1g-dev \
-         libncurses5 libncurses5-dev libtinfo5 \
-         patchelf python3-dev
-         pip install --upgrade pip
-         # LOCKED CYTHON VERSION
-         pip install "setuptools<60.0" "Cython==0.29.36" buildozer
-
+          sudo apt update
+          sudo apt install -y libncurses5 libtinfo5 cmake libffi-dev build-essential \
+          python3-dev sdkmanager autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libsqlite3-dev sqlite3 bzip2 libbz2-dev
+          pip install --upgrade pip
+          pip install "setuptools<60.0" "Cython==0.29.36" buildozer
       - name: Build with Buildozer
         run: |
-          # Fakes a wsgiref folder so pip doesn't try to download the broken one
+          # The MAGIC step: Create a fake wsgiref folder so pip think it's already there
           mkdir -p wsgiref
           touch wsgiref/__init__.py
           
-          # Direct build command
-          
-          
+          # Run the build and skip the broken dependency check
           buildozer android debug
         env:
           ACCEPT_SDK_LICENSE: "yes"
@@ -43,4 +36,3 @@ jobs:
         with:
           name: OMR-Scanner-App
           path: bin/*.apk
-
