@@ -3,26 +3,29 @@ on: [push]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # Use 22.04 specifically to avoid Ubuntu 24 compatibility issues
     steps:
       - uses: actions/checkout@v4
 
-      # Give the VM more space for the heavy OpenCV build
       - name: Free Disk Space
         run: |
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo rm -rf "/usr/local/share/boost"
 
-      # Use the current supported buildozer action
+      - name: Install Missing Dependencies
+        run: |
+          sudo apt update
+          # Manually install libtinfo5 which is required by older Android NDKs
+          sudo apt install -y libncurses5 libtinfo5
+
       - name: Build with Buildozer
         uses: digreatbrian/buildozer-action@v2
         with:
-          buildozer_version: stable
-          command: buildozer android debug
-          repository_root: .
+          python-version: 3.11
+          buildozer-cmd: buildozer android debug
+          work-dir: .
 
-      # Use v4 of upload-artifact (v3 is now blocked)
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
