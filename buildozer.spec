@@ -9,8 +9,8 @@ android.minapi = 25
 android.ndk = 23b
 android.ndk_api = 25
 # IMPORTANT: Flask is the requirement here
-requirements = python3,flask,opencv-python,numpy,werkzeug,jinja2,itsdangerous,click,hostpython3
-
+#requirements = python3,flask,opencv-python,numpy,werkzeug,jinja2,itsdangerous,click,hostpython3
+requirements = python3==3.10.13,flask,numpy==1.24.4,opencv,werkzeug,jinja2,itsdangerous,click
 android.blacklist_requirements = wsgiref
 android.accept_sdk_license = True
 
