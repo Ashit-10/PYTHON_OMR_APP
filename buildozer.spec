@@ -7,7 +7,8 @@ source.include_exts = py,png,jpg,html,css,js
 version = 0.1
 
 # IMPORTANT: Flask is the requirement here
-requirements = python3,flask,werkzeug,jinja2,itsdangerous,click,opencv,numpy
+requirements = python3,flask,opencv-python,numpy,werkzeug,jinja2,itsdangerous,click
+
 
 orientation = portrait
 fullscreen = 0
