@@ -321,11 +321,13 @@ def get_config():
     
     # Extract values from the [settings] section
     pixel = config.get('settings', 'pixel_value', fallback='200')
+    roll = config.get('settings', 'roll_pixel', fallback='200')
     sign = config.get('settings', 'signature', fallback='')
     
     return {
         "pixel_value": pixel,
-        "signature": sign
+        "signature": sign,
+        "roll_pixel": roll
     }
 
 @app.route('/update_config', methods=['POST'])
