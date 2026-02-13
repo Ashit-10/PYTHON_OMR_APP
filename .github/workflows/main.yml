@@ -7,28 +7,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Free Disk Space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf "/usr/local/share/boost"
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
       - name: Install System Dependencies
         run: |
           sudo apt update
-          sudo apt install -y libncurses5 libtinfo5 cmake libffi-dev build-essential
-          pip install --upgrade pip setuptools cython
-          # --- THE FIX ---
-          # Tell pip to ignore wsgiref entirely
-          pip install --no-deps "wsgiref" || true 
-          # ----------------
+          sudo apt install -y libncurses5 libtinfo5 cmake libffi-dev build-essential \
+          python3-dev sdkmanager autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libsqlite3-dev sqlite3 bzip2 libbz2-dev
+          pip install --upgrade pip setuptools cython buildozer
 
       - name: Build with Buildozer
-        uses: digreatbrian/buildozer-action@v2
-        with:
-          python-version: 3.11
-          buildozer-cmd: buildozer android debug
-          work-dir: .
+        run: |
+          # The MAGIC step: Create a fake wsgiref folder so pip think it's already there
+          mkdir -p wsgiref
+          touch wsgiref/__init__.py
+          
+          # Run the build and skip the broken dependency check
+          buildozer android debug
+        env:
+          ACCEPT_SDK_LICENSE: "yes"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
