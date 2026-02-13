@@ -18,8 +18,8 @@ jobs:
           sudo apt install -y libncurses5 libtinfo5 cmake libffi-dev build-essential \
           python3-dev sdkmanager autoconf libtool pkg-config zlib1g-dev \
           libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libsqlite3-dev sqlite3 bzip2 libbz2-dev
-          pip install --upgrade pip setuptools cython buildozer
-          pip install --upgrade pip setuptools "Cython<3.0" buildozer
+          pip install --upgrade pip
+          pip install "setuptools<60.0" "Cython==0.29.33" buildozer
       - name: Build with Buildozer
         run: |
           # The MAGIC step: Create a fake wsgiref folder so pip think it's already there
