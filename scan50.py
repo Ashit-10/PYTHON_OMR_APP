@@ -192,7 +192,7 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
     white_pixel_value = int(config.get('settings', 'pixel_value')) #230 # 170
     m_area = 150
     shadow_pixel_value = 280
-    roll_pixel = white_pixel_value + 5
+    roll_pixel = white_pixel_value − 25
 
 
     if has_shadow:
