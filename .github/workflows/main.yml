@@ -21,10 +21,11 @@ jobs:
           sudo apt update
           # Added libc6-dev-i386 to solve the linking failure in Error 77
           sudo apt install -y build-essential libncurses5 libncurses5-dev libtinfo6 \
-          cmake libffi-dev python3-dev sdkmanager autoconf libtool libtool-bin \
-          pkg-config zlib1g-dev libssl-dev liblzma-dev patchelf \
-          gcc-multilib g++-multilib libc6-dev-i386 zip unzip \
+          cmake libffi-dev python3-dev sdkmanager autoconf automake libtool \
+          libtool-bin libltdl-dev pkg-config zlib1g-dev libssl-dev liblzma-dev \
+          patchelf gcc-multilib g++-multilib libc6-dev-i386 zip unzip \
           zlib1g:i386 libstdc++6:i386
+
           
           pip install --upgrade pip
           pip install "setuptools<60.0" "Cython==0.29.36" buildozer
@@ -33,7 +34,7 @@ jobs:
         run: |
           mkdir -p wsgiref
           touch wsgiref/__init__.py
-          pip install "python-for-android@git+https://github.com/kivy/python-for-android.git@develop"
+          pip install "python-for-android[toolchain]@git+https://github.com/kivy/python-for-android.git@develop"
           export ANDROID_NDK_HOME=$HOME/.buildozer/android/platform/android-ndk-r25b
           find $HOME/.buildozer -name "clang" -exec chmod +x {} + 2>/dev/null || true
           export P4A_IGNORE_SSL_ERRORS=1
