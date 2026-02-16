@@ -762,7 +762,7 @@ if __name__ == '__main__':
     threading.Timer(0.1, open_chrome).start()
     
     # 3. Run app
-   # app.run(host='0.0.0.0', port=PORT, ssl_context=('certs/cert.pem', 'certs/key.pem'), threaded=True)
+    app.run(host='0.0.0.0', port=PORT, ssl_context=('certs/cert.pem', 'certs/key.pem'), threaded=True)
 
 
 
