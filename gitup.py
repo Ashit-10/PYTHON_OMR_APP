@@ -97,7 +97,7 @@ def upload_to_github(session, local_path, github_path):
         print(f"Error: {e}")
         return False
 
-def run():
+def run1():
     raw_subject = subject.strip()
     exam_no = 1
     clean_subject = raw_subject.replace(" ", "").lower()
@@ -257,6 +257,172 @@ def run():
     else:
         print("❌ FAILED: Could not upload HTML file to GitHub.")
         print()
+
+def run():
+    raw_subject = subject.strip()
+    exam_no = 1
+    clean_subject = raw_subject.replace(" ", "").lower()
+    
+    github_tuition = tuition.upper()
+    github_base = f"{github_tuition}/{YEAR}/class-{cls}"
+    
+    session = requests.Session()
+    session.headers.update({"Authorization": f"token {GITHUB_TOKEN}"})
+    exam_no = get_next_exam_no(session, github_base, cls, clean_subject)
+    print(f"📈 Setting Exam Number to: {exam_no}")
+    
+    folder_path = f"class-{cls}_{clean_subject}_{exam_no}"
+    github_img_folder = f"{github_base}/{folder_path}/eval_files"
+    
+    output_folder = "./output"
+    names_db = get_student_names(tuition, cls)
+    
+    if not os.path.exists(output_folder):
+        print(f"❌ Error: Folder '{output_folder}' not found!")
+        return
+
+    # 2. Process Data
+    raw_files = [f for f in os.listdir(output_folder) if "_" in f and f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+    student_list = []
+    for file_name in raw_files:
+        match = re.search(r"(\d+)_(\d+)", file_name)
+        if match:
+            roll, mark = int(match.group(1)), int(match.group(2))
+            student_list.append({
+                "roll": roll, "mark": mark, "file": file_name,
+                "name": names_db.get(roll, f"Student {roll}"),
+                "path": f"{folder_path}/eval_files/{file_name}" 
+            })
+
+    gallery_students = sorted(student_list, key=lambda x: x['roll'])
+    ranked_students = sorted(student_list, key=lambda x: x['mark'], reverse=True)
+    for i, s in enumerate(ranked_students): s['rank'] = i + 1
+    
+    total_possible_marks = get_total_marks()
+
+    # 3. HTML Generation (CSS Updated for Left Alignment of Names)
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Answer sheets</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        #heading{{ display: flex; justify-content: center; padding-top: 20px; padding-right: 10%; }}
+        body {{ font-family: Arial, sans-serif; padding: 5px; }}
+        #search-bar {{ margin-bottom: 20px; width: 100%; padding: 10px; font-size: 16px; }}
+        table {{ width: 100%; border-collapse: collapse; }}
+        th, td {{ text-align: center; padding: 8px; vertical-align: middle; }}
+        
+        /* FIX: Align names column to the left */
+        th:first-child, td:first-child {{ text-align: left; padding-left: 20px; }}
+        
+        tr:nth-child(even) {{ background-color: #eee9e9; }}
+        a {{ text-decoration: none !important; color: blue; }}
+        a:hover {{ text-decoration: underline; }}
+    </style>
+</head>
+<body>
+    <h1 id="heading">{clean_subject.upper()} [unit test - {exam_no}]</h1>
+    <nav class="navbar bg-body-tertiary px-3 mb-3">
+        <ul class="nav nav-pills">
+            <li class="nav-item me-2">
+               <a href="class-{cls}_{clean_subject.lower()}_{exam_no}/question.pdf" class="btn btn-outline-warning" target="_blank">
+                  View question paper
+               </a>
+            </li>
+            <li class="nav-item">
+               <a href="{site_link}/50?user=student&filename={github_base}/class-{cls}_{clean_subject.lower()}_{exam_no}/answer_key.txt" class="btn btn-outline-primary" target="_blank">
+                  View Answer Key
+               </a>
+            </li>
+        </ul>
+    </nav>
+    <input type="text" id="search-bar" placeholder="Search for names...">
+    <table id="name-table">
+        <thead><tr><th>Name</th><th>Total mark</th><th>Secured mark</th><th>Rank</th></tr></thead>
+        <tbody>"""
+
+    for s in ranked_students:
+        html_content += f"""
+            <tr>
+                <td><a href="{s['path']}">{s['name']}</a></td>
+                <td>{total_possible_marks}</td>
+                <td>{s['mark']}</td>
+                <td>{s['rank']}</td>
+            </tr>"""
+
+    html_content += f"""
+        </tbody>
+    </table>
+    <br><br>
+    <h2 id="heading2">&nbsp;&nbsp;&nbsp;All student's answer sheets (Roll number wise).</h2>
+    <div id="gallery-container">"""
+
+    for s in gallery_students:
+        html_content += f"""
+        <div class="imgs" style="text-align:center; margin-bottom:40px;">
+            <img src="{s['path']}" alt="{s['name']}" style="max-width:98%; height:auto; border:1px solid #ccc;"> 
+            <p>{s['name']} (Roll: {s['roll']})</p>
+        </div>"""
+
+    html_content += """
+    </div>
+    <script>
+        const searchBar = document.getElementById('search-bar');
+        searchBar.addEventListener('input', () => {
+            const filter = searchBar.value.trim().toLowerCase();
+            document.querySelectorAll('#name-table tbody tr').forEach(row => {
+                row.style.display = row.cells[0].textContent.toLowerCase().includes(filter) ? '' : 'none';
+            });
+            document.querySelectorAll('.imgs').forEach(div => {
+                div.style.display = div.querySelector('img').alt.toLowerCase().includes(filter) ? '' : 'none';
+            });
+        });
+    </script>
+</body>
+</html>"""
+
+    # 4. Save Locally
+    output_filename = f"class-{cls}_{clean_subject}_{exam_no}.html"
+    with open(output_filename, "w", encoding="utf-8") as f:
+        f.write(html_content)
+    print()
+    print(f"✅ HTML Generated:\n {output_filename}")
+    print()
+
+    # 5. Upload to GitHub (Automatic)
+    session = requests.Session()
+    session.headers.update({"Authorization": f"token {GITHUB_TOKEN}"})
+    
+    print(f"📤 Uploading HTML to GitHub...")
+    html_success = upload_to_github(session, output_filename, f"{github_base}/{output_filename}")
+    
+    if os.path.exists("answer_key.txt"):
+        print(f"📤 Uploading answer_key.txt to GitHub...")
+        upload_to_github(session, "answer_key.txt", f"{github_base}/class-{cls}_{clean_subject.lower()}_{exam_no}/answer_key.txt")
+    
+    if html_success:
+        print(f"🚀 Uploading {len(student_list)} images...")
+        count = 0
+        for s in student_list:
+            img_success = upload_to_github(session, f"{output_folder}/{s['file']}", f"{github_img_folder}/{s['file']}")
+            count += 1
+            status = "✅" if img_success else "❌"
+            print(f"[{count}/{len(student_list)}] {status} {s['name']}")
+            sys.stdout.flush() 
+
+        os.remove(output_filename)
+        print(f"\n✅ SYNC COMPLETE")
+        print()
+        print(f"The webpage will be available in 5 minutes: {site_link}/{github_base}/{output_filename}")
+        print()
+    else:
+        print("❌ FAILED: Could not upload HTML file to GitHub.")
+        print()
+
+
 
 if __name__ == "__main__":
     run()
