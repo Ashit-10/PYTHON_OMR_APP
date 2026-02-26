@@ -1,7 +1,7 @@
 
 
 # --- CONFIGURATION ---
-GITHUB_TOKEN = "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"
+GITHUB_TOKEN = "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"
 REPO_OWNER = "Ashit-10"
 REPO_NAME = "omr_exams"
 YEAR = "2026"
