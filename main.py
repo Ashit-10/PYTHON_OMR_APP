@@ -445,7 +445,7 @@ def sync_roll_github():
     file_path = os.path.join(BASE, filename)
 
     # --- CONFIGURATION ---
-    TOKEN = "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"
+    TOKEN = "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"
     OWNER = "Ashit-10"
     REPO = "PYTHON_OMR_APP"
     BRANCH = "main" # or 'master'
