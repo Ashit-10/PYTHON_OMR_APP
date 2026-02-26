@@ -255,6 +255,19 @@
     const refreshBtn = document.getElementById('refreshBtn');
     const instantToggle = document.getElementById('instantToggle');
     const toast = document.getElementById('toast');
+    // Existing Instant Toggle logic
+
+// NEW: Contrast Toggle logic
+const contrastToggle = document.getElementById('contrastToggle');
+
+// Check if there is a saved preference; if not, default to 'true'
+const savedContrast = localStorage.getItem('contrastMode');
+contrastToggle.checked = (savedContrast === null) ? true : (savedContrast === 'true');
+
+// Save preference whenever it changes
+contrastToggle.onchange = () => {
+  localStorage.setItem('contrastMode', contrastToggle.checked);
+};
 
     instantToggle.checked = localStorage.getItem('instantMode') === 'true';
 
