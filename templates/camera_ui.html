@@ -240,11 +240,26 @@
   gap: 2px;
   margin-top: 10px;
 }
+#wrap {
+  overflow: hidden; /* Crucial: crops the zoomed video */
+  position: relative;
+}
+
+#video {
+  transition: transform 0.1s ease-out; /* Makes zooming feel smooth */
+  transform-origin: center; /* Zooms into the middle of the OMR sheet */
+}
 
 
   </style>
 </head>
 <body>
+<div id="zoomContainer" style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 9999;">
+  <div style="color: white; font-size: 12px; font-weight: bold;">+</div>
+  <input type="range" id="zoomSlider" min="1" max="4" step="0.1" value="1" 
+         style="appearance: none; width: 150px; height: 8px; background: #444; border-radius: 5px; transform: rotate(-90deg); cursor: pointer; accent-color: limegreen;">
+  <div style="color: white; font-size: 12px; font-weight: bold; margin-top: 60px;">-</div>
+</div>
 
   <button id="exitBtn">Exit</button>
 
@@ -441,58 +456,31 @@ omrTypeToggle.onchange = () => {
   // If .jpg exists in the score, remove it
   return score.replace(".jpg", "");
 }
-let initialPinchDistance = 0;
-let initialZoom = 1;
-let isZooming = false;
+const zoomSlider = document.getElementById('zoomSlider');
+const videoElement = document.getElementById('video');
 
-wrap.addEventListener('touchstart', (e) => {
-  if (e.touches.length === 2) {
-    isZooming = true;
-    initialPinchDistance = Math.hypot(
-      e.touches[0].pageX - e.touches[1].pageX,
-      e.touches[0].pageY - e.touches[1].pageY
-    );
-    
-    const track = stream.getVideoTracks()[0];
-    const settings = track.getSettings();
-    initialZoom = settings.zoom || 1;
-  }
-}, { passive: false });
+zoomSlider.oninput = async () => {
+  const zoomVal = zoomSlider.value;
+  
+  // 1. Visual Zoom (Works on all devices including iOS)
+  videoElement.style.transform = `scale(${zoomVal})`;
 
-wrap.addEventListener('touchmove', (e) => {
-  if (isZooming && e.touches.length === 2 && stream) {
-    e.preventDefault(); 
-    
+  // 2. Hardware Zoom (Attempts to use the actual camera lens if supported)
+  if (stream) {
     const track = stream.getVideoTracks()[0];
     const capabilities = track.getCapabilities();
     
-    if (!capabilities.zoom) return;
-
-    const currentDistance = Math.hypot(
-      e.touches[0].pageX - e.touches[1].pageX,
-      e.touches[0].pageY - e.touches[1].pageY
-    );
-
-    // Sensitivity adjustment
-    const delta = (currentDistance - initialPinchDistance) * 0.01;
-    let newZoom = initialZoom + delta;
-    newZoom = Math.min(Math.max(newZoom, capabilities.zoom.min), capabilities.zoom.max);
-
-    // Use requestAnimationFrame to prevent the video from "sticking"
-    requestAnimationFrame(async () => {
+    if (capabilities.zoom) {
       try {
-        await track.applyConstraints({ advanced: [{ zoom: newZoom }] });
-      } catch (err) {
-        // Fallback: some browsers prefer whole numbers or specific steps
-        console.warn("Smooth zoom failed, attempting stepped zoom");
+        // Map slider (1-4) to hardware limits (e.g., 1-10)
+        const hwZoom = Math.min(zoomVal, capabilities.zoom.max);
+        await track.applyConstraints({ advanced: [{ zoom: hwZoom }] });
+      } catch (e) {
+        console.warn("Hardware zoom not supported or blocked.");
       }
-    });
+    }
   }
-}, { passive: false });
-
-wrap.addEventListener('touchend', () => {
-  isZooming = false;
-});
+};
 
 
 
