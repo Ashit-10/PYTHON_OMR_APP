@@ -11,7 +11,11 @@ def evaluate(image_file, photo, out_put_path, answer_key_file, caption, has_dark
         return s50.find_and_draw_squares(image_file, out_put_path, 
                                   answer_key_file, caption, has_darkness, allow_partial_mark)
     else:
-        print("Error in answer key")
+        
+        return s100.find_and_draw_squares(image_file, out_put_path, 
+                                   answer_key_file, caption, has_darkness, allow_partial_mark)
+                                   
+    #    print("Error in answer key")
 
 # evaluate('images/n18.jpg', 'output/', "answer_key.txt", "", None, None)   
 

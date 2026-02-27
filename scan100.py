@@ -2,6 +2,13 @@ import cv2
 import numpy as np
 import json
 import datetime
+import configparser
+import os
+
+config = configparser.ConfigParser()
+config.read('config.cfg')
+sign_path = "static"
+
 
 roll_first_column = [[257, 20], [257, 52], [257, 86], [257, 118], [257, 152], [257, 185],
                       [257, 219], [257, 251],[257, 285],[257, 317]]
@@ -13,8 +20,10 @@ roll_second_column = [[292, 20], [292, 52], [292, 86], [292, 119], [292, 152], [
 def add_sign(base_image, dst_pts, rect, x, y, r = 0):
     try:
         # Load the signature image with alpha channel
-        signature_image = cv2.imread('sign.png', cv2.IMREAD_UNCHANGED)
-
+        
+        sign_file = config.get('settings', 'signature')
+        signature_image = cv2.imread(f"{sign_path}/{sign_file}", cv2.IMREAD_UNCHANGED)
+        
         # Resize the signature image to width 100 while maintaining the aspect ratio
         new_width = 85
         aspect_ratio = new_width / signature_image.shape[1]
