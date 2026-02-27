@@ -25,6 +25,11 @@
       border: 4px solid white;
       flex-shrink: 0;
     }
+/* Default is 50 OMR (2.9/8). This class expands it for 100 OMR */
+#wrap.wide-mode {
+  aspect-ratio: 4.5 / 8; /* Adjust this value to make it wider/narrower */
+  transition: aspect-ratio 0.3s ease-in-out;
+}
 
     video {
       width: 100%;
@@ -187,6 +192,54 @@
   transform-origin: center;
   object-fit: cover;
 }
+/* Styling for all toggle switches */
+.switch {
+  appearance: none;
+  width: 40px;
+  height: 20px;
+  background: #555;
+  border-radius: 10px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.switch::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px; height: 14px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.2s;
+}
+
+.switch:checked {
+  background: limegreen;
+}
+
+/* Specific color for OMR Toggle when active */
+#omrTypeToggle:checked {
+  background: #ffcc00;
+}
+
+/* Specific color for Darken Toggle when active */
+#contrastToggle:checked {
+  background: #00ffcc;
+}
+
+.switch:checked::before {
+  transform: translateX(20px);
+}
+
+.toggle-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: 10px;
+}
 
 
   </style>
@@ -205,10 +258,25 @@
     </div>
   </div>
 
-  <div id="toggleContainer">
-    <input type="checkbox" id="instantToggle">
+  
+
+<div id="toggleContainer">
+  <div class="toggle-group" style="margin-top: 0;">
+    <input type="checkbox" id="instantToggle" class="switch">
     <div id="toggleLabel">Instant</div>
   </div>
+
+  <div class="toggle-group">
+    <input type="checkbox" id="contrastToggle" class="switch">
+    <div id="toggleLabel" style="color: #00ffcc;">Darken</div>
+  </div>
+
+  <div class="toggle-group">
+    <input type="checkbox" id="omrTypeToggle" class="switch">
+    <div id="toggleLabel" style="color: #ffcc00;">100 OMR</div>
+  </div>
+</div>
+
 
   <div class="controls">
     <input type="number" 
@@ -247,6 +315,19 @@
     const refreshBtn = document.getElementById('refreshBtn');
     const instantToggle = document.getElementById('instantToggle');
     const toast = document.getElementById('toast');
+    // Existing Instant Toggle logic
+
+// NEW: Contrast Toggle logic
+const contrastToggle = document.getElementById('contrastToggle');
+
+// Check if there is a saved preference; if not, default to 'true'
+const savedContrast = localStorage.getItem('contrastMode');
+contrastToggle.checked = (savedContrast === null) ? true : (savedContrast === 'true');
+
+// Save preference whenever it changes
+contrastToggle.onchange = () => {
+  localStorage.setItem('contrastMode', contrastToggle.checked);
+};
 
     instantToggle.checked = localStorage.getItem('instantMode') === 'true';
 
@@ -289,6 +370,30 @@
       }
     }
 
+    const omrTypeToggle = document.getElementById('omrTypeToggle');
+const wrap = document.getElementById('wrap');
+
+// 1. Load saved preference
+const savedOmrMode = localStorage.getItem('omr100Mode');
+if (savedOmrMode === 'true') {
+  omrTypeToggle.checked = true;
+  wrap.classList.add('wide-mode');
+}
+
+// 2. Handle Change
+omrTypeToggle.onchange = () => {
+  if (omrTypeToggle.checked) {
+    wrap.classList.add('wide-mode');
+    localStorage.setItem('omr100Mode', 'true');
+  } else {
+    wrap.classList.remove('wide-mode');
+    localStorage.setItem('omr100Mode', 'false');
+  }
+};
+
+
+
+    
     async function startCamera() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -447,55 +552,56 @@
   toast.style.display = 'none';
 
   const canvas = document.createElement('canvas');
-  
-  // 1. Get dimensions
   const videoWidth = video.videoWidth;
   const videoHeight = video.videoHeight;
   const wrapRect = document.getElementById('wrap').getBoundingClientRect();
   const wrapAspect = wrapRect.width / wrapRect.height;
 
-  // 2. Calculate the "Visible" Crop 
-  // We determine what portion of the raw video is actually visible in the 3:8 wrap
   let sourceWidth, sourceHeight, startX, startY;
-
   const videoAspect = videoWidth / videoHeight;
 
   if (videoAspect > wrapAspect) {
-    // Video is wider than the container (common)
     sourceHeight = videoHeight;
     sourceWidth = videoHeight * wrapAspect;
     startX = (videoWidth - sourceWidth) / 2;
     startY = 0;
   } else {
-    // Video is taller than container
     sourceWidth = videoWidth;
     sourceHeight = videoWidth / wrapAspect;
     startX = 0;
     startY = (videoHeight - sourceHeight) / 2;
   }
 
-  // 3. Set Canvas to the narrow aspect ratio
   canvas.width = sourceWidth;
   canvas.height = sourceHeight;
-
   const ctx = canvas.getContext('2d');
-  
-  // 4. Draw only the cropped portion
+
+  // --- NEW: Optional Filtering Logic ---
+  const isDarkenEnabled = document.getElementById('contrastToggle').checked;
+  if (isDarkenEnabled) {
+    // contrast(1.8) makes blacks blacker and whites whiter
+    // brightness(0.7) prevents the flash from washing out the marks
+    // grayscale(1) removes color noise from the paper
+    ctx.filter = 'contrast(1.8) brightness(0.7) grayscale(1)';
+  }
+
   ctx.drawImage(
     video, 
-    startX, startY, sourceWidth, sourceHeight, // Source (the crop)
-    0, 0, sourceWidth, sourceHeight            // Destination
+    startX, startY, sourceWidth, sourceHeight,
+    0, 0, sourceWidth, sourceHeight
   );
 
+  // Clear filter for next draw
+  ctx.filter = 'none'; 
+  
   const previewDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-
-  // 5. Trigger Animation and Processing
   animateCapture(previewDataUrl);
 
   canvas.toBlob((blob) => {
     if (blob) processImage(blob, previewDataUrl);
   }, 'image/jpeg', 0.8);
 };
+
 
 
 
