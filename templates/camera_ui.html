@@ -250,16 +250,52 @@
   transform-origin: center; /* Zooms into the middle of the OMR sheet */
 }
 
+#zoomContainer {
+  position: absolute; 
+  left: -20px; /* Moved further left to avoid middle-screen clutter */
+  top: 50%; 
+  transform: translateY(-50%); 
+  display: none; /* Hidden by default */
+  flex-direction: column; 
+  align-items: center; 
+  z-index: 9999;
+}
+
+/* Make the slider even longer for ultra-low sensitivity */
+#zoomSlider {
+  appearance: none; 
+  width: 250px; /* Physically longer = more thumb travel needed for zoom */
+  height: 4px; 
+  background: rgba(255,255,255,0.2); 
+  border-radius: 2px; 
+  transform: rotate(-90deg); 
+  cursor: pointer; 
+  accent-color: limegreen;
+}
+
+.zoom-toggle-btn {
+  background: rgba(0,0,0,0.6);
+  border: 1px solid white;
+  color: white;
+  border-radius: 50%;
+  width: 35px;
+  height: 35px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
 
   </style>
 </head>
 <body>
-<div id="zoomContainer" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 5px; z-index: 9999;">
-  <div style="color: white; font-size: 18px; font-weight: bold; opacity: 0.6;">+</div>
-  <input type="range" id="zoomSlider" min="1" max="2" step="0.01" value="1" 
-         style="appearance: none; width: 180px; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; transform: rotate(-90deg); cursor: pointer; accent-color: limegreen;">
-  <div style="color: white; font-size: 18px; font-weight: bold; opacity: 0.6; margin-top: 80px;">-</div>
+<div id="zoomContainer">
+  <div style="color: white; font-size: 14px; opacity: 0.5; margin-bottom: 90px;">+</div>
+  <input type="range" id="zoomSlider" min="1" max="1.5" step="0.005" value="1">
+  <div style="color: white; font-size: 14px; opacity: 0.5; margin-top: 90px;">-</div>
 </div>
+
 
 
   <button id="exitBtn">Exit</button>
@@ -291,6 +327,11 @@
     <input type="checkbox" id="omrTypeToggle" class="switch">
     <div id="toggleLabel" style="color: #ffcc00;">100 OMR</div>
   </div>
+  <div class="toggle-group" style="margin-top:10px;">
+  <button id="showZoomBtn" class="zoom-toggle-btn">🔍</button>
+  <div id="toggleLabel" style="font-size:10px;">Zoom</div>
+</div>
+
 </div>
 
 
@@ -457,35 +498,33 @@ omrTypeToggle.onchange = () => {
   // If .jpg exists in the score, remove it
   return score.replace(".jpg", "");
 }
+const showZoomBtn = document.getElementById('showZoomBtn');
+const zoomContainer = document.getElementById('zoomContainer');
 const zoomSlider = document.getElementById('zoomSlider');
 const videoElement = document.getElementById('video');
 
-zoomSlider.oninput = async () => {
+// 1. Toggle visibility
+showZoomBtn.onclick = () => {
+  const isHidden = zoomContainer.style.display === 'none' || zoomContainer.style.display === '';
+  zoomContainer.style.display = isHidden ? 'flex' : 'none';
+  showZoomBtn.style.background = isHidden ? 'limegreen' : 'rgba(0,0,0,0.6)';
+};
+
+// 2. Ultra-precise zoom logic
+zoomSlider.oninput = () => {
   const zoomVal = parseFloat(zoomSlider.value);
   
-  // 1. Visual Zoom (The 'Precise' look)
-  // We use requestAnimationFrame to make the transition buttery smooth
   requestAnimationFrame(() => {
+    // We only scale the video, keeping the sensitivity low
     videoElement.style.transform = `scale(${zoomVal})`;
   });
 
-  // 2. Hardware Zoom (Only if supported and significant)
+  // Attempt hardware zoom only if it's supported
   if (stream) {
     const track = stream.getVideoTracks()[0];
-    const capabilities = track.getCapabilities();
-    
-    if (capabilities && capabilities.zoom) {
-      try {
-        // We cap the hardware zoom at 2.0 even if the phone can do 10.0
-        // This keeps the 'sensitivity' low and manageable.
-        const targetHWZoom = Math.min(zoomVal, capabilities.zoom.max);
-        
-        await track.applyConstraints({ 
-          advanced: [{ zoom: targetHWZoom }] 
-        });
-      } catch (e) {
-        // Silently fail if hardware doesn't like small increments
-      }
+    const caps = track.getCapabilities();
+    if (caps && caps.zoom) {
+      track.applyConstraints({ advanced: [{ zoom: zoomVal }] }).catch(() => {});
     }
   }
 };
