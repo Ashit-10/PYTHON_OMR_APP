@@ -441,6 +441,56 @@ omrTypeToggle.onchange = () => {
   // If .jpg exists in the score, remove it
   return score.replace(".jpg", "");
 }
+// Variable to store the initial distance between two fingers
+let initialPinchDistance = 0;
+let initialZoom = 1;
+
+const wrapContainer = document.getElementById('wrap');
+
+wrapContainer.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 2) {
+    // Calculate initial distance between two fingers
+    initialPinchDistance = Math.hypot(
+      e.touches[0].pageX - e.touches[1].pageX,
+      e.touches[0].pageY - e.touches[1].pageY
+    );
+    
+    // Get current zoom level from the track settings
+    const track = stream.getVideoTracks()[0];
+    const settings = track.getSettings();
+    initialZoom = settings.zoom || 1;
+  }
+}, { passive: false });
+
+wrapContainer.addEventListener('touchmove', async (e) => {
+  if (e.touches.length === 2 && stream) {
+    e.preventDefault(); // Stop page scrolling while zooming
+    
+    const track = stream.getVideoTracks()[0];
+    const capabilities = track.getCapabilities();
+    
+    if (!capabilities.zoom) return;
+
+    // Calculate new distance
+    const currentDistance = Math.hypot(
+      e.touches[0].pageX - e.touches[1].pageX,
+      e.touches[0].pageY - e.touches[1].pageY
+    );
+
+    // Calculate zoom factor (sensitivity: 0.01)
+    const delta = (currentDistance - initialPinchDistance) * 0.01;
+    let newZoom = initialZoom + delta;
+
+    // Constrain zoom within hardware limits
+    newZoom = Math.min(Math.max(newZoom, capabilities.zoom.min), capabilities.zoom.max);
+
+    try {
+      await track.applyConstraints({ advanced: [{ zoom: newZoom }] });
+    } catch (err) {
+      console.error("Pinch zoom failed", err);
+    }
+  }
+}, { passive: false });
 
 
     async function processImage(blob, previewUrl) {
