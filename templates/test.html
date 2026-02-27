@@ -25,6 +25,11 @@
       border: 4px solid white;
       flex-shrink: 0;
     }
+/* Default is 50 OMR (2.9/8). This class expands it for 100 OMR */
+#wrap.wide-mode {
+  aspect-ratio: 4.5 / 8; /* Adjust this value to make it wider/narrower */
+  transition: aspect-ratio 0.3s ease-in-out;
+}
 
     video {
       width: 100%;
@@ -217,6 +222,10 @@
     <div id="toggleLabel" style="color: #00ffcc;">Darken</div>
   </div>
 </div>
+<div style="display:flex; flex-direction:column; align-items:center; gap:2px; margin-top:10px;">
+  <input type="checkbox" id="omrTypeToggle">
+  <div id="toggleLabel" style="color: #ffcc00;">100 OMR</div>
+</div>
 
   <div class="controls">
     <input type="number" 
@@ -310,6 +319,30 @@ contrastToggle.onchange = () => {
       }
     }
 
+    const omrTypeToggle = document.getElementById('omrTypeToggle');
+const wrap = document.getElementById('wrap');
+
+// 1. Load saved preference
+const savedOmrMode = localStorage.getItem('omr100Mode');
+if (savedOmrMode === 'true') {
+  omrTypeToggle.checked = true;
+  wrap.classList.add('wide-mode');
+}
+
+// 2. Handle Change
+omrTypeToggle.onchange = () => {
+  if (omrTypeToggle.checked) {
+    wrap.classList.add('wide-mode');
+    localStorage.setItem('omr100Mode', 'true');
+  } else {
+    wrap.classList.remove('wide-mode');
+    localStorage.setItem('omr100Mode', 'false');
+  }
+};
+
+
+
+    
     async function startCamera() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
