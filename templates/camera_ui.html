@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+
   <title>OMR Sheet Scanner</title>
   <style>
     body, html {
@@ -285,6 +286,25 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
+}
+/* Disable text selection and callouts globally */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Allow input fields to still work so you can type the Roll Number */
+input[type="number"], input[type="text"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+body {
+  /* Prevent pulling down to refresh or bouncing the page */
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
   </style>
@@ -645,41 +665,47 @@ zoomSlider.oninput = () => {
   const wrapRect = document.getElementById('wrap').getBoundingClientRect();
   const wrapAspect = wrapRect.width / wrapRect.height;
 
+  // Get the current zoom value from the slider
+  const currentZoom = parseFloat(zoomSlider.value) || 1;
+
   let sourceWidth, sourceHeight, startX, startY;
   const videoAspect = videoWidth / videoHeight;
 
+  // 1. Calculate base dimensions based on the wrap aspect ratio
   if (videoAspect > wrapAspect) {
     sourceHeight = videoHeight;
     sourceWidth = videoHeight * wrapAspect;
-    startX = (videoWidth - sourceWidth) / 2;
-    startY = 0;
   } else {
     sourceWidth = videoWidth;
     sourceHeight = videoWidth / wrapAspect;
-    startX = 0;
-    startY = (videoHeight - sourceHeight) / 2;
   }
 
-  canvas.width = sourceWidth;
+  // 2. APPLY ZOOM: Shrink the source area to "zoom in"
+  // As currentZoom increases, we look at a smaller portion of the video center
+  const zoomedWidth = sourceWidth / currentZoom;
+  const zoomedHeight = sourceHeight / currentZoom;
+
+  // 3. Center the crop
+  startX = (videoWidth - zoomedWidth) / 2;
+  startY = (videoHeight - zoomedHeight) / 2;
+
+  canvas.width = sourceWidth; 
   canvas.height = sourceHeight;
   const ctx = canvas.getContext('2d');
 
-  // --- NEW: Optional Filtering Logic ---
+  // Apply filters if enabled
   const isDarkenEnabled = document.getElementById('contrastToggle').checked;
   if (isDarkenEnabled) {
-    // contrast(1.8) makes blacks blacker and whites whiter
-    // brightness(0.7) prevents the flash from washing out the marks
-    // grayscale(1) removes color noise from the paper
     ctx.filter = 'contrast(1.8) brightness(0.7) grayscale(1)';
   }
 
+  // Draw the zoomed portion onto the canvas
   ctx.drawImage(
     video, 
-    startX, startY, sourceWidth, sourceHeight,
-    0, 0, sourceWidth, sourceHeight
+    startX, startY, zoomedWidth, zoomedHeight, // Source (zoomed)
+    0, 0, sourceWidth, sourceHeight             // Destination (full canvas)
   );
 
-  // Clear filter for next draw
   ctx.filter = 'none'; 
   
   const previewDataUrl = canvas.toDataURL('image/jpeg', 0.8);
