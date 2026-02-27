@@ -149,38 +149,35 @@
       pointer-events: auto;
     }
 
-    #exitBtn {
+  #exitBtn {
   position: absolute;
   top: 20px;
   left: 10px;
   z-index: 9999;
   
+  /* Completely clear background */
+  background: none;
+  border: none;
+  
   /* Text styling */
   color: white;
   font-weight: bold;
-  font-size: 14px;
+  font-size: 16px;
   text-transform: uppercase;
-  letter-spacing: 1px;
-
-  /* Translucent Background */
-  background: rgba(255, 255, 255, 0.15); /* Very light white tint */
-  border: 1px solid rgba(255, 255, 255, 0.3); /* Thin light border */
-  border-radius: 8px;
-  padding: 8px 15px;
-
-  /* Glass Blur Effect (Works on iOS and most Androids) */
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  /* The shadow ensures you can see 'EXIT' even over white paper */
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8), 0 0 10px rgba(0, 0, 0, 0.5);
+  
+  padding: 10px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
 #exitBtn:active {
-  background: rgba(255, 255, 255, 0.3);
-  transform: scale(0.95);
+  opacity: 0.5; /* Visual feedback when clicked */
 }
+
+  
 
 
     #toast b {
