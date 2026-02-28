@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+
   <title>OMR Sheet Scanner</title>
   <style>
     body, html {
@@ -27,7 +28,7 @@
     }
 /* Default is 50 OMR (2.9/8). This class expands it for 100 OMR */
 #wrap.wide-mode {
-  aspect-ratio: 4.5 / 8; /* Adjust this value to make it wider/narrower */
+  aspect-ratio: 4.8 / 8; /* Adjust this value to make it wider/narrower */
   transition: aspect-ratio 0.3s ease-in-out;
 }
 
@@ -148,12 +149,36 @@
       pointer-events: auto;
     }
 
-    #exitBtn {
-      position: absolute;
-      top: 20px;
-      left: 10px;
-      z-index: 9999;
-    }
+  #exitBtn {
+  position: absolute;
+  top: 20px;
+  left: 10px;
+  z-index: 9999;
+  
+  /* Completely clear background */
+  background: none;
+  border: none;
+  
+  /* Text styling */
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+  text-transform: uppercase;
+  
+  /* The shadow ensures you can see 'EXIT' even over white paper */
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8), 0 0 10px rgba(0, 0, 0, 0.5);
+  
+  padding: 10px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#exitBtn:active {
+  opacity: 0.5; /* Visual feedback when clicked */
+}
+
+  
+
 
     #toast b {
       color: limegreen;
@@ -192,11 +217,130 @@
   transform-origin: center;
   object-fit: cover;
 }
+/* Styling for all toggle switches */
+.switch {
+  appearance: none;
+  width: 40px;
+  height: 20px;
+  background: #555;
+  border-radius: 10px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+}
 
+.switch::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px; height: 14px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.2s;
+}
+
+.switch:checked {
+  background: limegreen;
+}
+
+/* Specific color for OMR Toggle when active */
+#omrTypeToggle:checked {
+  background: #ffcc00;
+}
+
+/* Specific color for Darken Toggle when active */
+#contrastToggle:checked {
+  background: #00ffcc;
+}
+
+.switch:checked::before {
+  transform: translateX(20px);
+}
+
+.toggle-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: 10px;
+}
+#wrap {
+  overflow: hidden; /* Crucial: crops the zoomed video */
+  position: relative;
+}
+
+#video {
+  transition: transform 0.1s ease-out; /* Makes zooming feel smooth */
+  transform-origin: center; /* Zooms into the middle of the OMR sheet */
+}
+
+#zoomContainer {
+  position: absolute; 
+  left: -20px; /* Moved further left to avoid middle-screen clutter */
+  top: 50%; 
+  transform: translateY(-50%); 
+  display: none; /* Hidden by default */
+  flex-direction: column; 
+  align-items: center; 
+  z-index: 9999;
+}
+
+/* Make the slider even longer for ultra-low sensitivity */
+#zoomSlider {
+  appearance: none; 
+  width: 250px; /* Physically longer = more thumb travel needed for zoom */
+  height: 4px; 
+  background: rgba(255,255,255,0.2); 
+  border-radius: 2px; 
+  transform: rotate(-90deg); 
+  cursor: pointer; 
+  accent-color: limegreen;
+}
+
+.zoom-toggle-btn {
+  background: rgba(0,0,0,0.6);
+  border: 1px solid white;
+  color: white;
+  border-radius: 50%;
+  width: 45px;
+  height: 45px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+/* Disable text selection and callouts globally */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Allow input fields to still work so you can type the Roll Number */
+input[type="number"], input[type="text"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+body {
+  /* Prevent pulling down to refresh or bouncing the page */
+  overscroll-behavior: none;
+  touch-action: none;
+}
 
   </style>
 </head>
 <body>
+<div id="zoomContainer">
+  
+  <input type="range" id="zoomSlider" min="1" max="1.3" step="0.005" value="1">
+  
+</div>
+
+
 
   <button id="exitBtn">Exit</button>
 
@@ -211,21 +355,37 @@
   </div>
 
   
-<div id="toggleContainer">
-  <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
-    <input type="checkbox" id="instantToggle">
+
+<button id="menuBtn" style="position: absolute; top: 20px; right: 10px; z-index: 10000; background: rgba(0,0,0,0.6); border: 1px solid white; color: white; border-radius: 5px; padding: 8px 12px;">Settings ⚙️</button>
+
+<div id="toggleContainer" style="display: none;">
+  <div class="toggle-group" style="margin-top: 0;">
+    <input type="checkbox" id="instantToggle" class="switch">
     <div id="toggleLabel">Instant</div>
   </div>
 
-  <div style="display:flex; flex-direction:column; align-items:center; gap:2px; margin-top:10px;">
-    <input type="checkbox" id="contrastToggle">
+  <div class="toggle-group">
+    <input type="checkbox" id="autoToggle" class="switch" style="accent-color: #ff4444;">
+    <div id="toggleLabel" style="color: #ff4444;">Auto Scan</div>
+  </div>
+
+  <div class="toggle-group">
+    <input type="checkbox" id="contrastToggle" class="switch">
     <div id="toggleLabel" style="color: #00ffcc;">Darken</div>
   </div>
+
+  <div class="toggle-group">
+    <input type="checkbox" id="omrTypeToggle" class="switch">
+    <div id="toggleLabel" style="color: #ffcc00;">100 OMR</div>
+  </div>
+  
+  <div class="toggle-group" style="margin-top:10px;">
+    <button id="showZoomBtn" class="zoom-toggle-btn">🔍</button>
+    <div id="toggleLabel" style="font-size:10px;">Zoom</div>
+  </div>
 </div>
-<div style="display:flex; flex-direction:column; align-items:center; gap:2px; margin-top:10px;">
-  <input type="checkbox" id="omrTypeToggle">
-  <div id="toggleLabel" style="color: #ffcc00;">100 OMR</div>
-</div>
+
+
 
   <div class="controls">
     <input type="number" 
@@ -288,36 +448,105 @@ contrastToggle.onchange = () => {
     instantToggle.onchange = () => {
       localStorage.setItem('instantMode', instantToggle.checked);
     };
+// --- Menu Toggle Logic ---
+const menuBtn = document.getElementById('menuBtn');
+const toggleContainer = document.getElementById('toggleContainer');
 
-    function showToast(msg, permanent = false, imageUrl = null) {
-      permanentToast = permanent;
-      toast.innerHTML = ''; 
-      if (toastTimer) clearTimeout(toastTimer);
+menuBtn.onclick = () => {
+  const isHidden = toggleContainer.style.display === 'none';
+  toggleContainer.style.display = isHidden ? 'flex' : 'none';
+  menuBtn.textContent = isHidden ? 'Close ✖' : 'Settings ⚙️';
+};
 
-      const textContainer = document.createElement('div');
-      textContainer.className = 'toast-text';
-      textContainer.innerHTML = msg;
+// --- Auto-Capture Logic ---
+const autoToggle = document.getElementById('autoToggle');
+let autoCaptureInterval = null;
+let autoSeconds = 5;
 
-      if (imageUrl) {
-        const img = document.createElement('img');
-        img.src = imageUrl + "?v=" + Date.now(); 
-        toast.appendChild(img);
-        toast.appendChild(textContainer);
-      } else {
-        toast.appendChild(textContainer);
+autoToggle.onchange = () => {
+  if (autoToggle.checked) {
+    const input = prompt("Enter auto-capture interval (seconds):", "5");
+    autoSeconds = parseInt(input) || 5;
+    
+    showToast(`Auto-scan active: ${autoSeconds}s`, false);
+    
+    autoCaptureInterval = setInterval(() => {
+      // Only trigger if a scan isn't already "In-Instant-Overlay" mode
+      if (!document.getElementById('instantOverlay')) {
+        captureBtn.click();
       }
+    }, autoSeconds * 1000);
+  } else {
+    clearInterval(autoCaptureInterval);
+    showToast("Auto-scan disabled", false);
+  }
+};
 
-      toast.style.display = 'flex';
-      toast.style.flexDirection = 'column';
-      toast.style.justifyContent = 'center';
-      toast.style.alignItems = 'center';
+    // --- Notification Stack Logic ---
+function showToast(msg, permanent = false, imageUrl = null) {
+  // If Auto-Capture is ON, we force imageUrl to null to keep it text-only
+  const isAutoOn = document.getElementById('autoToggle').checked;
+  const finalImage = isAutoOn ? null : imageUrl;
 
-      if (!permanent) {
-        toastTimer = setTimeout(() => {
-          if (!permanentToast) toast.style.display = 'none';
-        }, 10000);
+  // Create a new notification element
+  const notification = document.createElement('div');
+  notification.className = 'toast-text';
+  notification.style.marginBottom = '10px'; // Space between notifications
+  notification.style.pointerEvents = 'auto';
+  
+  if (finalImage) {
+    const img = document.createElement('img');
+    img.src = finalImage + "?v=" + Date.now();
+    img.style.maxHeight = '100px';
+    img.style.display = 'block';
+    img.style.marginBottom = '5px';
+    notification.prepend(img);
+  }
+
+  const textSpan = document.createElement('span');
+  textSpan.innerHTML = msg;
+  notification.appendChild(textSpan);
+
+  // Append to the toast container
+  toast.appendChild(notification);
+  toast.style.display = 'flex';
+
+  // Remove individual notification after 8 seconds
+  if (!permanent) {
+    setTimeout(() => {
+      notification.style.opacity = '0';
+      notification.style.transition = 'opacity 0.5s ease';
+      setTimeout(() => {
+        notification.remove();
+        if (toast.childNodes.length === 0) toast.style.display = 'none';
+      }, 500);
+    }, 8000);
+  }
+}
+
+// --- Modified Auto-Capture Logic ---
+const autoToggle = document.getElementById('autoToggle');
+let autoCaptureInterval = null;
+
+autoToggle.onchange = () => {
+  if (autoToggle.checked) {
+    const input = prompt("Enter auto-capture interval (seconds):", "5");
+    const autoSeconds = parseInt(input) || 5;
+    
+    showToast(`🚀 Auto-scan: ${autoSeconds}s interval`, false);
+    
+    autoCaptureInterval = setInterval(() => {
+      // Don't capture if we are looking at an Instant result
+      if (!document.getElementById('instantOverlay')) {
+        captureBtn.click();
       }
-    }
+    }, autoSeconds * 1000);
+  } else {
+    clearInterval(autoCaptureInterval);
+    showToast("🛑 Auto-scan stopped", false);
+  }
+};
+
 
     const omrTypeToggle = document.getElementById('omrTypeToggle');
 const wrap = document.getElementById('wrap');
@@ -390,6 +619,37 @@ omrTypeToggle.onchange = () => {
   // If .jpg exists in the score, remove it
   return score.replace(".jpg", "");
 }
+const showZoomBtn = document.getElementById('showZoomBtn');
+const zoomContainer = document.getElementById('zoomContainer');
+const zoomSlider = document.getElementById('zoomSlider');
+const videoElement = document.getElementById('video');
+
+// 1. Toggle visibility
+showZoomBtn.onclick = () => {
+  const isHidden = zoomContainer.style.display === 'none' || zoomContainer.style.display === '';
+  zoomContainer.style.display = isHidden ? 'flex' : 'none';
+  showZoomBtn.style.background = isHidden ? 'limegreen' : 'rgba(0,0,0,0.6)';
+};
+
+// 2. Ultra-precise zoom logic
+zoomSlider.oninput = () => {
+  const zoomVal = parseFloat(zoomSlider.value);
+  
+  requestAnimationFrame(() => {
+    // We only scale the video, keeping the sensitivity low
+    videoElement.style.transform = `scale(${zoomVal})`;
+  });
+
+  // Attempt hardware zoom only if it's supported
+  if (stream) {
+    const track = stream.getVideoTracks()[0];
+    const caps = track.getCapabilities();
+    if (caps && caps.zoom) {
+      track.applyConstraints({ advanced: [{ zoom: zoomVal }] }).catch(() => {});
+    }
+  }
+};
+
 
 
     async function processImage(blob, previewUrl) {
@@ -506,41 +766,47 @@ omrTypeToggle.onchange = () => {
   const wrapRect = document.getElementById('wrap').getBoundingClientRect();
   const wrapAspect = wrapRect.width / wrapRect.height;
 
+  // Get the current zoom value from the slider
+  const currentZoom = parseFloat(zoomSlider.value) || 1;
+
   let sourceWidth, sourceHeight, startX, startY;
   const videoAspect = videoWidth / videoHeight;
 
+  // 1. Calculate base dimensions based on the wrap aspect ratio
   if (videoAspect > wrapAspect) {
     sourceHeight = videoHeight;
     sourceWidth = videoHeight * wrapAspect;
-    startX = (videoWidth - sourceWidth) / 2;
-    startY = 0;
   } else {
     sourceWidth = videoWidth;
     sourceHeight = videoWidth / wrapAspect;
-    startX = 0;
-    startY = (videoHeight - sourceHeight) / 2;
   }
 
-  canvas.width = sourceWidth;
+  // 2. APPLY ZOOM: Shrink the source area to "zoom in"
+  // As currentZoom increases, we look at a smaller portion of the video center
+  const zoomedWidth = sourceWidth / currentZoom;
+  const zoomedHeight = sourceHeight / currentZoom;
+
+  // 3. Center the crop
+  startX = (videoWidth - zoomedWidth) / 2;
+  startY = (videoHeight - zoomedHeight) / 2;
+
+  canvas.width = sourceWidth; 
   canvas.height = sourceHeight;
   const ctx = canvas.getContext('2d');
 
-  // --- NEW: Optional Filtering Logic ---
+  // Apply filters if enabled
   const isDarkenEnabled = document.getElementById('contrastToggle').checked;
   if (isDarkenEnabled) {
-    // contrast(1.8) makes blacks blacker and whites whiter
-    // brightness(0.7) prevents the flash from washing out the marks
-    // grayscale(1) removes color noise from the paper
     ctx.filter = 'contrast(1.8) brightness(0.7) grayscale(1)';
   }
 
+  // Draw the zoomed portion onto the canvas
   ctx.drawImage(
     video, 
-    startX, startY, sourceWidth, sourceHeight,
-    0, 0, sourceWidth, sourceHeight
+    startX, startY, zoomedWidth, zoomedHeight, // Source (zoomed)
+    0, 0, sourceWidth, sourceHeight             // Destination (full canvas)
   );
 
-  // Clear filter for next draw
   ctx.filter = 'none'; 
   
   const previewDataUrl = canvas.toDataURL('image/jpeg', 0.8);
