@@ -212,7 +212,7 @@ def choose_12(thresh1, square_contours):
     square_contours = [contour for contour, _ in best_contours]
     # print(square_contours)
     if len(square_contours) == 12:
-        print("Chose 8 among the list.")
+        print("Chose 12 among the list.")
         return square_contours
     else:
         return []
@@ -297,9 +297,9 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
                     square_contours.append(approx)
 
         if len(square_contours) > 12:
-            print("gone to choose", len(square_contours))
+            print("gone to choose from", len(square_contours))
             square_contours = choose_12(thresh1, square_contours)
-            print(len(square_contours))
+          #  print(len(square_contours))
             
         if len(square_contours) == 12:
             break
@@ -326,7 +326,7 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
         all_cods.append([point[0], point[1]])
 
     all_cods = create_needed_list(all_cods)
-    print(all_cods)
+  #  print(all_cods)
     
     # Define the destination points for perspective transform
     width, height = 400, 340
@@ -477,7 +477,7 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
 
     # print(all_numbers_coods)
     print(all_sorted_data)
-    print("Unselected", unselected)
+ #   print("Unselected", unselected)
     #### start coloring the correct and wrong answers #####
 
     with open(answer_key_file, "r") as red:
