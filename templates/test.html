@@ -409,7 +409,7 @@ body {
   <div id="toast"></div>
 
   <script>
-    let currentScanId = 0; 
+      let currentScanId = 0; 
     let stream, torchOn = false;
     let toastTimer = null; 
     let permanentToast = false;
@@ -424,19 +424,18 @@ body {
     const refreshBtn = document.getElementById('refreshBtn');
     const instantToggle = document.getElementById('instantToggle');
     const toast = document.getElementById('toast');
-    // Existing Instant Toggle logic
+    
+    // NEW: Contrast Toggle logic
+    const contrastToggle = document.getElementById('contrastToggle');
 
-// NEW: Contrast Toggle logic
-const contrastToggle = document.getElementById('contrastToggle');
+    // Check if there is a saved preference; if not, default to 'true'
+    const savedContrast = localStorage.getItem('contrastMode');
+    contrastToggle.checked = (savedContrast === null) ? true : (savedContrast === 'true');
 
-// Check if there is a saved preference; if not, default to 'true'
-const savedContrast = localStorage.getItem('contrastMode');
-contrastToggle.checked = (savedContrast === null) ? true : (savedContrast === 'true');
-
-// Save preference whenever it changes
-contrastToggle.onchange = () => {
-  localStorage.setItem('contrastMode', contrastToggle.checked);
-};
+    // Save preference whenever it changes
+    contrastToggle.onchange = () => {
+      localStorage.setItem('contrastMode', contrastToggle.checked);
+    };
 
     instantToggle.checked = localStorage.getItem('instantMode') === 'true';
 
@@ -448,106 +447,98 @@ contrastToggle.onchange = () => {
     instantToggle.onchange = () => {
       localStorage.setItem('instantMode', instantToggle.checked);
     };
-// --- Menu Toggle Logic ---
-const menuBtn = document.getElementById('menuBtn');
-const toggleContainer = document.getElementById('toggleContainer');
 
-menuBtn.onclick = () => {
-  const isHidden = toggleContainer.style.display === 'none';
-  toggleContainer.style.display = isHidden ? 'flex' : 'none';
-  menuBtn.textContent = isHidden ? 'Close ✖' : 'Settings ⚙️';
-};
+    // --- Menu Toggle Logic ---
+    const menuBtn = document.getElementById('menuBtn');
+    const toggleContainer = document.getElementById('toggleContainer');
 
+    menuBtn.onclick = () => {
+      const isHidden = toggleContainer.style.display === 'none';
+      toggleContainer.style.display = isHidden ? 'flex' : 'none';
+      menuBtn.textContent = isHidden ? 'Close ✖' : 'Settings ⚙️';
+    };
 
     // --- Notification Stack Logic ---
-function showToast(msg, permanent = false, imageUrl = null) {
-  // If Auto-Capture is ON, we force imageUrl to null to keep it text-only
-  const isAutoOn = document.getElementById('autoToggle').checked;
-  const finalImage = isAutoOn ? null : imageUrl;
+    function showToast(msg, permanent = false, imageUrl = null) {
+      const isAutoOn = document.getElementById('autoToggle').checked;
+      const finalImage = isAutoOn ? null : imageUrl;
 
-  // Create a new notification element
-  const notification = document.createElement('div');
-  notification.className = 'toast-text';
-  notification.style.marginBottom = '10px'; // Space between notifications
-  notification.style.pointerEvents = 'auto';
-  
-  if (finalImage) {
-    const img = document.createElement('img');
-    img.src = finalImage + "?v=" + Date.now();
-    img.style.maxHeight = '100px';
-    img.style.display = 'block';
-    img.style.marginBottom = '5px';
-    notification.prepend(img);
-  }
-
-  const textSpan = document.createElement('span');
-  textSpan.innerHTML = msg;
-  notification.appendChild(textSpan);
-
-  // Append to the toast container
-  toast.appendChild(notification);
-  toast.style.display = 'flex';
-
-  // Remove individual notification after 8 seconds
-  if (!permanent) {
-    setTimeout(() => {
-      notification.style.opacity = '0';
-      notification.style.transition = 'opacity 0.5s ease';
-      setTimeout(() => {
-        notification.remove();
-        if (toast.childNodes.length === 0) toast.style.display = 'none';
-      }, 500);
-    }, 8000);
-  }
-}
-
-// --- Modified Auto-Capture Logic ---
-const autoToggle = document.getElementById('autoToggle');
-let autoCaptureInterval = null;
-
-autoToggle.onchange = () => {
-  if (autoToggle.checked) {
-    const input = prompt("Enter auto-capture interval (seconds):", "5");
-    const autoSeconds = parseInt(input) || 5;
-    
-    showToast(`🚀 Auto-scan: ${autoSeconds}s interval`, false);
-    
-    autoCaptureInterval = setInterval(() => {
-      // Don't capture if we are looking at an Instant result
-      if (!document.getElementById('instantOverlay')) {
-        captureBtn.click();
+      const notification = document.createElement('div');
+      notification.className = 'toast-text';
+      notification.style.marginBottom = '10px'; 
+      notification.style.pointerEvents = 'auto';
+      
+      if (finalImage) {
+        const img = document.createElement('img');
+        img.src = finalImage + "?v=" + Date.now();
+        img.style.maxHeight = '100px';
+        img.style.display = 'block';
+        img.style.marginBottom = '5px';
+        notification.prepend(img);
       }
-    }, autoSeconds * 1000);
-  } else {
-    clearInterval(autoCaptureInterval);
-    showToast("🛑 Auto-scan stopped", false);
-  }
-};
 
+      const textSpan = document.createElement('span');
+      textSpan.innerHTML = msg;
+      notification.appendChild(textSpan);
+
+      toast.appendChild(notification);
+      toast.style.display = 'flex';
+
+      if (!permanent) {
+        setTimeout(() => {
+          notification.style.opacity = '0';
+          notification.style.transition = 'opacity 0.5s ease';
+          setTimeout(() => {
+            notification.remove();
+            if (toast.childNodes.length === 0) toast.style.display = 'none';
+          }, 500);
+        }, 8000);
+      }
+    }
+
+    // --- Modified Auto-Capture Logic ---
+    const autoToggle = document.getElementById('autoToggle');
+    let autoCaptureInterval = null;
+
+    autoToggle.onchange = () => {
+      if (autoToggle.checked) {
+        const input = prompt("Enter auto-capture interval (seconds):", "5");
+        const autoSeconds = parseInt(input) || 5;
+        
+        showToast(`🚀 Auto-scan: ${autoSeconds}s interval`, false);
+        
+        autoCaptureInterval = setInterval(() => {
+          if (!document.getElementById('instantOverlay')) {
+            // Fix: requestAnimationFrame ensures Safari draws a new frame before clicking
+            window.requestAnimationFrame(() => {
+              captureBtn.click();
+            });
+          }
+        }, autoSeconds * 1000);
+      } else {
+        clearInterval(autoCaptureInterval);
+        showToast("🛑 Auto-scan stopped", false);
+      }
+    };
 
     const omrTypeToggle = document.getElementById('omrTypeToggle');
-const wrap = document.getElementById('wrap');
+    const wrap = document.getElementById('wrap');
 
-// 1. Load saved preference
-const savedOmrMode = localStorage.getItem('omr100Mode');
-if (savedOmrMode === 'true') {
-  omrTypeToggle.checked = true;
-  wrap.classList.add('wide-mode');
-}
+    const savedOmrMode = localStorage.getItem('omr100Mode');
+    if (savedOmrMode === 'true') {
+      omrTypeToggle.checked = true;
+      wrap.classList.add('wide-mode');
+    }
 
-// 2. Handle Change
-omrTypeToggle.onchange = () => {
-  if (omrTypeToggle.checked) {
-    wrap.classList.add('wide-mode');
-    localStorage.setItem('omr100Mode', 'true');
-  } else {
-    wrap.classList.remove('wide-mode');
-    localStorage.setItem('omr100Mode', 'false');
-  }
-};
-
-
-
+    omrTypeToggle.onchange = () => {
+      if (omrTypeToggle.checked) {
+        wrap.classList.add('wide-mode');
+        localStorage.setItem('omr100Mode', 'true');
+      } else {
+        wrap.classList.remove('wide-mode');
+        localStorage.setItem('omr100Mode', 'false');
+      }
+    };
     
     async function startCamera() {
       try {
@@ -591,50 +582,41 @@ omrTypeToggle.onchange = () => {
     }
 
     function extractCorrect(filename) {
-  const parts = filename.split("_");
-  let score = parts[1] || "N/A";
-  // If .jpg exists in the score, remove it
-  return score.replace(".jpg", "");
-}
-const showZoomBtn = document.getElementById('showZoomBtn');
-const zoomContainer = document.getElementById('zoomContainer');
-const zoomSlider = document.getElementById('zoomSlider');
-const videoElement = document.getElementById('video');
-
-// 1. Toggle visibility
-showZoomBtn.onclick = () => {
-  const isHidden = zoomContainer.style.display === 'none' || zoomContainer.style.display === '';
-  zoomContainer.style.display = isHidden ? 'flex' : 'none';
-  showZoomBtn.style.background = isHidden ? 'limegreen' : 'rgba(0,0,0,0.6)';
-};
-
-// 2. Ultra-precise zoom logic
-zoomSlider.oninput = () => {
-  const zoomVal = parseFloat(zoomSlider.value);
-  
-  requestAnimationFrame(() => {
-    // We only scale the video, keeping the sensitivity low
-    videoElement.style.transform = `scale(${zoomVal})`;
-  });
-
-  // Attempt hardware zoom only if it's supported
-  if (stream) {
-    const track = stream.getVideoTracks()[0];
-    const caps = track.getCapabilities();
-    if (caps && caps.zoom) {
-      track.applyConstraints({ advanced: [{ zoom: zoomVal }] }).catch(() => {});
+      const parts = filename.split("_");
+      let score = parts[1] || "N/A";
+      return score.replace(".jpg", "");
     }
-  }
-};
 
+    const showZoomBtn = document.getElementById('showZoomBtn');
+    const zoomContainer = document.getElementById('zoomContainer');
+    const zoomSlider = document.getElementById('zoomSlider');
+    const videoElement = document.getElementById('video');
 
+    showZoomBtn.onclick = () => {
+      const isHidden = zoomContainer.style.display === 'none' || zoomContainer.style.display === '';
+      zoomContainer.style.display = isHidden ? 'flex' : 'none';
+      showZoomBtn.style.background = isHidden ? 'limegreen' : 'rgba(0,0,0,0.6)';
+    };
+
+    zoomSlider.oninput = () => {
+      const zoomVal = parseFloat(zoomSlider.value);
+      requestAnimationFrame(() => {
+        videoElement.style.transform = `scale(${zoomVal})`;
+      });
+      if (stream) {
+        const track = stream.getVideoTracks()[0];
+        const caps = track.getCapabilities();
+        if (caps && caps.zoom) {
+          track.applyConstraints({ advanced: [{ zoom: zoomVal }] }).catch(() => {});
+        }
+      }
+    };
 
     async function processImage(blob, previewUrl) {
       const isInstant = instantToggle.checked;
       const rollNum = document.getElementById('rollInput').value;
       const uniqueId = Date.now();
       document.getElementById('rollInput').value = '';
-
 
       if (isInstant && stream) {
         stream.getTracks().forEach(t => t.stop());
@@ -673,23 +655,15 @@ zoomSlider.oninput = () => {
           try {
             const st = await fetch(`${window.location.origin}/status`);
             const data = await st.json();
-
-            // 1. Check for server-side error
             if (data.error) {
-                if (isInstant) {
-                    handleProcError(loadingScreen, null, data.message || "Analysis Failed");
-                } else {
-                    showToast("❌ " + (data.message || "Scan Failed"), true);
-                }
+                if (isInstant) { handleProcError(loadingScreen, null, data.message || "Analysis Failed"); } 
+                else { showToast("❌ " + (data.message || "Scan Failed"), true); }
                 return; 
             }
-
-            // 2. Check for success
             if (!data.processing && data.filename && data.filename !== lastProcessedFile) {
                 lastProcessedFile = data.filename; 
                 const resultUrl = `/temp_output/${data.filename}?v=${uniqueId}`;
                 const scoreText = `<b>Correct: ${extractCorrect(data.filename)}</b>`;
-
                 if (isInstant) {
                     const imgEl = document.getElementById('procImg');
                     imgEl.style.transform = "rotate(0deg)"; 
@@ -698,34 +672,22 @@ zoomSlider.oninput = () => {
                     imgEl.style.maxWidth = "100vw";
                     imgEl.style.objectFit = "cover";
                     imgEl.src = resultUrl;
-
                     document.getElementById('procStatus').textContent = "Analysis Complete";
                     document.getElementById('statusMsg').innerHTML = `<span style="font-size:24px; color:limegreen;">${scoreText}</span>`;
-
                     const btn = document.createElement('button');
                     btn.textContent = "Scan Next";
                     btn.style = "margin-top:20px; padding:15px 40px; font-size:18px; background:white; color:black; border-radius:8px; border:none; font-weight:bold; z-index:10001;";
-                    btn.onclick = () => {
-                        loadingScreen.remove();
-                        startCamera(); 
-                    };
+                    btn.onclick = () => { loadingScreen.remove(); startCamera(); };
                     loadingScreen.appendChild(btn);
                 } else {
                     showToast(scoreText, false, resultUrl);
                 }
                 return;
             } 
-            // 3. Continue polling
-            else if (attempts < 150) {
-                setTimeout(checkStatus, 600); 
-            } else {
-                throw new Error("Timeout");
-            }
-          } catch (e) {
-             setTimeout(checkStatus, 600);
-          }
+            else if (attempts < 150) { setTimeout(checkStatus, 600); } 
+            else { throw new Error("Timeout"); }
+          } catch (e) { setTimeout(checkStatus, 600); }
         };
-
         checkStatus();
       } catch (err) {
         if (isInstant) handleProcError(loadingScreen, null, err.message);
@@ -734,68 +696,41 @@ zoomSlider.oninput = () => {
     }
 
     captureBtn.onclick = async () => {
-  currentScanId = Date.now(); 
-  toast.style.display = 'none';
+      currentScanId = Date.now(); 
+      toast.style.display = 'none';
+      const canvas = document.createElement('canvas');
+      const videoWidth = video.videoWidth;
+      const videoHeight = video.videoHeight;
+      const wrapRect = document.getElementById('wrap').getBoundingClientRect();
+      const wrapAspect = wrapRect.width / wrapRect.height;
+      const currentZoom = parseFloat(zoomSlider.value) || 1;
+      let sourceWidth, sourceHeight, startX, startY;
+      const videoAspect = videoWidth / videoHeight;
 
-  const canvas = document.createElement('canvas');
-  const videoWidth = video.videoWidth;
-  const videoHeight = video.videoHeight;
-  const wrapRect = document.getElementById('wrap').getBoundingClientRect();
-  const wrapAspect = wrapRect.width / wrapRect.height;
+      if (videoAspect > wrapAspect) {
+        sourceHeight = videoHeight;
+        sourceWidth = videoHeight * wrapAspect;
+      } else {
+        sourceWidth = videoWidth;
+        sourceHeight = videoWidth / wrapAspect;
+      }
 
-  // Get the current zoom value from the slider
-  const currentZoom = parseFloat(zoomSlider.value) || 1;
+      const zoomedWidth = sourceWidth / currentZoom;
+      const zoomedHeight = sourceHeight / currentZoom;
+      startX = (videoWidth - zoomedWidth) / 2;
+      startY = (videoHeight - zoomedHeight) / 2;
 
-  let sourceWidth, sourceHeight, startX, startY;
-  const videoAspect = videoWidth / videoHeight;
-
-  // 1. Calculate base dimensions based on the wrap aspect ratio
-  if (videoAspect > wrapAspect) {
-    sourceHeight = videoHeight;
-    sourceWidth = videoHeight * wrapAspect;
-  } else {
-    sourceWidth = videoWidth;
-    sourceHeight = videoWidth / wrapAspect;
-  }
-
-  // 2. APPLY ZOOM: Shrink the source area to "zoom in"
-  // As currentZoom increases, we look at a smaller portion of the video center
-  const zoomedWidth = sourceWidth / currentZoom;
-  const zoomedHeight = sourceHeight / currentZoom;
-
-  // 3. Center the crop
-  startX = (videoWidth - zoomedWidth) / 2;
-  startY = (videoHeight - zoomedHeight) / 2;
-
-  canvas.width = sourceWidth; 
-  canvas.height = sourceHeight;
-  const ctx = canvas.getContext('2d');
-
-  // Apply filters if enabled
-  const isDarkenEnabled = document.getElementById('contrastToggle').checked;
-  if (isDarkenEnabled) {
-    ctx.filter = 'contrast(1.8) brightness(0.7) grayscale(1)';
-  }
-
-  // Draw the zoomed portion onto the canvas
-  ctx.drawImage(
-    video, 
-    startX, startY, zoomedWidth, zoomedHeight, // Source (zoomed)
-    0, 0, sourceWidth, sourceHeight             // Destination (full canvas)
-  );
-
-  ctx.filter = 'none'; 
-  
-  const previewDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-  animateCapture(previewDataUrl);
-
-  canvas.toBlob((blob) => {
-    if (blob) processImage(blob, previewDataUrl);
-  }, 'image/jpeg', 0.8);
-};
-
-
-
+      canvas.width = sourceWidth; 
+      canvas.height = sourceHeight;
+      const ctx = canvas.getContext('2d');
+      const isDarkenEnabled = document.getElementById('contrastToggle').checked;
+      if (isDarkenEnabled) { ctx.filter = 'contrast(1.8) brightness(0.7) grayscale(1)'; }
+      ctx.drawImage(video, startX, startY, zoomedWidth, zoomedHeight, 0, 0, sourceWidth, sourceHeight);
+      ctx.filter = 'none'; 
+      const previewDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      animateCapture(previewDataUrl);
+      canvas.toBlob((blob) => { if (blob) processImage(blob, previewDataUrl); }, 'image/jpeg', 0.8);
+    };
 
     fileBtn.onclick = () => fileInput.click();
     fileInput.onchange = (e) => {
@@ -856,51 +791,38 @@ zoomSlider.oninput = () => {
         }
       }, 30000);
     }
-function animateCapture(dataUrl) {
-  // 1. Quick Flash (keep this fast so it feels like a camera)
-  const flash = document.createElement('div');
-  flash.className = 'camera-flash';
-  document.getElementById('wrap').appendChild(flash);
-  setTimeout(() => flash.remove(), 250);
 
-  // 2. Create the Thumbnail
-  const thumb = document.createElement('img');
-  thumb.src = dataUrl;
-  thumb.className = 'flying-thumbnail';
-  
-  // Get initial position (Video Box)
-  const rect = document.getElementById('wrap').getBoundingClientRect();
-  
-  // Set STARTING styles
-  thumb.style.top = rect.top + 'px';
-  thumb.style.left = rect.left + 'px';
-  thumb.style.width = rect.width + 'px';
-  thumb.style.height = rect.height + 'px';
-  thumb.style.opacity = '1';
-  
-  document.body.appendChild(thumb);
-
-  // Get target position (Capture Button)
-  const btnRect = captureBtn.getBoundingClientRect();
-
-  // 3. The "Double Frame" Trick
-  // This ensures the browser definitely renders the START position first
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      thumb.style.top = (btnRect.top + (btnRect.height / 2) - 10) + 'px';
-      thumb.style.left = (btnRect.left + (btnRect.width / 2) - 10) + 'px';
-      thumb.style.width = '20px';
-      thumb.style.height = '20px';
-      thumb.style.opacity = '0.2';
-      thumb.style.transform = 'scale(0.1) rotate(1deg)';
-    });
-  });
-
-  // Cleanup after animation finishes (1.2s + small buffer)
-  setTimeout(() => thumb.remove(), 1300);
-}
+    function animateCapture(dataUrl) {
+      const flash = document.createElement('div');
+      flash.className = 'camera-flash';
+      document.getElementById('wrap').appendChild(flash);
+      setTimeout(() => flash.remove(), 250);
+      const thumb = document.createElement('img');
+      thumb.src = dataUrl;
+      thumb.className = 'flying-thumbnail';
+      const rect = document.getElementById('wrap').getBoundingClientRect();
+      thumb.style.top = rect.top + 'px';
+      thumb.style.left = rect.left + 'px';
+      thumb.style.width = rect.width + 'px';
+      thumb.style.height = rect.height + 'px';
+      thumb.style.opacity = '1';
+      document.body.appendChild(thumb);
+      const btnRect = captureBtn.getBoundingClientRect();
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          thumb.style.top = (btnRect.top + (btnRect.height / 2) - 10) + 'px';
+          thumb.style.left = (btnRect.left + (btnRect.width / 2) - 10) + 'px';
+          thumb.style.width = '20px';
+          thumb.style.height = '20px';
+          thumb.style.opacity = '0.2';
+          thumb.style.transform = 'scale(0.1) rotate(1deg)';
+        });
+      });
+      setTimeout(() => thumb.remove(), 1300);
+    }
 
     startCamera();
+
   </script>
 </body>
 </html>
