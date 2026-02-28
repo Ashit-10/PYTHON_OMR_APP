@@ -57,8 +57,8 @@
 
     #toggleContainer {
       position: absolute;
-      top: 50px;
-      right: 20px;
+      top: 120px;
+      right: 15px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -151,7 +151,7 @@
 
   #exitBtn {
   position: absolute;
-  top: 20px;
+  top: 40px;
   left: 10px;
   z-index: 9999;
   
@@ -341,8 +341,7 @@ body {
 </div>
 
 
-
-  <button id="exitBtn">Exit</button>
+<button id="exitBtn" style="position: absolute; top: 60px; background: rgba(0,0,0,0.6); border: 1px solid white; color: white; border-radius: 5px; padding: 5px 5px;">Exit</button>
 
   <div id="wrap">
     <video id="video" autoplay playsinline muted></video>
@@ -356,7 +355,7 @@ body {
 
   
 
-<button id="menuBtn" style="position: absolute; top: 20px; right: 10px; z-index: 10000; background: rgba(0,0,0,0.6); border: 1px solid white; color: white; border-radius: 5px; padding: 8px 12px;">⚙️</button>
+<button id="menuBtn" style="position: absolute; top: 60px; right: 10px; z-index: 10000; background: rgba(0,0,0,0.6); border: 1px solid white; color: white; border-radius: 5px; padding: 5px 5px;">⚙️</button>
 
 <div id="toggleContainer" style="display: none;">
   <div class="toggle-group" style="margin-top: 0;">
@@ -455,7 +454,7 @@ body {
     menuBtn.onclick = () => {
       const isHidden = toggleContainer.style.display === 'none';
       toggleContainer.style.display = isHidden ? 'flex' : 'none';
-      menuBtn.textContent = isHidden ? 'Close ✖' : 'Settings ⚙️';
+      menuBtn.textContent = isHidden ? 'Close ✖' : '⚙️';
     };
 
     // --- Notification Stack Logic ---
