@@ -458,29 +458,6 @@ menuBtn.onclick = () => {
   menuBtn.textContent = isHidden ? 'Close ✖' : 'Settings ⚙️';
 };
 
-// --- Auto-Capture Logic ---
-const autoToggle = document.getElementById('autoToggle');
-let autoCaptureInterval = null;
-let autoSeconds = 5;
-
-autoToggle.onchange = () => {
-  if (autoToggle.checked) {
-    const input = prompt("Enter auto-capture interval (seconds):", "5");
-    autoSeconds = parseInt(input) || 5;
-    
-    showToast(`Auto-scan active: ${autoSeconds}s`, false);
-    
-    autoCaptureInterval = setInterval(() => {
-      // Only trigger if a scan isn't already "In-Instant-Overlay" mode
-      if (!document.getElementById('instantOverlay')) {
-        captureBtn.click();
-      }
-    }, autoSeconds * 1000);
-  } else {
-    clearInterval(autoCaptureInterval);
-    showToast("Auto-scan disabled", false);
-  }
-};
 
     // --- Notification Stack Logic ---
 function showToast(msg, permanent = false, imageUrl = null) {
