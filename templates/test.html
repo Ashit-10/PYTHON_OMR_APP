@@ -499,8 +499,7 @@ body {
     // --- Modified Auto-Capture Logic ---
     const autoToggle = document.getElementById('autoToggle');
     let autoCaptureInterval = null;
-
-               autoToggle.onchange = () => {
+    autoToggle.onchange = () => {
       if (autoToggle.checked) {
         const input = prompt("Enter auto-capture interval (seconds):", "5");
         const autoSeconds = parseInt(input) || 5;
@@ -508,12 +507,17 @@ body {
         showToast(`🚀 Auto-scan: ${autoSeconds}s interval`, false);
         
         autoCaptureInterval = setInterval(() => {
-          // state 2 means the video is actually playing and sending frames
           if (!document.getElementById('instantOverlay') && video.readyState >= 2) {
+            
+            // 1. Force Safari to wake up the video pipe
+            video.play(); 
+            
+            // 2. Wait for the next hardware paint
             window.requestAnimationFrame(() => {
+              // 3. Small delay to ensure the canvas doesn't grab a "ghost" frame
               setTimeout(() => {
                 captureBtn.click();
-              }, 200); // Increased to 200ms to give Safari plenty of time to refresh
+              }, 250); 
             });
           }
         }, autoSeconds * 1000);
@@ -522,6 +526,7 @@ body {
         showToast("🛑 Auto-scan stopped", false);
       }
     };
+
 
 
 
@@ -698,8 +703,9 @@ body {
         else showToast("Upload Failed.");
       }
     }
-
+    
     captureBtn.onclick = async () => {
+      if (video.paused) video.play(); 
       currentScanId = Date.now(); 
       toast.style.display = 'none';
       const canvas = document.createElement('canvas');
