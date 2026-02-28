@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+
   <title>OMR Sheet Scanner</title>
   <style>
     body, html {
@@ -25,6 +26,11 @@
       border: 4px solid white;
       flex-shrink: 0;
     }
+/* Default is 50 OMR (2.9/8). This class expands it for 100 OMR */
+#wrap.wide-mode {
+  aspect-ratio: 4.8 / 8; /* Adjust this value to make it wider/narrower */
+  transition: aspect-ratio 0.3s ease-in-out;
+}
 
     video {
       width: 100%;
@@ -143,12 +149,36 @@
       pointer-events: auto;
     }
 
-    #exitBtn {
-      position: absolute;
-      top: 20px;
-      left: 10px;
-      z-index: 9999;
-    }
+  #exitBtn {
+  position: absolute;
+  top: 20px;
+  left: 10px;
+  z-index: 9999;
+  
+  /* Completely clear background */
+  background: none;
+  border: none;
+  
+  /* Text styling */
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+  text-transform: uppercase;
+  
+  /* The shadow ensures you can see 'EXIT' even over white paper */
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8), 0 0 10px rgba(0, 0, 0, 0.5);
+  
+  padding: 10px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#exitBtn:active {
+  opacity: 0.5; /* Visual feedback when clicked */
+}
+
+  
+
 
     #toast b {
       color: limegreen;
@@ -187,11 +217,130 @@
   transform-origin: center;
   object-fit: cover;
 }
+/* Styling for all toggle switches */
+.switch {
+  appearance: none;
+  width: 40px;
+  height: 20px;
+  background: #555;
+  border-radius: 10px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+}
 
+.switch::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px; height: 14px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.2s;
+}
+
+.switch:checked {
+  background: limegreen;
+}
+
+/* Specific color for OMR Toggle when active */
+#omrTypeToggle:checked {
+  background: #ffcc00;
+}
+
+/* Specific color for Darken Toggle when active */
+#contrastToggle:checked {
+  background: #00ffcc;
+}
+
+.switch:checked::before {
+  transform: translateX(20px);
+}
+
+.toggle-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: 10px;
+}
+#wrap {
+  overflow: hidden; /* Crucial: crops the zoomed video */
+  position: relative;
+}
+
+#video {
+  transition: transform 0.1s ease-out; /* Makes zooming feel smooth */
+  transform-origin: center; /* Zooms into the middle of the OMR sheet */
+}
+
+#zoomContainer {
+  position: absolute; 
+  left: -20px; /* Moved further left to avoid middle-screen clutter */
+  top: 50%; 
+  transform: translateY(-50%); 
+  display: none; /* Hidden by default */
+  flex-direction: column; 
+  align-items: center; 
+  z-index: 9999;
+}
+
+/* Make the slider even longer for ultra-low sensitivity */
+#zoomSlider {
+  appearance: none; 
+  width: 250px; /* Physically longer = more thumb travel needed for zoom */
+  height: 4px; 
+  background: rgba(255,255,255,0.2); 
+  border-radius: 2px; 
+  transform: rotate(-90deg); 
+  cursor: pointer; 
+  accent-color: limegreen;
+}
+
+.zoom-toggle-btn {
+  background: rgba(0,0,0,0.6);
+  border: 1px solid white;
+  color: white;
+  border-radius: 50%;
+  width: 45px;
+  height: 45px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+/* Disable text selection and callouts globally */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Allow input fields to still work so you can type the Roll Number */
+input[type="number"], input[type="text"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+body {
+  /* Prevent pulling down to refresh or bouncing the page */
+  overscroll-behavior: none;
+  touch-action: none;
+}
 
   </style>
 </head>
 <body>
+<div id="zoomContainer">
+  
+  <input type="range" id="zoomSlider" min="1" max="1.3" step="0.005" value="1">
+  
+</div>
+
+
 
   <button id="exitBtn">Exit</button>
 
@@ -205,10 +354,30 @@
     </div>
   </div>
 
-  <div id="toggleContainer">
-    <input type="checkbox" id="instantToggle">
+  
+
+<div id="toggleContainer">
+  <div class="toggle-group" style="margin-top: 0;">
+    <input type="checkbox" id="instantToggle" class="switch">
     <div id="toggleLabel">Instant</div>
   </div>
+
+  <div class="toggle-group">
+    <input type="checkbox" id="contrastToggle" class="switch">
+    <div id="toggleLabel" style="color: #00ffcc;">Darken</div>
+  </div>
+
+  <div class="toggle-group">
+    <input type="checkbox" id="omrTypeToggle" class="switch">
+    <div id="toggleLabel" style="color: #ffcc00;">100 OMR</div>
+  </div>
+  <div class="toggle-group" style="margin-top:10px;">
+  <button id="showZoomBtn" class="zoom-toggle-btn">🔍</button>
+  <div id="toggleLabel" style="font-size:10px;">Zoom</div>
+</div>
+
+</div>
+
 
   <div class="controls">
     <input type="number" 
@@ -247,6 +416,19 @@
     const refreshBtn = document.getElementById('refreshBtn');
     const instantToggle = document.getElementById('instantToggle');
     const toast = document.getElementById('toast');
+    // Existing Instant Toggle logic
+
+// NEW: Contrast Toggle logic
+const contrastToggle = document.getElementById('contrastToggle');
+
+// Check if there is a saved preference; if not, default to 'true'
+const savedContrast = localStorage.getItem('contrastMode');
+contrastToggle.checked = (savedContrast === null) ? true : (savedContrast === 'true');
+
+// Save preference whenever it changes
+contrastToggle.onchange = () => {
+  localStorage.setItem('contrastMode', contrastToggle.checked);
+};
 
     instantToggle.checked = localStorage.getItem('instantMode') === 'true';
 
@@ -289,6 +471,30 @@
       }
     }
 
+    const omrTypeToggle = document.getElementById('omrTypeToggle');
+const wrap = document.getElementById('wrap');
+
+// 1. Load saved preference
+const savedOmrMode = localStorage.getItem('omr100Mode');
+if (savedOmrMode === 'true') {
+  omrTypeToggle.checked = true;
+  wrap.classList.add('wide-mode');
+}
+
+// 2. Handle Change
+omrTypeToggle.onchange = () => {
+  if (omrTypeToggle.checked) {
+    wrap.classList.add('wide-mode');
+    localStorage.setItem('omr100Mode', 'true');
+  } else {
+    wrap.classList.remove('wide-mode');
+    localStorage.setItem('omr100Mode', 'false');
+  }
+};
+
+
+
+    
     async function startCamera() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -336,6 +542,37 @@
   // If .jpg exists in the score, remove it
   return score.replace(".jpg", "");
 }
+const showZoomBtn = document.getElementById('showZoomBtn');
+const zoomContainer = document.getElementById('zoomContainer');
+const zoomSlider = document.getElementById('zoomSlider');
+const videoElement = document.getElementById('video');
+
+// 1. Toggle visibility
+showZoomBtn.onclick = () => {
+  const isHidden = zoomContainer.style.display === 'none' || zoomContainer.style.display === '';
+  zoomContainer.style.display = isHidden ? 'flex' : 'none';
+  showZoomBtn.style.background = isHidden ? 'limegreen' : 'rgba(0,0,0,0.6)';
+};
+
+// 2. Ultra-precise zoom logic
+zoomSlider.oninput = () => {
+  const zoomVal = parseFloat(zoomSlider.value);
+  
+  requestAnimationFrame(() => {
+    // We only scale the video, keeping the sensitivity low
+    videoElement.style.transform = `scale(${zoomVal})`;
+  });
+
+  // Attempt hardware zoom only if it's supported
+  if (stream) {
+    const track = stream.getVideoTracks()[0];
+    const caps = track.getCapabilities();
+    if (caps && caps.zoom) {
+      track.applyConstraints({ advanced: [{ zoom: zoomVal }] }).catch(() => {});
+    }
+  }
+};
+
 
 
     async function processImage(blob, previewUrl) {
@@ -447,55 +684,62 @@
   toast.style.display = 'none';
 
   const canvas = document.createElement('canvas');
-  
-  // 1. Get dimensions
   const videoWidth = video.videoWidth;
   const videoHeight = video.videoHeight;
   const wrapRect = document.getElementById('wrap').getBoundingClientRect();
   const wrapAspect = wrapRect.width / wrapRect.height;
 
-  // 2. Calculate the "Visible" Crop 
-  // We determine what portion of the raw video is actually visible in the 3:8 wrap
-  let sourceWidth, sourceHeight, startX, startY;
+  // Get the current zoom value from the slider
+  const currentZoom = parseFloat(zoomSlider.value) || 1;
 
+  let sourceWidth, sourceHeight, startX, startY;
   const videoAspect = videoWidth / videoHeight;
 
+  // 1. Calculate base dimensions based on the wrap aspect ratio
   if (videoAspect > wrapAspect) {
-    // Video is wider than the container (common)
     sourceHeight = videoHeight;
     sourceWidth = videoHeight * wrapAspect;
-    startX = (videoWidth - sourceWidth) / 2;
-    startY = 0;
   } else {
-    // Video is taller than container
     sourceWidth = videoWidth;
     sourceHeight = videoWidth / wrapAspect;
-    startX = 0;
-    startY = (videoHeight - sourceHeight) / 2;
   }
 
-  // 3. Set Canvas to the narrow aspect ratio
-  canvas.width = sourceWidth;
-  canvas.height = sourceHeight;
+  // 2. APPLY ZOOM: Shrink the source area to "zoom in"
+  // As currentZoom increases, we look at a smaller portion of the video center
+  const zoomedWidth = sourceWidth / currentZoom;
+  const zoomedHeight = sourceHeight / currentZoom;
 
+  // 3. Center the crop
+  startX = (videoWidth - zoomedWidth) / 2;
+  startY = (videoHeight - zoomedHeight) / 2;
+
+  canvas.width = sourceWidth; 
+  canvas.height = sourceHeight;
   const ctx = canvas.getContext('2d');
-  
-  // 4. Draw only the cropped portion
+
+  // Apply filters if enabled
+  const isDarkenEnabled = document.getElementById('contrastToggle').checked;
+  if (isDarkenEnabled) {
+    ctx.filter = 'contrast(1.8) brightness(0.7) grayscale(1)';
+  }
+
+  // Draw the zoomed portion onto the canvas
   ctx.drawImage(
     video, 
-    startX, startY, sourceWidth, sourceHeight, // Source (the crop)
-    0, 0, sourceWidth, sourceHeight            // Destination
+    startX, startY, zoomedWidth, zoomedHeight, // Source (zoomed)
+    0, 0, sourceWidth, sourceHeight             // Destination (full canvas)
   );
 
+  ctx.filter = 'none'; 
+  
   const previewDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-
-  // 5. Trigger Animation and Processing
   animateCapture(previewDataUrl);
 
   canvas.toBlob((blob) => {
     if (blob) processImage(blob, previewDataUrl);
   }, 'image/jpeg', 0.8);
 };
+
 
 
 
