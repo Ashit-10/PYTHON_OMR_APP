@@ -500,7 +500,7 @@ body {
     const autoToggle = document.getElementById('autoToggle');
     let autoCaptureInterval = null;
 
-            autoToggle.onchange = () => {
+               autoToggle.onchange = () => {
       if (autoToggle.checked) {
         const input = prompt("Enter auto-capture interval (seconds):", "5");
         const autoSeconds = parseInt(input) || 5;
@@ -508,16 +508,12 @@ body {
         showToast(`🚀 Auto-scan: ${autoSeconds}s interval`, false);
         
         autoCaptureInterval = setInterval(() => {
-          // 1. Check if an instant scan is already covering the screen
-          // 2. Ensure video isn't frozen/loading (readyState 2+ means data is flowing)
+          // state 2 means the video is actually playing and sending frames
           if (!document.getElementById('instantOverlay') && video.readyState >= 2) {
-            
-            // iPhone Safari Fix: Force a UI refresh, then wait 150ms 
-            // to allow the hardware to push a new frame to the canvas.
             window.requestAnimationFrame(() => {
               setTimeout(() => {
                 captureBtn.click();
-              }, 150); 
+              }, 200); // Increased to 200ms to give Safari plenty of time to refresh
             });
           }
         }, autoSeconds * 1000);
