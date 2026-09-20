@@ -360,10 +360,10 @@ async function sendToTelegram() {
     const btn = document.getElementById('telegramBtn');
     const folderPath = "{{ path }}"; // Gets current folder (input, output, etc.)
 
-    if (!confirm(`Create ZIP and send all images in "${folderPath}" to Telegram?`)) return;
+    if (!confirm(`Send all images in "${folderPath}" to Telegram?`)) return;
 
     btn.disabled = true;
-    btn.innerText = "📦 Zipping & Uploading to Telegram...";
+    btn.innerText = "📤 Queuing for Telegram...";
     btn.style.backgroundColor = "#666";
 
     try {
@@ -376,13 +376,13 @@ async function sendToTelegram() {
         const result = await response.json();
 
         if (response.ok) {
-            alert("✅ Folder ZIP sent successfully to Telegram!");
+            alert("✅ File queued to send to Telegram!");
         } else {
-            alert("❌ Telegram Error: " + (result.error || "Unknown error"));
+            alert("❌ Error: " + (result.error || "Unknown error"));
         }
     } catch (err) {
         console.error(err);
-        alert("❌ Request timed out or failed to communicate with server.");
+        alert("❌ Failed to connect to server.");
     } finally {
         btn.disabled = false;
         btn.innerText = "✈️ SEND ALL IMAGES TO TELEGRAM";

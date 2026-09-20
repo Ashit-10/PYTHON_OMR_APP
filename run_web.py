@@ -305,6 +305,7 @@ def results_page():
 @app.route("/send-telegram", methods=["POST"])
 def send_telegram():
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        app.logger.error("Telegram environment variables missing (TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID).")
         return jsonify({"error": "Telegram environment variables missing"}), 500
 
     data = request.json or {}
@@ -315,44 +316,46 @@ def send_telegram():
     except PermissionError as e:
         return jsonify({"error": str(e)}), 403
 
-    zip_filename = f"{os.path.basename(target_folder)}_transfer.zip"
-
     if not os.path.exists(target_folder):
         return jsonify({"error": "Folder not found"}), 404
 
-    try:
-        with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for root, _, files in os.walk(target_folder):
-                for file in files:
-                    if file.lower().endswith(EXTENSIONS):
-                        file_path = os.path.join(root, file)
-                        zipf.write(file_path, arcname=file)
+    def background_telegram_upload():
+        zip_filename = f"{os.path.basename(target_folder)}_transfer_{int(time.time())}.zip"
+        try:
+            app.logger.info(f"Preparing ZIP for Telegram upload from folder: {folder_name}")
+            with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for root, _, files in os.walk(target_folder):
+                    for file in files:
+                        if file.lower().endswith(EXTENSIONS):
+                            file_path = os.path.join(root, file)
+                            zipf.write(file_path, arcname=file)
 
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
-        with open(zip_filename, 'rb') as f:
-            files = {'document': (zip_filename, f)}
-            payload = {'chat_id': TELEGRAM_CHAT_ID, 'caption': f"📂 Folder: {folder_name}"}
-            response = requests.post(url, data=payload, files=files, timeout=180)
-        
-        if os.path.exists(zip_filename):
-            os.remove(zip_filename)
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
+            app.logger.info(f"Before uploading folder '{folder_name}' to Telegram...")
+            with open(zip_filename, 'rb') as f:
+                files = {'document': (zip_filename, f)}
+                payload = {'chat_id': TELEGRAM_CHAT_ID, 'caption': f"📂 Folder: {folder_name}"}
+                response = requests.post(url, data=payload, files=files, timeout=300)
+            
+            if os.path.exists(zip_filename):
+                os.remove(zip_filename)
 
-        if response.ok:
-            return jsonify({"status": "success"})
-        err_msg = response.json().get("description", "Telegram Error")
-        app.logger.error(f"Telegram sendDocument failed: {err_msg}")
-        return jsonify({"error": err_msg}), 500
+            if response.ok:
+                app.logger.info(f"After uploading: Successfully sent folder '{folder_name}' to Telegram!")
+            else:
+                try:
+                    err_desc = response.json().get("description", response.text)
+                except:
+                    err_desc = response.text
+                app.logger.error(f"After uploading: Telegram API error: {err_desc}")
+        except Exception as e:
+            if os.path.exists(zip_filename):
+                os.remove(zip_filename)
+            app.logger.error(f"After uploading (Exception): Telegram upload failed for folder '{folder_name}': {e}")
 
-    except requests.exceptions.Timeout:
-        if os.path.exists(zip_filename):
-            os.remove(zip_filename)
-        app.logger.error("Telegram upload timed out (exceeded 180s).")
-        return jsonify({"error": "Telegram upload timed out. The folder ZIP file might be too large."}), 500
-    except Exception as e:
-        if os.path.exists(zip_filename):
-            os.remove(zip_filename)
-        app.logger.error(f"Telegram sendDocument exception: {e}")
-        return jsonify({"error": str(e)}), 500
+    executor.submit(background_telegram_upload)
+    app.logger.info(f"File queued to send to Telegram for folder: {folder_name}")
+    return jsonify({"status": "success", "message": "File queued to send to Telegram"})
 
 @app.route("/api/files")
 def list_files_for_count():
