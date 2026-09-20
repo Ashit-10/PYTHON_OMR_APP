@@ -9,33 +9,34 @@
 <body>
 
 <header>
-    OMR Scanner
+    <span>📊 OMR Scanner Dashboard</span>
     <div class="menu-container">
         <button class="menu-btn" onclick="toggleMenu()">☰</button>
         <div id="myDropdown" class="dropdown-content">
             <button onclick="openPixelModal()">
                 ⚫ Black Pixel <span id="pixelValDisplay" class="pixel-badge">--</span>
             </button>
-    
-
-<button onclick="openRollPixelModal()">
-     🔢 Roll Pixel <span id="rollPixelValDisplay" class="pixel-badge">--</span>
-</button>
-
-
-            <button onclick="openLivePage()">
-                View Live OMR Results
+            <button onclick="openRollPixelModal()">
+                 🔢 Roll Pixel <span id="rollPixelValDisplay" class="pixel-badge">--</span>
             </button>
+            <button onclick="openLivePage()">
+                📡 View Live OMR Results
+            </button>
+            <a href="/logout" style="color: #ef4444; text-decoration: none; display: block; padding: 12px 16px; font-weight: bold; border-top: 1px solid #333;">
+                🔒 Logout
+            </a>
         </div>
     </div>
 </header>
 
-<section class="actions">
-  <button class="btn-key" onclick="openAnswerKey()">
+<main style="max-width: 800px; margin: 0 auto; padding: 16px;">
+
+<section class="actions" style="display: flex; gap: 12px; margin-bottom: 20px;">
+  <button class="btn-key" onclick="openAnswerKey()" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
     <span>🗝</span> Answer Key
   </button>
-  <button id="mainSignBtn" class="btn-sign" onclick="showSignModal()">
-    <span id="signEmoji">✍️</span> <b id="signText">Change Signature</b>
+  <button id="mainSignBtn" class="btn-sign" onclick="showSignModal()" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
+    <span id="signEmoji">✍️</span> <b id="signText">Signature</b>
   </button>
 </section>
 
@@ -49,10 +50,11 @@
     </div>
   </div>
 </div>
+
 <div id="rollPixelModal" class="modal hidden">
   <div class="modal-content">
     <h3>Edit Roll Pixel Value</h3>
-    <p style="font-size: 0.8rem; color: #666;">Threshold for Roll Number detection</p>
+    <p style="font-size: 0.85rem; color: #aaa; margin-bottom: 10px;">Threshold for Roll Number detection</p>
     <input type="number" id="rollPixelInput" placeholder="Value from config">
     <div class="modal-buttons">
       <button onclick="saveRollPixelValue()">Save</button> 
@@ -61,64 +63,61 @@
   </div>
 </div>
 
-
 <div id="signModal" class="modal hidden">
   <div class="modal-content">
     <h3>Select Signature</h3>
-    <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
-      <button style="font-size: 18px; border-radius: 6px; padding: 10px;" onclick="updateSignature('ashit_sign.png')">Ashit</button>
-      <button style="font-size: 18px; border-radius: 6px; padding: 10px;" onclick="updateSignature('rupa_sign.png')">Rupa</button>
-      <button style="font-size: 18px; border-radius: 6px; padding: 10px;" onclick="updateSignature('lakhia_sign.png')">Lakhia Bhai</button>
-      <button style="font-size: 18px; border-radius: 6px; padding: 10px;" onclick="updateSignature('ananta_sign.png')">Ananta</button>
-      <button onclick="closeSignModal()" style="font-size: 18px; border-radius: 6px; padding: 10px; background: #24292e; color: white; margin-top: 10px;">Cancel</button>
+    <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+      <button style="font-size: 16px; border-radius: 6px; padding: 12px;" onclick="updateSignature('ashit_sign.png')">Ashit</button>
+      <button style="font-size: 16px; border-radius: 6px; padding: 12px;" onclick="updateSignature('rupa_sign.png')">Rupa</button>
+      <button style="font-size: 16px; border-radius: 6px; padding: 12px;" onclick="updateSignature('lakhia_sign.png')">Lakhia Bhai</button>
+      <button style="font-size: 16px; border-radius: 6px; padding: 12px;" onclick="updateSignature('ananta_sign.png')">Ananta</button>
+      <button onclick="closeSignModal()" style="font-size: 16px; border-radius: 6px; padding: 12px; background: #334155; color: white;">Cancel</button>
     </div>
   </div>
 </div>
 
-<section class="card" style="margin: 12px;">
-  <h3>Project Folders:</h3>
-  <div style="text-align: left;">
-    <button onclick="confirmClearFolders()" style="background-color: #d32f2f; color: white; border: none; margin-top: 10px; padding: 8px 8px; border-radius: 18px; cursor: pointer; font-weight: bold;">
-      🗑️ Clear All Folders
+<section class="card" style="margin-bottom: 20px; padding: 20px; background: #1e293b; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+    <h3 style="margin: 0; color: #38bdf8;">📂 Project Folders</h3>
+    <button onclick="confirmClearFolders()" style="background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.85rem;">
+      🗑️ Clear Folders
     </button>
   </div>
     
-  <div id="folders">
+  <div id="folders" style="display: flex; flex-direction: column; gap: 10px;">
     {% set ordered_list = ['input', 'output', 'error_images', 'duplicates'] %}
     {% for target in ordered_list %}
       {% if target in folders %}
-        <div class="folder-card" onclick="openFolder('{{ target }}')" style="display: flex; justify-content: space-between; align-items: center;">
-          <span>📁 {{ target }}</span>
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="background: #444; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; color: #fff;">
-              {{ folder_counts[target] }} Images
-            </span>
-          </div>
+        <div class="folder-card" onclick="openFolder('{{ target }}')" style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 12px 16px; border-radius: 8px; cursor: pointer; transition: background 0.2s;">
+          <span style="font-weight: 500;">📁 {{ target }}</span>
+          <span style="background: #334155; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; color: #38bdf8;">
+            {{ folder_counts[target] }} Images
+          </span>
         </div>
       {% endif %}
     {% endfor %}
   </div>
 </section>
 
-<section class="actions">
-  <button class="btn-scan" onclick="location.href='/scan'">
+<section class="actions" style="display: flex; gap: 12px; margin-bottom: 20px;">
+  <button class="btn-scan" onclick="location.href='/scan'" style="flex: 1; padding: 14px; font-size: 1rem; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 8px;">
     <span>📷</span> Scan OMR Sheet
   </button>
-  <button class="btn-git" onclick="showGitModal()">
-    <span>🐙</span> Upload to GitHub
+  <button class="btn-git" onclick="showGitModal()" style="flex: 1; padding: 14px; font-size: 1rem; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+    <span>🐙</span> Sync GitHub
   </button>
 </section>
     
 <div id="gitModal" class="modal hidden">
   <div class="modal-content">
     <h3>GitHub Upload Details</h3>
-    <label>Tuition:</label>
-    <div style="margin: 10px 0;">
-      <input type="radio" id="mvm" name="tuition" value="mvm" checked> <label for="mvm">MVM</label>
+    <label style="display:block; text-align:left; margin-top:10px;">Tuition:</label>
+    <div style="margin: 10px 0; text-align: left;">
+      <input type="radio" id="mvm" name="tuition" value="mvm" checked> <label for="mvm">MVM</label> &nbsp;&nbsp;
       <input type="radio" id="wsc" name="tuition" value="wsc"> <label for="wsc">WSC</label>
     </div>
-    <input id="gitCls" placeholder="Class (e.g. 10)">
-    <input id="gitSub" placeholder="Subject (e.g. Physics)">
+    <input id="gitCls" placeholder="Class (e.g. 10)" style="margin-bottom: 10px; width:100%; padding:10px; border-radius:6px; background:#0f172a; border:1px solid #475569; color:white;">
+    <input id="gitSub" placeholder="Subject (e.g. Physics)" style="margin-bottom: 15px; width:100%; padding:10px; border-radius:6px; background:#0f172a; border:1px solid #475569; color:white;">
     <div class="modal-buttons">
       <button onclick="submitGitUpload()">Upload</button>
       <button onclick="closeGitModal()">Cancel</button>
@@ -126,220 +125,53 @@
   </div>
 </div>
 
-<section id="log-section" class="card hidden" style="margin: 12px; background: #1e1e1e; color: #00ff00; border-radius: 8px; overflow: hidden;">
-  <div style="background: #333; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;">
-    <span style="font-size: 0.8rem; font-family: monospace; color: #ccc;">termux_terminal_output</span>
-    <button onclick="document.getElementById('log-section').classList.add('hidden')" style="background:none; border:none; color:white; cursor:pointer;">✕</button>
-  </div>
-  <div id="terminal-logs" style="padding: 10px; max-height: 250px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.85rem; line-height: 1.5;"></div>
-</section>
-
-<section class="card" style="margin: 12px;">
-  <h3>Student Roll Files</h3>
-  <div id="rolls-files">
+<section class="card" style="margin-bottom: 20px; padding: 20px; background: #1e293b; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+  <h3 style="margin-bottom: 15px; color: #38bdf8;">📄 Student Roll Files</h3>
+  <div id="rolls-files" style="display: flex; flex-direction: column; gap: 8px;">
     {% for file in rolls_files %}
-      <div class="folder-card" onclick="location.href='/edit_rolls?file={{ file }}'">
+      <div class="folder-card" onclick="location.href='/edit_rolls?file={{ file }}'" style="background: #0f172a; padding: 10px 14px; border-radius: 8px; cursor: pointer;">
         📄 {{ file }}
       </div>
     {% endfor %}
   </div>
 </section>
 
-<section class="actions">
-  <button onclick="showModal()" style="display: none;">➕ Create Project Folder</button>
-</section>
-
-<div id="modal" class="modal hidden">
-  <div class="modal-content">
-    <h3>Create Project Folder</h3>
-    <input id="clsInput" placeholder="Class (e.g. 10)">
-    <input id="subInput" placeholder="Subject (e.g. Math)">
-    <div class="modal-buttons">
-      <button onclick="createFolder()">Create</button>
-      <button onclick="closeModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-    </br>
-<div id="shutdown-wrapper" style="text-align: center; margin: 30px 0; padding-bottom: 20px;">
-    <button id="unlockBtn" class="round-btn" onclick="revealKillButton()" style="width: 150px; height: 150px; border-radius: 50%; border: 4px solid #ef4444; background: transparent; color: #ef4444; font-weight: bold; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto;">
-        <span style="font-size: 24px;">🔓</span>
-        <span style="font-size: 12px; margin-top: 5px;">UNLOCK<br>SWITCH</span>
-    </button>
-
-    <button id="killBtn" onclick="endProcessing()" class="round-btn hidden" style="width: 140px; height: 140px; border-radius: 50%; border: none; background: #ef4444; color: white; font-weight: bold; cursor: pointer; box-shadow: 0 0 20px rgba(239, 68, 68, 0.6); flex-direction: column; align-items: center; justify-content: center; margin: 0 auto; animation: pulse 1.5s infinite;">
-        <span style="font-size: 30px;">🛑</span>
-        <span style="font-size: 13px; margin-top: 5px;">TERMINATE<br>TERMUX</span>
-    </button>
-</div>
-</br></br>
-
-
+</main>
     
 <script>
 function openLivePage() {
-    // window.location.assign is the standard way to redirect
-    alert("Open this in a different device to view Live result");
-    if (confirm("Open Live Feed?")) { window.location.href = "/results"; }
+    if (confirm("Open Live Feed on this view?")) { window.location.href = "/results"; }
 }
 
-function revealKillButton() {
-    document.getElementById('unlockBtn').classList.add('hidden');
-    const killBtn = document.getElementById('killBtn');
-    killBtn.classList.remove('hidden'); 
-    killBtn.style.display = 'flex'; 
-}
-
-function resetKillButton() {
-    const killBtn = document.getElementById('killBtn');
-    killBtn.classList.add('hidden');
-    killBtn.style.display = 'none';
-    // Restore original text/emoji in case a timer was running
-    killBtn.innerHTML = '<span style="font-size: 30px;">🛑</span><span style="font-size: 13px; margin-top: 5px;">TERMINATE<br>TERMUX</span>';
-    document.getElementById('unlockBtn').classList.remove('hidden');
-}
-
-// Function to generate the 'Bomb' beep sound
-function playSound(type) {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const masterGain = audioCtx.createGain();
-    masterGain.connect(audioCtx.destination);
-    
-    if (type === 'beep') {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
-        osc.connect(gain);
-        gain.connect(masterGain);
-        
-        masterGain.gain.setValueAtTime(0.3, audioCtx.currentTime); // Louder beep
-        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.1);
-        
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.1);
-
-    } else if (type === 'blast') {
-        // --- HIGH POWER BOMB BLAST ---
-        masterGain.gain.setValueAtTime(1.5, audioCtx.currentTime); // Boosted Master Volume
-
-        // 1. The Low-End Thump (The "Boom")
-        const thump = audioCtx.createOscillator();
-        const thumpGain = audioCtx.createGain();
-        thump.type = 'sine';
-        thump.frequency.setValueAtTime(150, audioCtx.currentTime);
-        thump.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.8);
-        
-        thumpGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
-        thumpGain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1.0);
-        
-        thump.connect(thumpGain);
-        thumpGain.connect(masterGain);
-
-        // 2. The Distorted White Noise (The "Shatter")
-        const bufferSize = audioCtx.sampleRate * 2;
-        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) { data[i] = Math.random() * 2 - 1; }
-
-        const noise = audioCtx.createBufferSource();
-        const noiseFilter = audioCtx.createBiquadFilter();
-        const noiseGain = audioCtx.createGain();
-
-        noise.buffer = buffer;
-        noiseFilter.type = 'lowpass';
-        noiseFilter.frequency.setValueAtTime(800, audioCtx.currentTime); // Higher cut-off for more 'crunch'
-        
-        noiseGain.gain.setValueAtTime(0.8, audioCtx.currentTime);
-        noiseGain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1.5);
-
-        noise.connect(noiseFilter);
-        noiseFilter.connect(noiseGain);
-        noiseGain.connect(masterGain);
-
-        // Start everything
-        thump.start();
-        noise.start();
-        thump.stop(audioCtx.currentTime + 1.5);
-        noise.stop(audioCtx.currentTime + 1.5);
-    }
-}
-
-function endProcessing() {
-    if (!confirm("⚠️ FIRST WARNING: This will Kill the Python server immediately.")) return resetKillButton();
-    if (!confirm("🚨 FINAL WARNING: Termux will be forced to close. Are you 100% sure?")) return resetKillButton();
-
-    const killBtn = document.getElementById('killBtn');
-    let seconds = 3;
-    
-    killBtn.onclick = null; 
-    killBtn.style.background = "#000";
-    killBtn.style.boxShadow = "0 0 50px #ff4400"; // Orange glow for bomb
-
-    const timer = setInterval(() => {
-        if (seconds > 0) {
-            playSound('beep'); // Clear digital beep
-            killBtn.innerHTML = `
-                <span style="font-size: 11px; color: #ff4400;">BOOM IN</span><br>
-                <span style="font-size: 36px; color: #fff;">${seconds}</span>
-            `;
-        } else {
-            clearInterval(timer);
-            playSound('blast'); // THE EXPLOSION
-            
-            // Visual "Flash" effect
-            document.body.style.backgroundColor = "white";
-            killBtn.innerHTML = "<span style='font-size:18px; color:#000;'>BOOM!</span>";
-            
-            setTimeout(() => {
-                document.body.style.backgroundColor = "#f5f5f5";
-                fetch("/stop-server", { method: "POST" })
-                .then(() => window.location.href = "about:blank")
-                .catch(() => window.location.href = "about:blank");
-            }, 1200); // Wait for the blast to fade
-        }
-        seconds--;
-    }, 1000);
-}
-// New Modal Controls
 function openRollPixelModal() { document.getElementById("rollPixelModal").classList.remove("hidden"); }
 function closeRollPixelModal() { document.getElementById("rollPixelModal").classList.add("hidden"); }
 
-// New Save Function
 function saveRollPixelValue() {
     const val = document.getElementById("rollPixelInput").value;
     fetch("/update_config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Ensure this matches exactly what your Python backend expects
         body: JSON.stringify({ roll_pixel: val }) 
     }).then(() => {
-        fetchPixelValue(); // This updates the UI badges
+        fetchPixelValue();
         closeRollPixelModal();
     });
 }
 
-
-
-    
-/* --- CONSOLIDATED FETCH LOGIC --- */
 function fetchPixelValue() {
     fetch("/get_config").then(r => r.json()).then(data => {
-        // --- Existing Black Pixel Update ---
         const val = data.pixel_value || "--";
         const pixelBadge = document.getElementById("pixelValDisplay");
         const pixelInp = document.getElementById("pixelInput");
         if(pixelBadge) pixelBadge.innerText = val;
         if(pixelInp) pixelInp.value = val;
 
-        // --- NEW Roll Pixel Update ---
         const rollVal = data.roll_pixel || "--";
         const rollBadge = document.getElementById("rollPixelValDisplay");
         const rollInp = document.getElementById("rollPixelInput");
         if(rollBadge) rollBadge.innerText = rollVal;
         if(rollInp) rollInp.value = rollVal;
 
-        // --- Existing Signature Update ---
         if (data.signature) {
             const signBtn = document.getElementById("mainSignBtn");
             const emoji = document.getElementById("signEmoji");
@@ -355,12 +187,6 @@ function fetchPixelValue() {
     }).catch(err => console.error("Config load error:", err));
 }
 
-
-
-
-
-
-
 function updateSignature(filename) {
     fetch("/update_config", {
         method: "POST",
@@ -370,13 +196,12 @@ function updateSignature(filename) {
     .then(response => {
         if (response.ok) {
             alert("Signature updated to: " + filename);
-            fetchPixelValue(); // Immediate background update
+            fetchPixelValue();
             closeSignModal();
         }
     });
 }
 
-/* --- MENU & FOLDERS --- */
 function toggleMenu() { document.getElementById("myDropdown").classList.toggle("show"); }
 
 window.onclick = function(event) {
@@ -389,8 +214,8 @@ window.onclick = function(event) {
 }
 
 function confirmClearFolders() {
-    if (confirm("⚠️ This will permanently delete all images from 'input', 'output', 'error_images' and 'duplicates'. Do you want to proceed?")) {
-        if (confirm("Are you absolutely sure?")) { clearFolders(); }
+    if (confirm("⚠️ This will permanently delete all images from 'input', 'output', 'error_images' and 'duplicates'. Proceed?")) {
+        clearFolders();
     }
 }
 
@@ -399,15 +224,12 @@ function clearFolders() {
     .then(res => res.ok ? location.reload() : alert("Error clearing folders."));
 }
 
-/* --- MODAL CONTROLS --- */
 function openPixelModal() { document.getElementById("pixelModal").classList.remove("hidden"); }
 function closePixelModal() { document.getElementById("pixelModal").classList.add("hidden"); }
 function showSignModal() { document.getElementById("signModal").classList.remove("hidden"); }
 function closeSignModal() { document.getElementById("signModal").classList.add("hidden"); }
 function showGitModal() { document.getElementById("gitModal").classList.remove("hidden"); }
 function closeGitModal() { document.getElementById("gitModal").classList.add("hidden"); }
-function showModal(){ document.getElementById("modal").classList.remove("hidden") }
-function closeModal(){ document.getElementById("modal").classList.add("hidden") }
 
 function savePixelValue() {
     const val = document.getElementById("pixelInput").value;
@@ -427,33 +249,8 @@ function submitGitUpload() {
     const sub = document.getElementById("gitSub").value.trim();
     if(!cls || !sub) { alert("Please fill all fields"); return; }
     closeGitModal();
-    const logSection = document.getElementById("log-section");
-    const logContainer = document.getElementById("terminal-logs");
-    logSection.classList.remove("hidden");
-    logContainer.innerHTML = "Starting GitHub sync...<br>";
-    fetch(`/run_gitup?tution=${tution}&class=${cls}&subject=${sub}`).then(response => {
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        function read() {
-            return reader.read().then(({ done, value }) => {
-                if (done) return;
-                logContainer.innerHTML += decoder.decode(value).replace(/\n/g, "<br>");
-                logContainer.scrollTop = logContainer.scrollHeight;
-                return read();
-            });
-        }
-        return read();
-    });
-}
-
-function createFolder(){
-  const clsVal = document.getElementById("clsInput").value.trim();
-  const subVal = document.getElementById("subInput").value.trim();
-  fetch("/create_folder",{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({class:clsVal, subject:subVal})
-  }).then(() => location.reload());
+    alert("GitHub sync initiated. Check terminal logs.");
+    fetch(`/run_gitup?tution=${tution}&class=${cls}&subject=${sub}`);
 }
 
 function openFolder(f){ window.location.href = "/browse?path=" + encodeURIComponent(f); }

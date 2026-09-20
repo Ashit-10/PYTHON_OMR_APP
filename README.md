@@ -1,85 +1,45 @@
-<h1>An OMR evaluatng app with python</h1>
+# 📊 Python OMR Evaluation Web App (Koyeb Ready)
 
-(OMR sheet formats are given in the repo)
-
-<h2>features:</h2>
-
-- Very easy to use
-- very much compact size
-- dependancies: python, opencv-python, numpy
-- takes less than 1 second
-- omr upto 100 questions supported
-- roll number upto 2 digits supported
-- colors for correct, wrong, unattempted numbers
-
-<h2>How to use ?</h2>
-
-```
-cd /sdcard
-git clone https://github.com/Ashit-10/PYTHON_OMR_APP
-cd PYTHON_OMR_BOT
-pip3 -r requirements.txt
-python3 newapp.py
-```
-
-
-<h2>Extras:</h2>
-
-- add sign to the output image by adding "sign.png" in the current directory
-
-<h2>Setting up in termux</h2>
-
-```
-pkg update -y
-pkg upgrade
-pkg install x11-repo
-pkg install matplotlib
-pkg rei opencv-python
-pkg install python -y
-pkg install git -y
-pkg install build-essential
-pkg install zip -y
-pkg install dbus
-pkg install lsof
-
-termux-setup-storage
-cd /sdcard
-git clone https://github.com/Ashit-10/PYTHON_OMR_APP
-
-cd PYTHON_OMR_APP
-pip3 install -r requirements.txt
-source setup.sh
-```
-git clone repo , cd to PYTHON_OMR_APP, and run python app.py
-<h2>Preview:</h2>
-
-https://github.com/user-attachments/assets/b6c944cc-7de9-45f9-826e-31e621016642
-
-
-# 🧠 Live OMR Scanner (Real-Time Web-Based)
-
-A powerful **real-time OMR (Optical Mark Recognition) scanner** that runs locally and processes answer sheets live using your device camera 📷  
-Perfect for exams, practice tests, and automated evaluation systems.
+A fast, web-based **OMR (Optical Mark Recognition) Scanner & Evaluation System** built with Flask and OpenCV. Designed for automated exam grading, instant feedback, and multi-device access via cloud deployment (Koyeb).
 
 ---
 
-## 🚀 How to Run
+## ✨ Features
 
-### 1️⃣ Start the server
+- **Fast & Lightweight**: Powered by Gunicorn, OpenCV headless, and NumPy.
+- **Multi-Device Cloud Access**: Host on Koyeb and access from any device anywhere.
+- **Password Protection**: Secure your dashboard with a custom password (`PASSWORD` environment variable).
+- **Flexible Question Support**: Supports 50 and 100-question OMR sheets.
+- **Roll Number Detection**: Accurate student roll number recognition.
+- **Answer Key & Signature Customization**: Easily update answer keys and signature stamps on evaluated sheets.
+- **Terminal Logging**: Complete application logs streamed directly to your Koyeb terminal.
+
+---
+
+## 🚀 Deploying on Koyeb
+
+1. Push this repository to your GitHub account.
+2. Go to the [Koyeb Dashboard](https://app.koyeb.com/) and click **Create Web Service**.
+3. Select **GitHub** as your deployment source and choose your repository.
+4. Keep the builder as **Dockerfile** (the repository includes a pre-configured `Dockerfile` with OpenCV system dependencies).
+5. Add the following **Environment Variables** in Koyeb:
+   - `PASSWORD` (Optional): Set a secure password to protect your dashboard access.
+   - `TELEGRAM_BOT_TOKEN` (Optional): For Telegram result sharing.
+   - `TELEGRAM_CHAT_ID` (Optional): Chat ID for Telegram notifications.
+   - `GITHUB_TOKEN` (Optional): For GitHub rolls synchronization.
+6. Click **Deploy**. Once running, access your app via your Koyeb public URL!
+
+---
+
+## 💻 Local Development & Testing
+
+If you want to run the app locally:
+
+```bash
+git clone https://github.com/Ashit-10/PYTHON_OMR_APP
+cd PYTHON_OMR_APP
+pip install -r requirements.txt
+python3 run_web.py
 ```
-python3 web.py
-```
-### 2️⃣ Open the Web Interface
 
-When you run the script, it will automatically open a webpage in your browser.
-
-👉 Allow camera access when prompted.
-
-⸻
-
-## 📡 Live Result Monitoring (Multi-Device Support)
-
-You can view live processed OMR images on any device connected to the same Wi-Fi network.
-
-🔹 Open in browser:
-http://<YOUR_IP_ADDRESS>/results
+Open `http://localhost:8000` in your browser.

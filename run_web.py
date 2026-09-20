@@ -16,10 +16,17 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
+# Configure logging to output to stdout for Koyeb terminal
+logging.basicConfig(
+    stream=sys.stdout,
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+)
+
 import requests
 from flask import (
     Flask, render_template, render_template_string, jsonify, 
-    request, send_file, send_from_directory, Response
+    request, send_file, send_from_directory, Response, session, redirect, url_for
 )
 
 # --- ENVIRONMENT & CONFIGURATION ---
@@ -28,6 +35,73 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "omr_app_default_secret_key_12345")
+APP_PASSWORD = os.environ.get("PASSWORD", "")
+
+@app.before_request
+def require_login():
+    if not APP_PASSWORD:
+        return
+    allowed_endpoints = ['login', 'static', 'get_file', 'serve_output', 'serve_input']
+    if request.endpoint in allowed_endpoints or request.path.startswith('/static') or request.path.startswith('/temp_output') or request.path.startswith('/temp_input'):
+        return
+    if session.get('authenticated') != True:
+        return redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if not APP_PASSWORD:
+        return redirect(url_for('dashboard'))
+    error = None
+    if request.method == 'POST':
+        pwd = request.form.get('password', '')
+        if pwd == APP_PASSWORD:
+            session['authenticated'] = True
+            app.logger.info("User successfully logged in.")
+            return redirect(url_for('dashboard'))
+        else:
+            error = "Invalid password. Please try again."
+            app.logger.warning("Failed login attempt.")
+    return render_template_string(LOGIN_HTML, error=error)
+
+@app.route('/logout')
+def logout():
+    session.pop('authenticated', None)
+    return redirect(url_for('login'))
+
+LOGIN_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OMR Login</title>
+<style>
+    body { background: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+    .card { background: #1e293b; padding: 2.5rem; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); width: 100%; max-width: 380px; text-align: center; border: 1px solid #334155; }
+    h2 { margin-bottom: 1.5rem; color: #38bdf8; font-size: 1.5rem; }
+    input { width: 100%; padding: 12px 16px; margin-bottom: 1.2rem; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: white; font-size: 1rem; box-sizing: border-box; outline: none; transition: border-color 0.2s; }
+    input:focus { border-color: #38bdf8; }
+    button { width: 100%; padding: 12px; border-radius: 8px; border: none; background: #38bdf8; color: #0f172a; font-weight: bold; font-size: 1rem; cursor: pointer; transition: background 0.2s; }
+    button:hover { background: #0ea5e9; }
+    .error { color: #f87171; margin-bottom: 1rem; font-size: 0.9rem; background: rgba(248,113,113,0.1); padding: 8px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<div class="card">
+    <h2>🔐 OMR Scanner</h2>
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
+    <form method="POST">
+        <input type="password" name="password" placeholder="Enter Password" required autofocus>
+        <button type="submit">Access Dashboard</button>
+    </form>
+</div>
+</body>
+</html>
+"""
+
 BASE = os.path.abspath(os.getcwd())
 
 INPUT_FOLDER = os.path.join(BASE, "temp_input")
