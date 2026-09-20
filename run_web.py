@@ -205,7 +205,7 @@ def dashboard():
     for folder in folders:
         folder_path = os.path.join(BASE, folder)
         if os.path.isdir(folder_path):
-            count = len([f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))])
+            count = len([f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f)) and not f.startswith('.')])
             folder_counts[folder] = count
         else:
             folder_counts[folder] = 0
@@ -536,6 +536,8 @@ def browse():
     items = []
     if os.path.exists(full_path) and os.path.isdir(full_path):
         for f in os.listdir(full_path):
+            if f.startswith('.'):
+                continue
             fp = os.path.join(full_path, f)
             mtime = os.path.getmtime(fp) if os.path.exists(fp) else 0
             items.append({"name": f, "is_dir": os.path.isdir(fp), "mtime": mtime})

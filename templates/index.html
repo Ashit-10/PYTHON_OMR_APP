@@ -6,8 +6,9 @@
 <title>OMR Dashboard</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
+<body style="background-color: #f1f5f9; color: #1e293b; min-height: 100vh; display: flex; flex-direction: column; justify-content: space-between;">
 
+<div>
 <header>
     <span>📊 OMR Scanner Dashboard</span>
     <div class="menu-container">
@@ -29,7 +30,7 @@
     </div>
 </header>
 
-<main style="max-width: 800px; margin: 0 auto; padding: 16px;">
+<main style="max-width: 800px; margin: 0 auto; padding: 20px 16px;">
 
 <section class="actions" style="display: flex; gap: 12px; margin-bottom: 20px;">
   <button class="btn-key" onclick="openAnswerKey()" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
@@ -54,7 +55,7 @@
 <div id="rollPixelModal" class="modal hidden">
   <div class="modal-content">
     <h3>Edit Roll Pixel Value</h3>
-    <p style="font-size: 0.85rem; color: #aaa; margin-bottom: 10px;">Threshold for Roll Number detection</p>
+    <p style="font-size: 0.85rem; color: #666; margin-bottom: 10px;">Threshold for Roll Number detection</p>
     <input type="number" id="rollPixelInput" placeholder="Value from config">
     <div class="modal-buttons">
       <button onclick="saveRollPixelValue()">Save</button> 
@@ -88,8 +89,8 @@
     {% set ordered_list = ['input', 'output', 'error_images', 'duplicates'] %}
     {% for target in ordered_list %}
       {% if target in folders %}
-        <div class="folder-card" onclick="openFolder('{{ target }}')" style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 12px 16px; border-radius: 8px; cursor: pointer; transition: background 0.2s;">
-          <span style="font-weight: 500;">📁 {{ target }}</span>
+        <div class="folder-card" onclick="openFolder('{{ target }}')" style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; color: #ffffff; padding: 12px 16px; border-radius: 8px; cursor: pointer; transition: background 0.2s;">
+          <span style="font-weight: 500; color: #ffffff;">📁 {{ target }}</span>
           <span style="background: #334155; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; color: #38bdf8;">
             {{ folder_counts[target] }} Images
           </span>
@@ -129,14 +130,19 @@
   <h3 style="margin-bottom: 15px; color: #38bdf8;">📄 Student Roll Files</h3>
   <div id="rolls-files" style="display: flex; flex-direction: column; gap: 8px;">
     {% for file in rolls_files %}
-      <div class="folder-card" onclick="location.href='/edit_rolls?file={{ file }}'" style="background: #0f172a; padding: 10px 14px; border-radius: 8px; cursor: pointer;">
-        📄 {{ file }}
+      <div class="folder-card" onclick="location.href='/edit_rolls?file={{ file }}'" style="background: #0f172a; color: #ffffff; padding: 10px 14px; border-radius: 8px; cursor: pointer;">
+        📄 <span style="color: #ffffff; font-weight: 500;">{{ file }}</span>
       </div>
     {% endfor %}
   </div>
 </section>
 
 </main>
+</div>
+
+<footer style="text-align: center; padding: 20px; color: #64748b; font-size: 0.9rem; font-weight: 500;">
+    &copy; 2026 Ashit
+</footer>
     
 <script>
 function openLivePage() {

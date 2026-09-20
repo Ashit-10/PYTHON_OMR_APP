@@ -1,4 +1,4 @@
 git pull
 git add .
-git commit -m Vm
-git push
+git commit -m update
+git push origin HEAD:main
