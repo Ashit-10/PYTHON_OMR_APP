@@ -13,6 +13,7 @@ import zipfile
 import configparser
 import base64
 import uuid
+import atexit
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
@@ -33,6 +34,33 @@ from flask import (
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+
+logger = logging.getLogger("omr")
+
+def send_telegram_notification(text):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        logger.warning("Telegram bot token or chat ID not configured.")
+        return
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text}
+        res = requests.post(url, json=payload, timeout=10)
+        if not res.ok:
+            logger.error(f"Telegram notification error ({res.status_code}): {res.text}")
+    except Exception as e:
+        logger.error(f"Telegram notification exception: {e}")
+
+try:
+    send_telegram_notification("Hi, I've been started")
+except Exception as e:
+    logger.error(f"Startup message error: {e}")
+
+@atexit.register
+def shutdown_notification():
+    try:
+        send_telegram_notification("I have been disabled")
+    except Exception as e:
+        logger.error(f"Shutdown message error: {e}")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "omr_app_default_secret_key_12345")
@@ -311,11 +339,14 @@ def send_telegram():
 
         if response.ok:
             return jsonify({"status": "success"})
-        return jsonify({"error": response.json().get("description", "Telegram Error")}), 500
+        err_msg = response.json().get("description", "Telegram Error")
+        app.logger.error(f"Telegram sendDocument failed: {err_msg}")
+        return jsonify({"error": err_msg}), 500
 
     except Exception as e:
         if os.path.exists(zip_filename):
             os.remove(zip_filename)
+        app.logger.error(f"Telegram sendDocument exception: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/files")
