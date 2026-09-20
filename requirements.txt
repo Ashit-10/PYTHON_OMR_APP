@@ -1,8 +1,4 @@
 requests
 flask
-zip
-opencv-python
+opencv-python-headless
 numpy
-
-
-

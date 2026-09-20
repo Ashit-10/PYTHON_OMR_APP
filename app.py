@@ -29,24 +29,27 @@ def evaluate(image_file, out_put_path, answer_key_file, caption, has_darkness, a
 
 # evaluate('images/n18.jpg', 'output/', "answer_key.txt", "", None, None)   
 moved = []
-for f in glob.glob('/sdcard/Download/*ans*_key*.txt*'):    
-     os.system("rm -f /sdcard/PYTHON_OMR_APP/answer_key*.txt")
-    
-     os.system(f"mv -f '{f}' /sdcard/PYTHON_OMR_APP/answer_key.txt")    
-     if os.path.exists("/sdcard/PYTHON_OMR_APP/answer_key.txt"):
-         print(f"Answer key found in download folder and moved to main folder\n{f}")
-         print()
-# ---- Check Download folder for OMR images (safe move, no overwrite) ----
 download_path = "/sdcard/Download"
-target_input_path = "/sdcard/PYTHON_OMR_APP/input"
+target_input_path = "input"
 
-image_exts = (".jpg", ".jpeg", ".png")
-omr_images = []
+if os.path.exists(download_path):
+    for f in glob.glob(os.path.join(download_path, '*ans*_key*.txt*')):    
+         if os.path.exists("answer_key.txt"):
+             os.remove("answer_key.txt")
+         shutil.copy(f, "answer_key.txt")    
+         print(f"Answer key found in download folder and copied to main folder\n{f}")
+         print()
 
-for f in os.listdir(download_path):
-    fname = f.lower()
-    if fname.startswith("omr_sheet") and fname.endswith(image_exts):
-        omr_images.append(f)
+    image_exts = (".jpg", ".jpeg", ".png")
+    omr_images = []
+
+    for f in os.listdir(download_path):
+        fname = f.lower()
+        if fname.startswith("omr_sheet") and fname.endswith(image_exts):
+            omr_images.append(f)
+else:
+    omr_images = []
+
 
 def get_safe_name(dst_folder, filename):
     name, ext = os.path.splitext(filename)
