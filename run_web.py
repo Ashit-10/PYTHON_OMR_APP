@@ -332,7 +332,7 @@ def send_telegram():
         with open(zip_filename, 'rb') as f:
             files = {'document': (zip_filename, f)}
             payload = {'chat_id': TELEGRAM_CHAT_ID, 'caption': f"📂 Folder: {folder_name}"}
-            response = requests.post(url, data=payload, files=files, timeout=60)
+            response = requests.post(url, data=payload, files=files, timeout=180)
         
         if os.path.exists(zip_filename):
             os.remove(zip_filename)
@@ -343,6 +343,11 @@ def send_telegram():
         app.logger.error(f"Telegram sendDocument failed: {err_msg}")
         return jsonify({"error": err_msg}), 500
 
+    except requests.exceptions.Timeout:
+        if os.path.exists(zip_filename):
+            os.remove(zip_filename)
+        app.logger.error("Telegram upload timed out (exceeded 180s).")
+        return jsonify({"error": "Telegram upload timed out. The folder ZIP file might be too large."}), 500
     except Exception as e:
         if os.path.exists(zip_filename):
             os.remove(zip_filename)

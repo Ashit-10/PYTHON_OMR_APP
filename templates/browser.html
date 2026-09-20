@@ -363,7 +363,7 @@ async function sendToTelegram() {
     if (!confirm(`Create ZIP and send all images in "${folderPath}" to Telegram?`)) return;
 
     btn.disabled = true;
-    btn.innerText = "📦 Zipping & Sending...";
+    btn.innerText = "📦 Zipping & Uploading to Telegram...";
     btn.style.backgroundColor = "#666";
 
     try {
@@ -376,13 +376,13 @@ async function sendToTelegram() {
         const result = await response.json();
 
         if (response.ok) {
-            alert("✅ Successfully sent to Telegram!");
+            alert("✅ Folder ZIP sent successfully to Telegram!");
         } else {
-            alert("❌ Error: " + (result.error || "Unknown error"));
+            alert("❌ Telegram Error: " + (result.error || "Unknown error"));
         }
     } catch (err) {
         console.error(err);
-        alert("❌ Failed to connect to server.");
+        alert("❌ Request timed out or failed to communicate with server.");
     } finally {
         btn.disabled = false;
         btn.innerText = "✈️ SEND ALL IMAGES TO TELEGRAM";
