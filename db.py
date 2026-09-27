@@ -39,6 +39,72 @@ def get_collection():
     return _client[DB_NAME][COLLECTION]
 
 
+def _validate_url(url):
+    """Catch a malformed or placeholder URL before the driver does.
+
+    Returns an error string, or None when the URL looks usable.
+    """
+    from urllib.parse import unquote, urlparse
+
+    try:
+        parsed = urlparse(url)
+    except ValueError as e:
+        return f"MONGO_URL could not be parsed: {e}"
+
+    if not parsed.scheme:
+        return "MONGO_URL is missing a scheme; it should start with mongodb:// or mongodb+srv://"
+    if not parsed.hostname:
+        return "MONGO_URL is missing a host name."
+
+    user = unquote(parsed.username or "")
+    if user.startswith("<") and user.endswith(">"):
+        return (
+            f"MONGO_URL still has the Atlas placeholder '{user}' as the username. "
+            "Copy the connection string from Atlas > Database Access, which fills "
+            "in your real username and password."
+        )
+    if not user:
+        return "MONGO_URL has no username."
+
+    if " " in url:
+        return "MONGO_URL contains a space; it must be percent-encoded."
+    return None
+
+
+def _connection_error(e):
+    """Turn a driver exception into something actionable.
+
+    The raw pymongo message embeds a full topology dump, which buries the one
+    line that matters.
+    """
+    from urllib.parse import unquote, urlparse
+
+    text = str(e)
+
+    try:
+        user = unquote(urlparse(MONGO_URL).username or "")
+    except ValueError:
+        user = ""
+    if user.startswith("<") and user.endswith(">"):
+        return (
+            "MONGO_URL still contains the Atlas placeholder "
+            f"'{user}' as the username. Replace it with your real "
+            "Database Access username, URL-encoded."
+        )
+
+    if "SSL handshake failed" in text or "TLSV1_ALERT_INTERNAL_ERROR" in text:
+        return (
+            "TLS handshake with MongoDB Atlas failed. Check that MONGO_URL uses "
+            "mongodb+srv:// and that the cluster is not paused. The most common "
+            "cause is a placeholder or misspelled username in the URL."
+        )
+    if "Authentication failed" in text:
+        return "MongoDB rejected the credentials. Check the username and password in MONGO_URL."
+
+    # Keep the first clause; the topology dump after it is noise.
+    return text.split(",")[0][:300]
+
+
 def init_db():
     """Connect, verify reachability and ensure indexes. Raises on failure."""
     global _client
@@ -49,11 +115,15 @@ def init_db():
             "Durable state cannot be stored; refusing to start."
         )
 
+    invalid = _validate_url(MONGO_URL)
+    if invalid:
+        raise RuntimeError(invalid)
+
     try:
-        client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=5000)
+        client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=10000)
         client.admin.command("ping")
     except PyMongoError as e:
-        raise RuntimeError(f"MongoDB at MONGO_URL is unreachable: {e}") from e
+        raise RuntimeError(f"MongoDB at MONGO_URL is unreachable: {_connection_error(e)}") from e
 
     with _lock:
         _client = client
