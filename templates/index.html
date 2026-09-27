@@ -97,6 +97,19 @@
         </div>
       {% endif %}
     {% endfor %}
+
+    {% set exam_folders = folders | reject('in', ordered_list) | list %}
+    {% if exam_folders %}
+      <h4 style="margin: 16px 0 4px; font-size: 0.95rem; color: #94a3b8;">📚 Exams</h4>
+      {% for target in exam_folders %}
+        <div class="folder-card" onclick="openFolder('{{ target }}')" style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; color: #ffffff; padding: 12px 16px; border-radius: 8px; cursor: pointer; transition: background 0.2s;">
+          <span style="font-weight: 500; color: #ffffff;">📁 {{ target }}</span>
+          <span style="background: #334155; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; color: #38bdf8;">
+            {{ folder_counts.get(target, 0) }} Images
+          </span>
+        </div>
+      {% endfor %}
+    {% endif %}
   </div>
 </section>
 

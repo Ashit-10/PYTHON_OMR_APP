@@ -3,6 +3,15 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# OMR image scratch - images are stored in Telegram, the index in MongoDB
+input/
+output/
+temp_input/
+temp_output/
+duplicates/
+error_images/
+*.zip
+
 # C extensions
 *.so
 

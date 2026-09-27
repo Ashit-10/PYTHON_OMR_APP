@@ -12,7 +12,16 @@ import json
 import requests
 import base64
 import sys
+import db
 
+
+db.init_db()
+ANSWER_KEY = db.get(db.ANSWER_KEY) or {}
+
+
+def get_answer_key_bytes():
+    """Serialize the MongoDB answer key for upload to GitHub."""
+    return json.dumps(ANSWER_KEY, indent=2).encode("utf-8")
 
 
 # Capture arguments from the Web UI (passed via subprocess)
@@ -56,35 +65,21 @@ def get_next_exam_no(session, github_base, cls, clean_subject):
     
     return exam_no
 def get_total_marks():
-    """Parses answer_key.txt as JSON and returns the count of items."""
-    filename = "answer_key.txt"
-    if os.path.exists(filename):
-        with open(filename, 'r', encoding='utf-8') as f:
-            try:
-                data = json.load(f)
-                return len(data)
-            except json.JSONDecodeError:
-                content = f.read()
-                items = re.findall(r'"[^"]+"\s*:\s*"[^"]+"', content)
-                return len(items)
-    return 0
+    """Returns the number of items in the MongoDB answer key."""
+    return len(ANSWER_KEY)
 
 def get_student_names(tuition, cls):
-    filename = f"{tuition}_class-{cls}_rolls.txt"
-    name_map = {}
-    if os.path.exists(filename):
-        with open(filename, 'r', encoding='utf-8') as f:
-            content = f.read()
-            matches = re.findall(r'"(\d+)":\s*"([^"]+)"', content)
-            for roll, name in matches:
-                name_map[int(roll)] = name
-    return name_map
+    filename = f"{tuition}_class-{cls}_rolls"
+    return db.get_rolls(filename)
 
-def upload_to_github(session, local_path, github_path):
+def upload_to_github(session, local_path, github_path, content_bytes=None):
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{github_path}"
     try:
-        with open(local_path, "rb") as f:
-            content = base64.b64encode(f.read()).decode()
+        if content_bytes is not None:
+            content = base64.b64encode(content_bytes).decode()
+        else:
+            with open(local_path, "rb") as f:
+                content = base64.b64encode(f.read()).decode()
         
         get_file = session.get(url)
         data = {"message": f"Upload {github_path}", "content": content}
@@ -235,9 +230,9 @@ def run1():
     html_success = upload_to_github(session, output_filename, f"{github_base}/{output_filename}")
     
     # NEW: Upload answer_key.txt to the same directory as the HTML
-    if os.path.exists("answer_key.txt"):
+    if ANSWER_KEY:
         print(f"📤 Uploading answer_key.txt to GitHub...")
-        upload_to_github(session, "answer_key.txt", f"{github_base}/class-{cls}_{clean_subject.lower()}_{exam_no}/answer_key.txt")
+        upload_to_github(session, None, f"{github_base}/class-{cls}_{clean_subject.lower()}_{exam_no}/answer_key.txt", content_bytes=get_answer_key_bytes())
     
     if html_success:
         print(f"🚀 Uploading {len(student_list)} images...")
@@ -399,9 +394,9 @@ def run():
     print(f"📤 Uploading HTML to GitHub...")
     html_success = upload_to_github(session, output_filename, f"{github_base}/{output_filename}")
     
-    if os.path.exists("answer_key.txt"):
+    if ANSWER_KEY:
         print(f"📤 Uploading answer_key.txt to GitHub...")
-        upload_to_github(session, "answer_key.txt", f"{github_base}/class-{cls}_{clean_subject.lower()}_{exam_no}/answer_key.txt")
+        upload_to_github(session, None, f"{github_base}/class-{cls}_{clean_subject.lower()}_{exam_no}/answer_key.txt", content_bytes=get_answer_key_bytes())
     
     if html_success:
         print(f"🚀 Uploading {len(student_list)} images...")

@@ -23,11 +23,31 @@ A fast, web-based **OMR (Optical Mark Recognition) Scanner & Evaluation System**
 3. Select **GitHub** as your deployment source and choose your repository.
 4. Keep the builder as **Dockerfile** (the repository includes a pre-configured `Dockerfile` with OpenCV system dependencies).
 5. Add the following **Environment Variables** in Koyeb:
+   - `MONGO_URL` (**Required**): MongoDB connection string. The app refuses to
+     start without it, since all durable state lives there.
+   - `TELEGRAM_BOT_TOKEN` (**Required** for image storage): Bot token used to
+     store and restore images.
+   - `TELEGRAM_CHAT_ID` (**Required** for image storage): The chat holding the
+     stored images. **The bot must stay a member of this chat and its history
+     must not be cleared**, otherwise every stored image becomes unrecoverable.
    - `PASSWORD` (Optional): Set a secure password to protect your dashboard access.
-   - `TELEGRAM_BOT_TOKEN` (Optional): For Telegram result sharing.
-   - `TELEGRAM_CHAT_ID` (Optional): Chat ID for Telegram notifications.
    - `GITHUB_TOKEN` (Optional): For GitHub rolls synchronization.
+   - `SELF_PING_URL` (Optional): Your public URL plus `/healthz`, e.g.
+     `https://your-app.koyeb.app/healthz`. Keeps the instance awake by hitting
+     it every 5 minutes. `SELF_PING_INTERVAL` (default `300`) and
+     `DISABLE_SELF_PING=1` are also supported.
 6. Click **Deploy**. Once running, access your app via your Koyeb public URL!
+
+### Where your data lives
+
+| Data | Stored in |
+| --- | --- |
+| Settings, answer key, roll lists, folder list, scan state | MongoDB |
+| Images | Telegram (only the `file_id` is kept in MongoDB) |
+
+Because the container filesystem is ephemeral, nothing durable is written to
+disk. On first boot an empty database is seeded from the `config.cfg`,
+`answer_key.txt` and `*_rolls.txt` files committed in this repo.
 
 ---
 

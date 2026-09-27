@@ -4,9 +4,17 @@ import json
 import datetime
 import os
 import configparser
+import db
 
-config = configparser.ConfigParser()
-config.read('config.cfg')
+def _setting(key, default=""):
+    """Read a setting from Mongo, falling back to config.cfg when db is not
+    initialised (standalone/scripted use of this module)."""
+    try:
+        return db.get_settings().get(key, default)
+    except RuntimeError:
+        config = configparser.ConfigParser()
+        config.read('config.cfg')
+        return config.get('settings', key, fallback=default)
 
 #roll_first_column = [[260, 20], [260, 52], [260, 86], [260, 118], [260, 152], [260, 185],[260, 219], [260, 251],[260, 285],[260, 317]]
 #roll_second_column = [[297, 20], [297, 52], [297, 86], [297, 119], [297, 152], [297, 185], [297, 219], [297, 251],[297, 285],[297, 317] ]
@@ -19,7 +27,7 @@ sign_path = "static"
 
 def add_sign(base_image, dst_pts, rect, x, y, r = 0):
     try:
-        sign_file = config.get('settings', 'signature')
+        sign_file = _setting('signature')
         signature_image = cv2.imread(f"{sign_path}/{sign_file}", cv2.IMREAD_UNCHANGED)
 
         # Resize the signature image to width 100 while maintaining the aspect ratio
@@ -187,12 +195,12 @@ def find_extremes(coords):
     return smallest_x, largest_x, smallest_y, largest_y
 
 
-def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, has_shadow, allow_parcial_marking, new_cods_=[]):
+def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_shadow, allow_parcial_marking, new_cods_=[]):
     
-    white_pixel_value = int(config.get('settings', 'pixel_value')) #230 # 170
+    white_pixel_value = int(_setting('pixel_value', '200')) #230 # 170
     m_area = 150
     shadow_pixel_value = 280
-    roll_pixel = int(config.get('settings', 'roll_pixel')) 
+    roll_pixel = int(_setting('roll_pixel', '200'))
 
 
     if has_shadow:
@@ -524,8 +532,9 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
     # print("Unselected", unselected)
     #### start coloring the correct and wrong answers #####
 
-    with open(answer_key_file, "r") as red:
-        answer_key = json.load(red)
+    if isinstance(answer_key, str):
+        with open(answer_key, "r") as red:
+            answer_key = json.load(red)
     total_numbers = len(answer_key)
         
     for answer in answer_key:

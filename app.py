@@ -1,7 +1,7 @@
 import scan50 as s50
 import scan100 as s100
+import db
 import os
-import json
 import time
 import glob
 import shutil
@@ -16,30 +16,26 @@ except:
     auto_y_n = None
 
 
-def evaluate(image_file, out_put_path, answer_key_file, caption, has_darkness, allow_partial_mark):
-    with open(answer_key_file, 'r') as readd:
-        answers = json.load(readd)
-    if len(answers) < 51:
+def evaluate(image_file, out_put_path, answer_key, caption, has_darkness, allow_partial_mark):
+    if len(answer_key) < 51:
         return s50.find_and_draw_squares(image_file, out_put_path, 
-                                  answer_key_file, caption, has_darkness, allow_partial_mark)
-    elif len(answers) > 50:
+                                  answer_key, caption, has_darkness, allow_partial_mark)
+    elif len(answer_key) > 50:
         return s100.find_and_draw_squares(image_file, out_put_path, 
-                                   answer_key_file, caption, has_darkness, allow_partial_mark)
+                                   answer_key, caption, has_darkness, allow_partial_mark)
 
 
-# evaluate('images/n18.jpg', 'output/', "answer_key.txt", "", None, None)   
+db.init_db()
+answer_key = db.get(db.ANSWER_KEY)
+if not answer_key:
+    raise SystemExit("No answer key found in MongoDB.")
+
+# evaluate('images/n18.jpg', 'output/', answer_key, "", None, None)   
 moved = []
 download_path = "/sdcard/Download"
 target_input_path = "input"
 
 if os.path.exists(download_path):
-    for f in glob.glob(os.path.join(download_path, '*ans*_key*.txt*')):    
-         if os.path.exists("answer_key.txt"):
-             os.remove("answer_key.txt")
-         shutil.copy(f, "answer_key.txt")    
-         print(f"Answer key found in download folder and copied to main folder\n{f}")
-         print()
-
     image_exts = (".jpg", ".jpeg", ".png")
     omr_images = []
 
@@ -124,7 +120,7 @@ for photo in photos:
             cap = None
         print()
         
-        eval_data = evaluate(f"{ppath}/{photo}", "output/", "answer_key.txt", cap, None, None)
+        eval_data = evaluate(f"{ppath}/{photo}", "output/", answer_key, cap, None, None)
         try:
             print(f"{ppath}/{photo}")
             if eval_data[4] in rolls:

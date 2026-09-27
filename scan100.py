@@ -4,9 +4,18 @@ import json
 import datetime
 import configparser
 import os
+import db
 
-config = configparser.ConfigParser()
-config.read('config.cfg')
+def _setting(key, default=""):
+    """Read a setting from Mongo, falling back to config.cfg when db is not
+    initialised (standalone/scripted use of this module)."""
+    try:
+        return db.get_settings().get(key, default)
+    except RuntimeError:
+        config = configparser.ConfigParser()
+        config.read('config.cfg')
+        return config.get('settings', key, fallback=default)
+
 sign_path = "static"
 
 
@@ -21,7 +30,7 @@ def add_sign(base_image, dst_pts, rect, x, y, r = 0):
     try:
         # Load the signature image with alpha channel
         
-        sign_file = config.get('settings', 'signature')
+        sign_file = _setting('signature')
         signature_image = cv2.imread(f"{sign_path}/{sign_file}", cv2.IMREAD_UNCHANGED)
         
         # Resize the signature image to width 100 while maintaining the aspect ratio
@@ -233,7 +242,7 @@ def get_roll_cods(cap_given):
     return roll
 
 
-def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, has_shadow, new_cods_=[]):
+def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_shadow, new_cods_=[]):
     roll_pixel = 200
     white_pixel_value = 170
     m_area = 140
@@ -480,8 +489,9 @@ def find_and_draw_squares(image_path, output_path, answer_key_file, cap_given, h
  #   print("Unselected", unselected)
     #### start coloring the correct and wrong answers #####
 
-    with open(answer_key_file, "r") as red:
-        answer_key = json.load(red)
+    if isinstance(answer_key, str):
+        with open(answer_key, "r") as red:
+            answer_key = json.load(red)
     total_numbers = len(answer_key)
         
     for answer in answer_key:
