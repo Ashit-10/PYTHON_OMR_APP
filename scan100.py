@@ -19,6 +19,27 @@ def _setting(key, default=""):
 sign_path = "static"
 
 
+def safe_imwrite(path, image):
+    """Write an image, avoiding collisions with an existing file.
+
+    Results are named "<roll>_<marks>.jpg", so the same student scoring the
+    same number twice would silently overwrite the earlier result. Appends
+    "_1", "_2", ... until the name is free.
+    """
+    if not os.path.exists(path):
+        cv2.imwrite(path, image)
+        return path
+
+    base, ext = os.path.splitext(path)
+    i = 1
+    while True:
+        new_path = f"{base}_{i}{ext}"
+        if not os.path.exists(new_path):
+            cv2.imwrite(new_path, image)
+            return new_path
+        i += 1
+
+
 roll_first_column = [[257, 20], [257, 52], [257, 86], [257, 118], [257, 152], [257, 185],
                       [257, 219], [257, 251],[257, 285],[257, 317]]
 
@@ -642,12 +663,12 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
     # Save the output image with drawn contours and circles
     out_put_name = f"{roll_number}_{correct_numbers}.jpg"
     out_put_path_name = output_path + out_put_name
-    cv2.imwrite(out_put_path_name, original_with_contours)
+    safe_output_name = safe_imwrite(out_put_path_name, original_with_contours)
 
 
-    print(f"Output image saved at {out_put_path_name}")
+    print(f"Output image saved at {safe_output_name}")
 
-    return total_numbers, correct_numbers, total_numbers - (correct_numbers + wrong_numbers), wrong_numbers, roll_number, err_msg
+    return total_numbers, correct_numbers, total_numbers - (correct_numbers + wrong_numbers), wrong_numbers, roll_number, err_msg, safe_output_name
 
     # Display the final output image with drawn contours and circles
     # cv2.imshow("Final Output", original_with_contours)

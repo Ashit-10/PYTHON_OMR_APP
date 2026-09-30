@@ -3,18 +3,16 @@ import sys
 import time
 import shutil
 import subprocess
-import signal
 import threading
-import glob
 import re
 import json
 import logging
-import zipfile
 import base64
 import uuid
 import atexit
+import fcntl
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 
 import db
 import telegram
@@ -52,13 +50,43 @@ def send_telegram_notification(text):
     except Exception as e:
         logger.error(f"Telegram notification exception: {e}")
 
-try:
-    send_telegram_notification("Hi, I've been started")
-except Exception as e:
-    logger.error(f"Startup message error: {e}")
+
+def claim_boot_side_effects():
+    """Return True in exactly one process per container.
+
+    Gunicorn imports this module in every worker, so unguarded boot work
+    (Telegram pings, reconciling uploads left over from the previous deploy)
+    would run once per worker. An exclusive file lock gives a single winner
+    across processes without extra infrastructure; the lock is held for the
+    life of the process by keeping the descriptor open.
+    """
+    if os.environ.get("DISABLE_SINGLETON_BOOT"):
+        return True
+
+    path = os.path.join(tempfile.gettempdir(), "omr_boot.lock")
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
+    except OSError as e:
+        logger.warning("Could not open boot lock %s: %s", path, e)
+        return True
+
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        # Another worker already claimed it.
+        os.close(fd)
+        return False
+
+    # Keep the descriptor open for the process lifetime so the lock persists.
+    global _BOOT_LOCK_FD
+    _BOOT_LOCK_FD = fd
+    return True
+
 
 @atexit.register
 def shutdown_notification():
+    if not globals().get("IS_PRIMARY_WORKER"):
+        return
     try:
         send_telegram_notification("I have been disabled")
     except Exception as e:
@@ -81,6 +109,24 @@ except Exception as e:
         pass
     raise
 
+# One process per container runs the boot side effects. Every worker must
+# still reach this point, so only the guarded work is skipped elsewhere.
+IS_PRIMARY_WORKER = claim_boot_side_effects()
+
+if IS_PRIMARY_WORKER:
+    try:
+        stats = db.startup_maintenance()
+        logger.info("Startup maintenance: %s", stats)
+    except Exception as e:
+        logger.error(f"Startup maintenance failed: {e}")
+
+    try:
+        send_telegram_notification("Hi, I've been started")
+    except Exception as e:
+        logger.error(f"Startup message error: {e}")
+else:
+    logger.info("Secondary worker; skipping boot side effects.")
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "omr_app_default_secret_key_12345")
 APP_PASSWORD = os.environ.get("PASSWORD", "")
@@ -89,8 +135,11 @@ APP_PASSWORD = os.environ.get("PASSWORD", "")
 def require_login():
     if not APP_PASSWORD:
         return
-    allowed_endpoints = ['login', 'static', 'get_file', 'serve_output', 'serve_input', 'healthz']
-    if request.endpoint in allowed_endpoints or request.path.startswith('/static') or request.path.startswith('/temp_output') or request.path.startswith('/temp_input'):
+    # Only the login page, static assets and the liveness probe are reachable
+    # without a session. Image routes used to be whitelisted here, which made
+    # every answer sheet world-readable to anyone who could guess a filename.
+    allowed_endpoints = {'login', 'static', 'healthz'}
+    if request.endpoint in allowed_endpoints or request.path.startswith('/static'):
         return
     if session.get('authenticated') != True:
         return redirect(url_for('login'))
@@ -215,32 +264,95 @@ def get_project_folders():
     return sorted(out)
 
 # --- TELEGRAM IMAGE STORAGE ---
-def store_image(folder, filename, file_path=None):
-    """Upload one image to Telegram and record it in MongoDB.
+UPLOAD_ATTEMPTS = 3
+UPLOAD_RETRY_DELAY = 5
 
-    Never raises: a failed upload must not fail the OMR scan that produced it.
-    backfill_images() retries anything that is still missing.
+
+def store_image(folder, filename, file_path=None, _attempts=None):
+    """Upload one image to Telegram and index it in MongoDB.
+
+    Retries a few times, then records the failure in the upload queue so a
+    later attempt (or the next deploy) can pick it up. Never raises: a failed
+    upload must not fail the OMR scan that produced it.
     """
+    if _attempts is None:
+        _attempts = UPLOAD_ATTEMPTS
+
     if file_path is None:
         file_path = os.path.join(BASE, folder, filename)
 
     if not os.path.isfile(file_path):
+        logger.warning("Cannot store %s/%s: %s is missing", folder, filename, file_path)
         return None
     if not telegram.is_configured():
-        logger.warning("Telegram not configured; skipping upload of %s/%s", folder, filename)
+        logger.warning("Telegram not configured; queueing %s/%s", folder, filename)
+        db.queue_upload(folder, filename, file_path)
         return None
 
-    meta = telegram.send_image(file_path, caption=f"{folder}/{filename}")
+    meta = None
+    for attempt in range(1, _attempts + 1):
+        meta = telegram.send_image(file_path, caption=f"{folder}/{filename}")
+        if meta:
+            break
+        if attempt < _attempts:
+            logger.warning(
+                "Upload of %s/%s failed (attempt %d/%d); retrying",
+                folder, filename, attempt, _attempts,
+            )
+            time.sleep(UPLOAD_RETRY_DELAY)
+
     if not meta:
+        # Persist the intent so the bytes are not forgotten when the container
+        # is replaced. Without this the only copy was ephemeral disk.
+        logger.error("Giving up on %s/%s; queued for a later retry", folder, filename)
+        try:
+            db.queue_upload(folder, filename, file_path)
+            db.bump_upload_attempts(folder, filename)
+        except Exception as e:
+            logger.error(f"Could not queue %s/%s for retry: {e}", folder, filename)
         return None
 
     meta["mtime"] = os.path.getmtime(file_path)
     try:
         db.put_image(folder, filename, meta)
+        db.clear_upload(folder, filename)
     except Exception as e:
         logger.error(f"Could not index {folder}/{filename} in MongoDB: {e}")
     logger.info("Stored %s/%s on Telegram (msg_id=%s)", folder, filename, meta["msg_id"])
     return meta
+
+
+def reconcile_uploads():
+    """Retry every upload that previously failed.
+
+    Runs at boot: the file it refers to may be gone if the container was
+    replaced, in which case there is nothing left to salvage and the entry is
+    dropped. This is a safety net, not the primary path -- results and their
+    scores are written to MongoDB synchronously.
+    """
+    if not telegram.is_configured():
+        return 0
+
+    recovered = 0
+    lost = 0
+    for entry in db.get_uploads():
+        folder = entry.get("folder", "")
+        filename = entry.get("filename", "")
+        path = entry.get("file_path") or os.path.join(BASE, folder, filename)
+        if not os.path.isfile(path):
+            logger.warning(
+                "Queued upload %s/%s has no local copy; the file was lost with "
+                "the previous container", folder, filename,
+            )
+            db.clear_upload(folder, filename)
+            lost += 1
+            continue
+        db.bump_upload_attempts(folder, filename)
+        if store_image(folder, filename, path):
+            recovered += 1
+    if recovered or lost:
+        logger.info("Reconciled uploads: %d recovered, %d unrecoverable", recovered, lost)
+    return recovered
 
 def store_folder_images(folder, limit=None):
     """Upload every image in a folder that is not already in MongoDB."""
@@ -289,55 +401,128 @@ def fetch_image_from_telegram(folder, filename, dest_path):
     return False
 
 # --- BACKGROUND TASK WORKER ---
+# autoapp.py reads and writes the shared temp_input/ and temp_output/ folders,
+# and the filesystem here is not shared between gunicorn workers or containers.
+# A process-wide lock serialises scans within a worker; a lock file serialises
+# them across workers on the same filesystem.
+_SCAN_LOCK = threading.Lock()
+SCAN_LOCK_PATH = os.path.join(tempfile.gettempdir(), "omr_scan.lock")
+
+
+class _CrossProcessLock:
+    """Exclusive lock backed by a file, so concurrent gunicorn workers in one
+    container do not run two scans at once."""
+
+    def __init__(self, path):
+        self.path = path
+
+    def __enter__(self):
+        self.fd = os.open(self.path, os.O_CREAT | os.O_RDWR, 0o644)
+        fcntl.flock(self.fd, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc):
+        fcntl.flock(self.fd, fcntl.LOCK_UN)
+        os.close(self.fd)
+        return False
+
+
+def parse_result_filename(filename):
+    """Pull {roll, marks} out of a "<roll>_<marks>.jpg" result name.
+
+    The score is encoded in the filename by scan50/scan100, which makes the
+    image the only record of it. Returns None when the name does not match.
+    """
+    match = re.match(r"^(\d+)_(\d+)\.", os.path.basename(filename or ""))
+    if not match:
+        return None
+    return {"roll": int(match.group(1)), "marks": int(match.group(2))}
+
+
 def process_omr_task(task_id, input_filepath, original_filename):
-    """Executes autoapp.py asynchronously without blocking Flask."""
+    """Evaluate one sheet, then persist the verdict.
+
+    The score is written to MongoDB synchronously, before any image upload, so
+    the result survives a redeploy even if Telegram is unreachable. Uploads
+    run afterwards and queue themselves for retry if they fail.
+    """
+    task_output_dir = os.path.join(OUTPUT_FOLDER, task_id)
+    os.makedirs(task_output_dir, exist_ok=True)
+
     try:
         set_task(task_id, status="processing")
-        
-        # Run OMR engine
-        process = subprocess.Popen(
-            ["python3", "autoapp.py"], 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.PIPE,
-            cwd=BASE
-        )
-        stdout, stderr = process.communicate()
 
-        # Check output directory for new images
-        files = [f for f in os.listdir(OUTPUT_FOLDER) if f.lower().endswith(EXTENSIONS)]
-        
-        if files:
-            files.sort(key=lambda x: os.path.getmtime(os.path.join(OUTPUT_FOLDER, x)))
-            newest_file = files[-1]
-            
-            src_path = os.path.join(OUTPUT_FOLDER, newest_file)
+        with _SCAN_LOCK, _CrossProcessLock(SCAN_LOCK_PATH):
+            process = subprocess.Popen(
+                ["python3", "autoapp.py", input_filepath, task_output_dir],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=BASE,
+            )
+            stdout, stderr = process.communicate()
+
+            # Only this task's own output directory, never a shared folder: the
+            # previous "newest file in temp_output/" could pick up a different
+            # task's image and drop this task's result entirely.
+            files = sorted(
+                f for f in os.listdir(task_output_dir) if f.lower().endswith(EXTENSIONS)
+            )
+
+        if not files:
+            detail = (stderr or b"").decode(errors="replace").strip()
+            set_task(
+                task_id,
+                status="failed",
+                error=detail or "No output file produced by OMR engine.",
+            )
+            return
+
+        newest_file = files[0]
+        src_path = os.path.join(task_output_dir, newest_file)
+        name_part, ext_part = os.path.splitext(newest_file)
+        dest_path = os.path.join(FINAL_OUTPUT_FOLDER, newest_file)
+        count = 1
+        while os.path.exists(dest_path):
+            newest_file = f"{name_part}_{count}{ext_part}"
             dest_path = os.path.join(FINAL_OUTPUT_FOLDER, newest_file)
-            
-            # Handle filename collision
-            if os.path.exists(dest_path):
-                name_part, ext_part = os.path.splitext(newest_file)
-                count = 1
-                while os.path.exists(os.path.join(FINAL_OUTPUT_FOLDER, f"{name_part}_{count}{ext_part}")):
-                    count += 1
-                newest_file = f"{name_part}_{count}{ext_part}"
-                dest_path = os.path.join(FINAL_OUTPUT_FOLDER, newest_file)
+            count += 1
 
-            shutil.copy(src_path, dest_path)
+        shutil.move(src_path, dest_path)
+        shutil.rmtree(task_output_dir, ignore_errors=True)
 
-            # Persist the result and its input copy to Telegram.
-            executor.submit(store_image, "output", newest_file, dest_path)
-            if original_filename:
-                executor.submit(
-                    store_image, "input", original_filename,
-                    os.path.join(INPUT_FOLDER, original_filename)
-                )
+        # The durable record. Everything below this line is best-effort.
+        verdict = parse_result_filename(newest_file) or {}
+        try:
+            db.put_result(
+                task_id,
+                {
+                    "input_filename": original_filename or "",
+                    "output_filename": newest_file,
+                    "roll": verdict.get("roll"),
+                    "marks": verdict.get("marks"),
+                },
+            )
+        except Exception as e:
+            logger.error(f"Could not persist result for task {task_id}: {e}")
 
-            set_task(task_id, status="completed", output_filename=newest_file)
-        else:
-            set_task(task_id, status="failed", error=stderr.decode() if stderr else "No output file produced by OMR engine.")
+        set_task(
+            task_id,
+            status="completed",
+            output_filename=newest_file,
+            roll=verdict.get("roll"),
+            marks=verdict.get("marks"),
+        )
+
+        executor.submit(store_image, "output", newest_file, dest_path)
+        if original_filename:
+            executor.submit(
+                store_image, "temp_input", original_filename, input_filepath
+            )
 
     except Exception as e:
+        logger.error(f"OMR task {task_id} failed: {e}")
         set_task(task_id, status="failed", error=str(e))
+        shutil.rmtree(task_output_dir, ignore_errors=True)
 
 # --- ROUTES ---
 
@@ -389,7 +574,7 @@ def status():
     if t is None:
         # Fallback to returning the most recent task
         all_tasks = db.all_tasks()
-        t = all_tasks[list(all_tasks)[-1]] if all_tasks else None
+        t = max(all_tasks.values(), key=lambda x: x.get("created_at", 0), default=None)
 
     if t:
         return jsonify({
@@ -397,11 +582,16 @@ def status():
             "status": t.get("status", ""),
             "filename": t.get("output_filename", ""),
             "input_filename": t.get("input_filename", ""),
+            "roll": t.get("roll"),
+            "marks": t.get("marks"),
             "error": t.get("status") == "failed",
             "message": t.get("error", "")
         })
 
-    return jsonify({"processing": False, "filename": "", "input_filename": "", "error": False, "message": ""})
+    return jsonify({
+        "processing": False, "filename": "", "input_filename": "",
+        "roll": None, "marks": None, "error": False, "message": ""
+    })
 
 @app.route("/scan")
 def scan_ui():
@@ -595,9 +785,24 @@ def rename():
 
     try:
         os.rename(old_path, new_path)
-        return jsonify({"success": True}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+    # Move the image index entry too. Without this the old key still points at
+    # the previous name, so the renamed file loses its Telegram backup and
+    # becomes unreachable after a redeploy.
+    old_folder, _, old_name = data.get('old', '').rpartition("/")
+    new_folder, _, new_name = data.get('new', '').rpartition("/")
+    if old_name and new_name and old_name != new_name:
+        try:
+            meta = db.get_image(old_folder, old_name)
+            if meta:
+                db.put_image(new_folder, new_name, meta)
+                db.remove_image(old_folder, old_name)
+        except Exception as e:
+            logger.error(f"Could not move image index entry for {old_name}: {e}")
+
+    return jsonify({"success": True}), 200
 
 @app.route("/create_folder", methods=["POST"])
 def create_folder():
@@ -618,9 +823,19 @@ def create_folder():
 
 @app.route('/run-recheck', methods=['POST'])
 def trigger_recheck():
+    """Re-run sheets sitting in input/.
+
+    Deliberately does not clear output/, duplicates/ or error_images/. The
+    script used to accept a "y" that wiped those folders unconditionally, which
+    destroyed results on the server while leaving the Mongo image index
+    listing files that no longer existed. Existing results are preserved.
+    """
     try:
         script_path = os.path.join(BASE, "app.py")
-        result = subprocess.run(["python3", "-u", script_path, "y"], check=True, capture_output=True, text=True)
+        result = subprocess.run(
+            ["python3", "-u", script_path, "n"],
+            check=True, capture_output=True, text=True, cwd=BASE,
+        )
         return jsonify({"message": "Success", "output": result.stdout}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -823,9 +1038,20 @@ def _start_self_ping():
     logger.info("Self-ping every %ds -> %s", SELF_PING_INTERVAL, SELF_PING_URL)
 
 # The gunicorn CMD imports this module, so start it here rather than in
-# __main__ (which only runs under `python3 run_web.py`).
-if os.environ.get("DISABLE_SELF_PING", "").lower() not in ("1", "true", "yes"):
+# __main__ (which only runs under `python3 run_web.py`). Gated on the boot lock
+# so a second worker does not double the request rate.
+if (
+    IS_PRIMARY_WORKER
+    and os.environ.get("DISABLE_SELF_PING", "").lower() not in ("1", "true", "yes")
+):
     _start_self_ping()
+
+# Uploads that failed before the last deploy are retried here. This ran only
+# under __main__ before, so gunicorn never reconciled anything and a Telegram
+# outage lost every image uploaded in that window. Started after the module is
+# fully defined because reconcile_uploads is defined further down.
+if IS_PRIMARY_WORKER and telegram.is_configured():
+    threading.Thread(target=reconcile_uploads, daemon=True, name="reconcile").start()
 
 if __name__ == '__main__':
     # Images are uploaded to Telegram automatically, so catch up on anything

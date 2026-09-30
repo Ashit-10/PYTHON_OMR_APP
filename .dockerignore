@@ -1,0 +1,28 @@
+# Keep secrets and VCS history out of the image. Without this, "COPY . ."
+# bakes .env (Telegram bot token, Mongo URL, PASSWORD) and the full .git
+# history into every layer, where they remain readable by anyone who can pull
+# the image.
+.git
+.gitignore
+.env
+.env.*
+*.pem
+certs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv
+venv/
+
+# OMR scratch. These are recreated at boot and the durable copies live in
+# MongoDB and Telegram, so shipping whatever happens to be in the build
+# context just bloats the image.
+input/
+output/
+temp_input/
+temp_output/
+duplicates/
+error_images/
+*.zip

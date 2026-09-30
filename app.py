@@ -89,12 +89,16 @@ else:
 
 if_in_output = os.listdir("output/")
 if len(if_in_output) > 0:
-    if auto_y_n:
-        y_or_n = auto_y_n
+    # Existing results are never deleted automatically. This used to run
+    # "rm -f output/*" whenever the caller passed "y", which silently destroyed
+    # every stored result on a server deploy. Clearing is now an explicit,
+    # separate action and off by default.
+    print(f"{len(if_in_output)} photos already in output folder; keeping them.")
+    if not auto_y_n:
+        choice = input("Delete all existing results? [y/n] ").strip().lower()
     else:
-        print(f"{len(if_in_output)} photos found in output folder. Delete all ? [y/n]")
-        y_or_n = input()
-    if y_or_n.lower() == "y":
+        choice = "n"
+    if choice == "y":
         os.system("rm -f output/*")
         os.system("rm -f duplicates/*")
         os.system("rm -f error_images/*")

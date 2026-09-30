@@ -9,6 +9,7 @@ import glob
 import json
 import re
 import threading
+import time
 
 from pymongo import MongoClient, ASCENDING
 from pymongo.errors import PyMongoError
@@ -20,8 +21,21 @@ COLLECTION = "omr_state"
 SETTINGS_KEY = "settings"
 ANSWER_KEY = "answer_key"
 FOLDERS_KEY = "folders"
-TASKS_KEY = "tasks"
 ROLLS_PREFIX = "rolls:"
+
+# Per-entity prefixes. Tasks, images and results are stored one document per
+# entity rather than inside a single growing document: a read-modify-write of
+# one shared dict loses concurrent writes, and a single document is capped at
+# 16 MB by Mongo, which an unbounded task history would eventually hit.
+TASK_PREFIX = "task:"
+IMAGE_PREFIX = "image:"
+RESULT_PREFIX = "result:"
+UPLOAD_PREFIX = "upload:"
+
+# Results and tasks older than this are pruned at boot, so the collections stay
+# bounded on a long-lived deployment.
+TASK_RETENTION_SECONDS = 7 * 24 * 60 * 60
+RESULT_RETENTION_SECONDS = 365 * 24 * 60 * 60
 
 _client = None
 _lock = threading.Lock()
@@ -129,11 +143,24 @@ def init_db():
         _client = client
 
     get_collection().create_index([("key", ASCENDING)], unique=True)
+    # Supports the retention sweeps; not unique, and not a TTL index because
+    # pruning runs at boot rather than in the background.
+    get_collection().create_index([("created_at", ASCENDING)])
 
 
 def get(key, default=None):
+    """Read a stored value.
+
+    Handles both document shapes in this collection: simple values written via
+    set() live under "value", while per-entity documents (tasks, images,
+    results) hold their fields at the top level.
+    """
     doc = get_collection().find_one({"key": key})
-    return doc["value"] if doc else default
+    if not doc:
+        return default
+    if "value" in doc:
+        return doc["value"]
+    return _doc_value(doc)
 
 
 def set(key, value):
@@ -196,26 +223,102 @@ def remove_folder(name):
 
 
 def get_task(task_id):
-    return (get(TASKS_KEY) or {}).get(task_id)
+    return get(TASK_PREFIX + task_id)
 
 
 def set_task(task_id, data):
-    with _lock:
-        tasks = get(TASKS_KEY) or {}
-        tasks[task_id] = data
-        set(TASKS_KEY, tasks)
+    """Upsert one task document atomically.
+
+    run_web.set_task() merges a full task dict, so a whole-document $set keeps
+    the write a single atomic operation instead of a read-modify-write.
+    """
+    data = dict(data)
+    data["updated_at"] = time.time()
+    data.setdefault("created_at", data["updated_at"])
+    get_collection().update_one(
+        {"key": TASK_PREFIX + task_id},
+        {"$set": data},
+        upsert=True,
+    )
     return data
 
 
 def all_tasks():
-    return get(TASKS_KEY) or {}
+    """Every task, newest first. Scans by prefix so the small settings/folder
+    documents in the same collection are never loaded."""
+    cursor = get_collection().find(
+        {"key": {"$regex": "^" + re.escape(TASK_PREFIX)}}
+    )
+    tasks = {}
+    for doc in cursor:
+        tasks[doc["key"][len(TASK_PREFIX):]] = _doc_value(doc)
+    return tasks
+
+
+def _doc_value(doc):
+    """Flatten a stored document back into a plain dict.
+
+    Entities are written with $set at the top level, so a document holds the
+    fields directly rather than under "value".
+    """
+    doc.pop("_id", None)
+    return doc
+
+
+def prune_tasks(max_age=TASK_RETENTION_SECONDS):
+    """Drop tasks older than max_age. Returns the number removed."""
+    cutoff = time.time() - max_age
+    result = get_collection().delete_many(
+        {
+            "key": {"$regex": "^" + re.escape(TASK_PREFIX)},
+            "created_at": {"$lt": cutoff},
+        }
+    )
+    return result.deleted_count
+
+
+def put_result(task_id, data):
+    """Persist a scan's verdict.
+
+    This is the durable record of the score: the image itself may live only on
+    ephemeral disk or in Telegram, but {roll, marks} must never depend on
+    either surviving.
+    """
+    data = dict(data)
+    data["task_id"] = task_id
+    data["created_at"] = time.time()
+    get_collection().update_one(
+        {"key": RESULT_PREFIX + task_id}, {"$set": data}, upsert=True
+    )
+    return data
+
+
+def get_result(task_id):
+    return get(RESULT_PREFIX + task_id)
+
+
+def list_results():
+    """Every persisted scan result, newest first."""
+    cursor = get_collection().find(
+        {"key": {"$regex": "^" + re.escape(RESULT_PREFIX)}}
+    )
+    results = [_doc_value(doc) for doc in cursor]
+    results.sort(key=lambda r: r.get("created_at", 0), reverse=True)
+    return results
+
+
+def prune_results(max_age=RESULT_RETENTION_SECONDS):
+    cutoff = time.time() - max_age
+    result = get_collection().delete_many(
+        {
+            "key": {"$regex": "^" + re.escape(RESULT_PREFIX)},
+            "created_at": {"$lt": cutoff},
+        }
+    )
+    return result.deleted_count
 
 
 IMAGES_KEY = "images"
-
-# Mongo caps a single document at 16 MB. ~200 bytes per entry means this is
-# roughly 70k images; the guard just makes sure we notice before Mongo does.
-IMAGES_MAX_ENTRIES = 60000
 
 
 def image_key(folder, filename):
@@ -224,56 +327,121 @@ def image_key(folder, filename):
     return f"{folder}/{filename}".strip("/")
 
 
-def get_images():
-    return get(IMAGES_KEY) or {}
-
-
 def get_image(folder, filename):
-    return get_images().get(image_key(folder, filename))
+    return get(IMAGE_PREFIX + image_key(folder, filename))
 
 
 def put_image(folder, filename, meta):
-    with _lock:
-        images = get_images()
-        key = image_key(folder, filename)
-        if key not in images and len(images) >= IMAGES_MAX_ENTRIES:
-            raise RuntimeError(
-                f"Image index is full ({len(images)} entries). "
-                "Remove some images before uploading more."
-            )
-        images[key] = meta
-        set(IMAGES_KEY, images)
+    """Index one image. A single upsert is atomic, so concurrent uploads from
+    different workers cannot overwrite each other's entries."""
+    get_collection().update_one(
+        {"key": IMAGE_PREFIX + image_key(folder, filename)},
+        {"$set": dict(meta)},
+        upsert=True,
+    )
     return meta
 
 
 def remove_image(folder, filename):
-    with _lock:
-        images = get_images()
-        images.pop(image_key(folder, filename), None)
-        set(IMAGES_KEY, images)
+    get_collection().delete_one({"key": IMAGE_PREFIX + image_key(folder, filename)})
 
 
 def remove_images_in_folder(folder):
     """Drop every image entry for a folder. Returns the number removed."""
-    prefix = f"{folder}/"
-    with _lock:
-        images = get_images()
-        keys = [k for k in images if k.startswith(prefix)]
-        for k in keys:
-            del images[k]
-        set(IMAGES_KEY, images)
-    return len(keys)
+    result = get_collection().delete_many(
+        {
+            "key": {
+                "$regex": "^"
+                + re.escape(IMAGE_PREFIX)
+                + re.escape(folder)
+                + "/"
+            }
+        }
+    )
+    return result.deleted_count
 
 
 def list_images(folder=None):
-    """Stored image metadata, optionally limited to one folder."""
-    images = get_images()
+    """Stored image metadata keyed by "folder/filename", optionally limited to
+    one folder."""
+    query = {"key": {"$regex": "^" + re.escape(IMAGE_PREFIX)}}
+    images = {}
+    for doc in get_collection().find(query, {"_id": 0}):
+        full_key = doc["key"][len(IMAGE_PREFIX):]
+        images[full_key] = _doc_value(doc)
     if folder is None:
         return images
     prefix = f"{folder}/"
-    return {
-        k[len(prefix):]: v for k, v in images.items() if k.startswith(prefix)
-    }
+    return {k[len(prefix):]: v for k, v in images.items() if k.startswith(prefix)}
+
+
+def migrate_legacy_images():
+    """Convert the old single-document image index into per-image documents.
+
+    The previous schema kept every entry inside one "images" document, which
+    meant any concurrent write could drop an unrelated entry. Idempotent: it
+    is a no-op once the legacy document is gone.
+    """
+    legacy = get(IMAGES_KEY)
+    if not isinstance(legacy, dict) or not legacy:
+        return 0
+
+    for key, meta in legacy.items():
+        if not isinstance(meta, dict):
+            continue
+        get_collection().update_one(
+            {"key": IMAGE_PREFIX + key},
+            {"$set": dict(meta)},
+            upsert=True,
+        )
+    delete(IMAGES_KEY)
+    return len(legacy)
+
+
+# --- PENDING UPLOAD QUEUE ---
+# An image that failed to reach Telegram is recorded here so a later attempt
+# can retry it. Without this the only copy lived on ephemeral disk and was lost
+# on the next deploy, with nothing left to reconcile against.
+
+
+def queue_upload(folder, filename, file_path):
+    """Record an upload that still needs to happen. Returns the entry.
+
+    $setOnInsert keeps created_at and attempts intact across repeated queueing,
+    so a file that keeps failing shows a growing attempt count rather than
+    resetting to zero every time.
+    """
+    get_collection().update_one(
+        {"key": UPLOAD_PREFIX + image_key(folder, filename)},
+        {
+            "$set": {"folder": folder, "filename": filename, "file_path": file_path},
+            "$setOnInsert": {"attempts": 0, "created_at": time.time()},
+        },
+        upsert=True,
+    )
+    return get(UPLOAD_PREFIX + image_key(folder, filename))
+
+
+def get_uploads():
+    """Every queued upload."""
+    cursor = get_collection().find({"key": {"$regex": "^" + re.escape(UPLOAD_PREFIX)}})
+    uploads = []
+    for doc in cursor:
+        entry = _doc_value(doc)
+        uploads.append(entry)
+    uploads.sort(key=lambda u: u.get("created_at", 0))
+    return uploads
+
+
+def clear_upload(folder, filename):
+    get_collection().delete_one({"key": UPLOAD_PREFIX + image_key(folder, filename)})
+
+
+def bump_upload_attempts(folder, filename):
+    get_collection().update_one(
+        {"key": UPLOAD_PREFIX + image_key(folder, filename)},
+        {"$inc": {"attempts": 1}},
+    )
 
 
 def seed_from_disk(base_dir="."):
@@ -313,3 +481,19 @@ def seed_from_disk(base_dir="."):
             pass
 
     return True
+
+
+def startup_maintenance():
+    """Bring persisted state up to date on boot.
+
+    Runs the image-index schema migration and the retention sweeps. Safe to
+    call on every start: each step is idempotent.
+    """
+    migrated = migrate_legacy_images()
+    pruned_tasks = prune_tasks()
+    pruned_results = prune_results()
+    return {
+        "migrated_images": migrated,
+        "pruned_tasks": pruned_tasks,
+        "pruned_results": pruned_results,
+    }
