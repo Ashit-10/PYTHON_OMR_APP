@@ -943,7 +943,12 @@ def answer_key_route():
 def save_key():
     data = request.json or {}
     try:
-        db.set(db.ANSWER_KEY, data.get("content", ""))
+        content = data.get("content", "")
+        # The form posts JSON as a string. Store the parsed dict so the scan
+        # engines see the same shape regardless of how the key was saved.
+        if isinstance(content, (str, bytes)):
+            content = json.loads(content or "{}")
+        db.set(db.ANSWER_KEY, content)
         return jsonify(ok=True)
     except Exception as e:
         return jsonify(ok=False, error=str(e)), 500

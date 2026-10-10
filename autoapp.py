@@ -15,6 +15,7 @@ import os
 import shutil
 import sys
 import time
+import json
 
 import db
 import scan50 as s50
@@ -23,7 +24,20 @@ import scan100 as s100
 ERR_DIR = "error_images"
 
 
+def normalize_answer_key(answer_key):
+    """Return the answer key as a dict.
+
+    The web form stores the key as a JSON string while the seed path stores a
+    dict, so sizing or iterating a raw string misroutes 50-question sheets into
+    the 100-question engine.
+    """
+    if isinstance(answer_key, (bytes, str)):
+        answer_key = json.loads(answer_key)
+    return answer_key
+
+
 def evaluate(image_file, photo, out_put_path, answer_key, caption, has_darkness, allow_partial_mark):
+    answer_key = normalize_answer_key(answer_key)
     if len(answer_key) < 51:
         return s50.find_and_draw_squares(image_file, out_put_path,
                                          answer_key, caption, has_darkness, allow_partial_mark)

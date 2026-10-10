@@ -4,6 +4,7 @@ import db
 import os
 import time
 import glob
+import json
 import shutil
 import sys
 
@@ -17,6 +18,10 @@ except:
 
 
 def evaluate(image_file, out_put_path, answer_key, caption, has_darkness, allow_partial_mark):
+    # The web form stores the key as a JSON string while the seed path stores a
+    # dict; size the parsed key so 50-question sheets aren't routed to scan100.
+    if isinstance(answer_key, (bytes, str)):
+        answer_key = json.loads(answer_key)
     if len(answer_key) < 51:
         return s50.find_and_draw_squares(image_file, out_put_path, 
                                   answer_key, caption, has_darkness, allow_partial_mark)

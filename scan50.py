@@ -336,6 +336,12 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
     stored_dst_rect = []
     all_numbers_coods = {}
     unselected = {}
+    # Scored after the loop, so they must accumulate across every block rather
+    # than be reset on each iteration.
+    correct_numbers = 0
+    wrong_numbers = 0
+    roll_number = ""
+    roll_number_coods = []
     # Perform perspective transform for each overlapping set of four coordinates
     for i in range(0, len(all_cods) - 3, 2):
 
@@ -395,10 +401,6 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
             break
         opts = {}
         un_opts = {}
-        correct_numbers = 0
-        wrong_numbers = 0
-        roll_number = ""
-        roll_number_coods = []
         if img_no == 3:
             for roll_column in [roll_first_column, roll_second_column]:
                 for fi in roll_column:
@@ -532,9 +534,15 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
     # print("Unselected", unselected)
     #### start coloring the correct and wrong answers #####
 
+    # The web answer-key form posts JSON as a string; the seed path stores a dict.
+    # Treat a string as inline JSON, never as a path, so a saved key can't turn
+    # into a FileNotFoundError on the next scan.
     if isinstance(answer_key, str):
-        with open(answer_key, "r") as red:
-            answer_key = json.load(red)
+        try:
+            answer_key = json.loads(answer_key)
+        except ValueError:
+            with open(answer_key, "r") as red:
+                answer_key = json.load(red)
     total_numbers = len(answer_key)
         
     for answer in answer_key:
@@ -546,7 +554,9 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
         elif int(answer) < 51:
             [all_dst_pts, all_rect] = stored_dst_rect[2]
 
-        to_draw = all_sorted_data.get(answer)
+        # A block that failed detection has no entry; treat it as unanswered
+        # rather than crashing on len(None).
+        to_draw = all_sorted_data.get(answer) or []
         # print(to_draw)
 
         # allow_parcial_marking = True
@@ -596,7 +606,7 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
         ##### Draw pink dot on correct nswer as per answer key ######
         coods = all_sorted_number_data.get(answer)
         option = answer_key.get(answer)
-        for op in option:
+        for op in option or []:
             if op == "A":
                 op_index = 0
             if op == "B":
@@ -605,6 +615,10 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
                 op_index = 2
             if op == "D":
                 op_index = 3
+
+            # Skip if the block's bubble coords are missing or out of range.
+            if not coods or op_index is None or op_index >= len(coods):
+                continue
 
             [ax, ay] = coods[op_index]        ###### Draw pink dot
             draw_color(original_with_contours, all_dst_pts, all_rect, ax, ay, (100, 100, 255), 1)
@@ -697,8 +711,8 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
 
     # Save the output image with drawn contours and circles
     out_put_name = f"{roll_number}_{correct_numbers}.jpg"
-    out_put_path_name = output_path + out_put_name
-   # cv2.imwrite(out_put_path_name, original_with_contours)
+    out_put_path_name = os.path.join(output_path, out_put_name)
+    # cv2.imwrite(out_put_path_name, original_with_contours)
     safe_output_name = safe_imwrite(out_put_path_name, original_with_contours)
 
 
