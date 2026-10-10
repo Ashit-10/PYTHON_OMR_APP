@@ -683,7 +683,10 @@ def edit_rolls():
     students = []
     try:
         data = db.get_rolls(name)
-        for roll in sorted(data.keys(), key=lambda x: int(x) if str(x).isdigit() else x):
+        # Keep non-numeric keys comparable with numeric ones; returning a bare
+        # int for some rows and a str for others made sorted() raise TypeError
+        # and the page rendered empty.
+        for roll in sorted(data.keys(), key=lambda x: (0, int(x), "") if str(x).isdigit() else (1, 0, str(x))):
             students.append({'roll': roll, 'name': data[roll]})
     except Exception as e:
         print(f"Error loading rolls: {e}")

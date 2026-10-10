@@ -80,6 +80,20 @@ def get_student_names(tuition, cls):
     filename = f"{tuition}_class-{cls}_rolls"
     return db.get_rolls(filename)
 
+def lookup_student_name(names_db, roll):
+    """Resolve a roll number to a student name.
+
+    Roll numbers come out of the result filename as ints, but Mongo round-trips
+    the rolls mapping with string keys, so a direct int lookup always missed and
+    every student was published as "Student <roll>". Try the int first, then the
+    string form, and skip entries that only hold a placeholder dash.
+    """
+    for key in (roll, str(roll)):
+        name = names_db.get(key)
+        if name and str(name).strip() not in ("", "-"):
+            return name
+    return f"Student {roll}"
+
 def upload_to_github(session, local_path, github_path, content_bytes=None):
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{github_path}"
     try:
@@ -132,7 +146,7 @@ def run():
             roll, mark = int(match.group(1)), int(match.group(2))
             student_list.append({
                 "roll": roll, "mark": mark, "file": file_name,
-                "name": names_db.get(roll, f"Student {roll}"),
+                "name": lookup_student_name(names_db, roll),
                 "path": f"{folder_path}/eval_files/{file_name}" 
             })
 
