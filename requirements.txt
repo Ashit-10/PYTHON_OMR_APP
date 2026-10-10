@@ -4,3 +4,7 @@ opencv-python-headless
 numpy
 gunicorn
 pymongo
+
+# Test-only: the suite runs against an in-process Mongo unless TEST_MONGO_URL
+# points at a real server.
+mongomock
