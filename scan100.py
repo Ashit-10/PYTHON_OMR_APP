@@ -213,14 +213,28 @@ def create_needed_list(a):
 def rm_empty_opts(lst):
     return [item for item in lst if item != '']
 
+def _dark_pixel_integral(gray, threshold):
+    """Build a summed-area table for fast filled-bubble checks."""
+    _, dark_pixels = cv2.threshold(gray, threshold, 1, cv2.THRESH_BINARY_INV)
+    return cv2.integral(dark_pixels, sdepth=cv2.CV_32S)
+
+def _count_dark_pixels(integral, x, y, radius, width, height):
+    left, top = max(int(x) - radius, 0), max(int(y) - radius, 0)
+    right, bottom = min(int(x) + radius, width), min(int(y) + radius, height)
+    return (integral[bottom, right] - integral[top, right]
+            - integral[bottom, left] + integral[top, left])
+
 
 def choose_12(thresh1, square_contours):
     # Calculate white pixel values for each square contour
     white_pixel_counts = []
     for contour in square_contours:
-        mask = np.zeros_like(thresh1)
-        cv2.drawContours(mask, [contour], -1, 255, -1)
-        white_pixels = cv2.countNonZero(cv2.bitwise_and(thresh1, thresh1, mask=mask))
+        x, y, w, h = cv2.boundingRect(contour)
+        roi = thresh1[y:y + h, x:x + w]
+        mask = np.zeros((h, w), dtype=np.uint8)
+        local_contour = contour - np.array([[[x, y]]], dtype=contour.dtype)
+        cv2.drawContours(mask, [local_contour], -1, 255, -1)
+        white_pixels = cv2.countNonZero(cv2.bitwise_and(roi, mask))
         white_pixel_counts.append((contour, white_pixels))
 
     # Sort contours by white pixel values and select the top 8 with the most similar values
@@ -317,14 +331,17 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
         # Filter and store square-like contours
         square_contours = []
         for contour in contours:
+            area = cv2.contourArea(contour)
+            if area < min_area or area >= max_area:
+                continue
             approx = cv2.approxPolyDP(contour, 0.03 * cv2.arcLength(contour, True), True)
-            if len(approx) == 4:
-                (x, y, w, h) = cv2.boundingRect(approx)
-                aspect_ratio = w / float(h)
-                area = cv2.contourArea(contour)
-                # Additional check for convexity and aspect ratio closer to 1
-                if 0.7 <= aspect_ratio <= 1.3 and area >= min_area and area < max_area and cv2.isContourConvex(approx):
-                    square_contours.append(approx)
+            if len(approx) != 4:
+                continue
+            (x, y, w, h) = cv2.boundingRect(approx)
+            aspect_ratio = w / float(h)
+            # Additional check for convexity and aspect ratio closer to 1
+            if 0.7 <= aspect_ratio <= 1.3 and cv2.isContourConvex(approx):
+                square_contours.append(approx)
 
         if len(square_contours) > 12:
             print("gone to choose from", len(square_contours))
@@ -407,15 +424,14 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
         opts = {}
         un_opts = {}
         if img_no == 5:
+            roll_integral = _dark_pixel_integral(warped_gray, 128)
             for roll_column in [roll_first_column, roll_second_column]:
                 for fi in roll_column:
                     [xr, yr] = fi
                     r = 10
-                    x_start_r, y_start_r = max(xr-r, 0), max(yr-r, 0)
-                    x_end_r, y_end_r = min(xr+r, width), min(yr+r, height)
-                    small_square_r = warped_gray[y_start_r:y_end_r, x_start_r:x_end_r]
-                    _, binary_square_r = cv2.threshold(small_square_r, 128, 255, cv2.THRESH_BINARY_INV)
-                    white_pixel_count_r = cv2.countNonZero(binary_square_r)
+                    white_pixel_count_r = _count_dark_pixels(
+                        roll_integral, xr, yr, r, width, height
+                    )
                     if white_pixel_count_r > roll_pixel:   # white pixel for roll number
                         f_roll_num = roll_column.index(fi) + 1
                         if f_roll_num == 10:
@@ -441,18 +457,15 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
         img_no += 1
 
         if circles is not None:
+            option_integral = _dark_pixel_integral(warped_gray, 120)
             n = 0
             circle_cods = []
             for (x, y) in circles:
                 r = 10
                 circle_cods.append([x,y])
-                x_start, y_start = max(x-r, 0), max(y-r, 0)
-                x_end, y_end = min(x+r, width), min(y+r, height)
-                small_square = warped_gray[y_start:y_end, x_start:x_end]
-                
-                # Convert to binary (black and white)
-                _, binary_square = cv2.threshold(small_square, 120, 255, cv2.THRESH_BINARY_INV)
-                white_pixel_count = cv2.countNonZero(binary_square)
+                white_pixel_count = _count_dark_pixels(
+                    option_integral, x, y, r, width, height
+                )
                 un_opt = ""
                 if white_pixel_count > white_pixel_value:  # white pixel for options
                     if n == 0 or (n % 4) == 0:
@@ -691,4 +704,3 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
 
 # # # Example usage
 # print(find_and_draw_squares('images/test2.jpg', 'output/', "ans_key.txt", "", False))
-

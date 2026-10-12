@@ -123,13 +123,27 @@ def opposite_pattern(img_no):
 def rm_empty_opts(lst):
     return [item for item in lst if item != '']
 
+def _dark_pixel_integral(gray, threshold):
+    """Build a summed-area table for fast filled-bubble checks."""
+    _, dark_pixels = cv2.threshold(gray, threshold, 1, cv2.THRESH_BINARY_INV)
+    return cv2.integral(dark_pixels, sdepth=cv2.CV_32S)
+
+def _count_dark_pixels(integral, x, y, radius, width, height):
+    left, top = max(int(x) - radius, 0), max(int(y) - radius, 0)
+    right, bottom = min(int(x) + radius, width), min(int(y) + radius, height)
+    return (integral[bottom, right] - integral[top, right]
+            - integral[bottom, left] + integral[top, left])
+
 def choose_8(thresh1, square_contours):
     # Calculate white pixel values for each square contour
     white_pixel_counts = []
     for contour in square_contours:
-        mask = np.zeros_like(thresh1)
-        cv2.drawContours(mask, [contour], -1, 255, -1)
-        white_pixels = cv2.countNonZero(cv2.bitwise_and(thresh1, thresh1, mask=mask))
+        x, y, w, h = cv2.boundingRect(contour)
+        roi = thresh1[y:y + h, x:x + w]
+        mask = np.zeros((h, w), dtype=np.uint8)
+        local_contour = contour - np.array([[[x, y]]], dtype=contour.dtype)
+        cv2.drawContours(mask, [local_contour], -1, 255, -1)
+        white_pixels = cv2.countNonZero(cv2.bitwise_and(roi, mask))
         white_pixel_counts.append((contour, white_pixels))
 
     # Sort contours by white pixel values and select the top 8 with the most similar values
@@ -236,54 +250,39 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
 
     # Convert to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    for blur_value in [(1, 1), (3, 3), (5, 5), (7, 7), (9, 9), (11, 11), None]:
-        # Apply Gaussian blur to smooth edges
-        if blur_value is None:
-            blurred = gray  # Use original image without blur
-        else:
-            blurred = cv2.GaussianBlur(gray, blur_value, 0)
-     #   print(blur_value)
-    #####################################################new#############################################################
-        # Adaptive thresholding
-        blockSize = 27  # Try increasing to 15, 19, 23, etc.
-        for C in [5, 10]: # Try adjusting to different values like 5, 10, etc.
-            thresh1 = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, blockSize, C)
+    kernel = np.ones((3, 3), np.uint8)
+    for blur_value in [(1, 1), (3, 3), (5, 5), (7, 7), (9, 9), (11, 11)]:
+        blurred = cv2.GaussianBlur(gray, blur_value, 0)
+        thresh1 = cv2.adaptiveThreshold(
+            blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY_INV, 27, 10,
+        )
+        thresh1 = cv2.morphologyEx(thresh1, cv2.MORPH_CLOSE, kernel)
+        contours, _ = cv2.findContours(
+            thresh1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+        )
 
-        # Morphological operations to enhance square features
-            kernel_size = 3  # Try adjusting to 5, 7, etc.
-            kernel = np.ones((kernel_size, kernel_size), np.uint8)
-            thresh1 = cv2.morphologyEx(thresh1, cv2.MORPH_CLOSE, kernel)
+        # Check contour area before polygon approximation, which avoids the
+        # more expensive geometry work for the many tiny page-text contours.
+        square_contours = []
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if area < min_area or area >= max_area:
+                continue
+            approx = cv2.approxPolyDP(
+                contour, 0.03 * cv2.arcLength(contour, True), True
+            )
+            if len(approx) != 4:
+                continue
+            _, _, w, h = cv2.boundingRect(approx)
+            aspect_ratio = w / float(h)
+            if 0.7 <= aspect_ratio <= 1.3 and cv2.isContourConvex(approx):
+                square_contours.append(approx)
 
-        # cv2.imshow("Binary Image", thresh1)
-        # cv2.waitKey(0)
-            contours, _ = cv2.findContours(thresh1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        # Filter and store square-like contours
-            square_contours = []
-            for contour in contours:
-                approx = cv2.approxPolyDP(contour, 0.03 * cv2.arcLength(contour, True), True)
-                if len(approx) == 4:
-                    (x, y, w, h) = cv2.boundingRect(approx)
-                    aspect_ratio = w / float(h)
-                    area = cv2.contourArea(contour)
-                # Additional check for convexity and aspect ratio closer to 1
-                    if 0.7 <= aspect_ratio <= 1.3 and area >= min_area and area < max_area and cv2.isContourConvex(approx):
-                    # print("Area of square boxes:", area)
-                        square_contours.append(approx)
-
-            if len(square_contours) > 8:
-            # print("gone to choose", len(square_contours))
-                square_contours = choose_8(thresh1, square_contours)
-            # print(len(square_contours))
-
-            if len(square_contours) == 8:
-                break
         if len(square_contours) > 8:
-            # print("gone to choose", len(square_contours))
-                square_contours = choose_8(thresh1, square_contours)
-            # print(len(square_contours))
-
+            square_contours = choose_8(thresh1, square_contours)
         if len(square_contours) == 8:
-                break
+            break
                 
                 
     if len(square_contours) != 8:
@@ -402,15 +401,14 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
         opts = {}
         un_opts = {}
         if img_no == 3:
+            roll_integral = _dark_pixel_integral(warped_gray, 120)
             for roll_column in [roll_first_column, roll_second_column]:
                 for fi in roll_column:
                     [xr, yr] = fi
                     r = 11
-                    x_start_r, y_start_r = max(xr-r, 0), max(yr-r, 0)
-                    x_end_r, y_end_r = min(xr+r, width), min(yr+r, height)
-                    small_square_r = warped_gray[y_start_r:y_end_r, x_start_r:x_end_r]
-                    _, binary_square_r = cv2.threshold(small_square_r, 120, 255, cv2.THRESH_BINARY_INV)
-                    white_pixel_count_r = cv2.countNonZero(binary_square_r)
+                    white_pixel_count_r = _count_dark_pixels(
+                        roll_integral, xr, yr, r, width, height
+                    )
                     
                     if white_pixel_count_r > roll_pixel:   # white pixel for roll number
                      #   print(white_pixel_count_r)
@@ -438,6 +436,7 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
                 err_msg += "Error finding roll number, but omr sheet evaluated correctly ✅!"
                 roll_number = "0"
         if circles is not None:
+            option_integral = _dark_pixel_integral(warped_gray, 120)
             # circles = np.round(circles[0, :]).astype("int")
             n = 0
             # circle_cods = []
@@ -445,15 +444,9 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
             # for (x, y, r) in circles:
                 r = 12
                 # circle_cods.append([x,y])
-                x_start, y_start = max(x-r, 0), max(y-r, 0)
-                x_end, y_end = min(x+r, width), min(y+r, height)
-                small_square = warped_gray[y_start:y_end, x_start:x_end]
-                
-                # Convert to binary (black and white)
-                _, binary_square = cv2.threshold(small_square, 120, 255, cv2.THRESH_BINARY_INV)
-                # cv2.imshow("Final Output", binary_square)
-                # cv2.waitKey(0)
-                white_pixel_count = cv2.countNonZero(binary_square)
+                white_pixel_count = _count_dark_pixels(
+                    option_integral, x, y, r, width, height
+                )
                 # white_pixel_counts.append(white_pixel_count)
                 # print(f"Circle at ({x}, {y}): White pixel count = {white_pixel_count}")
                 un_opt = ""

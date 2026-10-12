@@ -215,8 +215,10 @@ STATIC_FOLDERS = ["input", "output", "duplicates", "error_images"]
 for folder in [INPUT_FOLDER, OUTPUT_FOLDER, FINAL_OUTPUT_FOLDER] + [os.path.join(BASE, f) for f in STATIC_FOLDERS]:
     os.makedirs(folder, exist_ok=True)
 
-# Async processing state
-executor = ThreadPoolExecutor(max_workers=4)
+# Keep CPU-bound scans separate from network-bound Telegram uploads. A slow
+# upload/retry must not occupy every worker and leave new scans queued.
+scan_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="omr-scan")
+upload_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="omr-upload")
 
 def set_task(task_id, **fields):
     task = dict(db.get_task(task_id) or {})
@@ -513,9 +515,9 @@ def process_omr_task(task_id, input_filepath, original_filename):
             marks=verdict.get("marks"),
         )
 
-        executor.submit(store_image, "output", newest_file, dest_path)
+        upload_executor.submit(store_image, "output", newest_file, dest_path)
         if original_filename:
-            executor.submit(
+            upload_executor.submit(
                 store_image, "temp_input", original_filename, input_filepath
             )
 
@@ -559,12 +561,12 @@ def upload():
 
     # Persist the original immediately, so the sheet survives even if the scan
     # itself fails.
-    executor.submit(store_image, "temp_input", filename, input_filepath)
+    upload_executor.submit(store_image, "temp_input", filename, input_filepath)
 
     task_id = str(uuid.uuid4())
     set_task(task_id, status="queued", input_filename=filename)
 
-    executor.submit(process_omr_task, task_id, input_filepath, filename)
+    scan_executor.submit(process_omr_task, task_id, input_filepath, filename)
     return jsonify({"message": "OK", "task_id": task_id, "filename": filename})
 
 @app.route('/status')
@@ -1065,6 +1067,6 @@ if __name__ == '__main__':
     # Images are uploaded to Telegram automatically, so catch up on anything
     # that never made it (pre-existing files, previously failed uploads).
     if telegram.is_configured():
-        executor.submit(backfill_images)
+        upload_executor.submit(backfill_images)
     port = int(os.environ.get("PORT", 8000))
     app.run(host='0.0.0.0', port=port, threaded=True)
