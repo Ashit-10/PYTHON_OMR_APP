@@ -6,9 +6,27 @@ import os
 import configparser
 import db
 
+# Injected by autoapp.py from the task config file. When set, the engine does
+# not touch MongoDB at all, which keeps the scan subprocess off the network.
+_settings_override = None
+
+
+def configure(settings):
+    global _settings_override
+    _settings_override = dict(settings) if settings else None
+
+
+def _int_setting(key, default):
+    try:
+        return int(float(_setting(key, default)))
+    except (TypeError, ValueError):
+        return int(default)
+
+
 def _setting(key, default=""):
-    """Read a setting from Mongo, falling back to config.cfg when db is not
-    initialised (standalone/scripted use of this module)."""
+    """Read a setting from the injected config, Mongo, or config.cfg."""
+    if _settings_override is not None:
+        return _settings_override.get(key, default)
     try:
         return db.get_settings().get(key, default)
     except RuntimeError:
@@ -172,9 +190,12 @@ def choose_8(thresh1, square_contours):
     
 def get_roll_cods(cap_given, roll_first_column, roll_second_column):
     roll = []
-    cap = cap_given.strip()
+    cap = str(cap_given).strip()
+    if not cap.isdigit():
+        cap = "0"
     if len(cap) == 1:
-        cap = f"0{cap_given}"
+        cap = f"0{cap}"
+    cap = cap[-2:]
     p = 0
     for roll_column in [roll_first_column, roll_second_column]:
         cap_int = int(cap[p])
@@ -211,10 +232,10 @@ def find_extremes(coords):
 
 def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_shadow, allow_parcial_marking, new_cods_=[]):
     
-    white_pixel_value = int(_setting('pixel_value', '200')) #230 # 170
+    white_pixel_value = _int_setting('pixel_value', 200) #230 # 170
     m_area = 150
     shadow_pixel_value = 280
-    roll_pixel = int(_setting('roll_pixel', '200'))
+    roll_pixel = _int_setting('roll_pixel', 200)
 
 
     if has_shadow:
@@ -403,20 +424,26 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
         if img_no == 3:
             roll_integral = _dark_pixel_integral(warped_gray, 120)
             for roll_column in [roll_first_column, roll_second_column]:
+                # A column encodes one digit. Pick the strongest bubble instead
+                # of concatenating every mark, which made a smudge turn the
+                # whole roll into "0".
+                best = None
                 for fi in roll_column:
                     [xr, yr] = fi
-                    r = 11
                     white_pixel_count_r = _count_dark_pixels(
-                        roll_integral, xr, yr, r, width, height
+                        roll_integral, xr, yr, 11, width, height
                     )
-                    
-                    if white_pixel_count_r > roll_pixel:   # white pixel for roll number
-                     #   print(white_pixel_count_r)
-                        f_roll_num = roll_column.index(fi) + 1
-                        if f_roll_num == 10:
-                            f_roll_num = "0"
-                        roll_number += str(f_roll_num)
-                        roll_number_coods.append([xr, yr])
+                    if white_pixel_count_r > roll_pixel and (
+                        best is None or white_pixel_count_r > best[0]
+                    ):
+                        best = (white_pixel_count_r, fi)
+                if best:
+                    fi = best[1]
+                    f_roll_num = roll_column.index(fi) + 1
+                    if f_roll_num == 10:
+                        f_roll_num = "0"
+                    roll_number += str(f_roll_num)
+                    roll_number_coods.append([fi[0], fi[1]])
 
 
             # top max 2 ta pixel ku naba #todo
@@ -426,8 +453,8 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
                 roll_number_coods = [roll_first_column[9], roll_second_column[9]]
 
             if cap_given:
-                roll_number_coods = get_roll_cods(cap_given,roll_first_column, roll_second_column)
-                roll_number = cap_given.strip()
+                roll_number_coods = get_roll_cods(cap_given, roll_first_column, roll_second_column)
+                roll_number = "".join(ch for ch in str(cap_given) if ch.isdigit())[-2:] or "0"
 
             if (len(roll_number) == 2) and (str(roll_number).startswith("0")):
                 roll_number = str(roll_number)[1:]
@@ -539,13 +566,21 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
     total_numbers = len(answer_key)
         
     for answer in answer_key:
-        # print(answer)
-        if int(answer) < 21:
-            [all_dst_pts, all_rect] = stored_dst_rect[0]
-        elif int(answer) < 41:
-            [all_dst_pts, all_rect] = stored_dst_rect[1]
-        elif int(answer) < 51:
-            [all_dst_pts, all_rect] = stored_dst_rect[2]
+        try:
+            question_no = int(answer)
+        except (TypeError, ValueError):
+            continue
+        if question_no < 21:
+            block = 0
+        elif question_no < 41:
+            block = 1
+        elif question_no < 51:
+            block = 2
+        else:
+            continue
+        if block >= len(stored_dst_rect):
+            continue
+        [all_dst_pts, all_rect] = stored_dst_rect[block]
 
         # A block that failed detection has no entry; treat it as unanswered
         # rather than crashing on len(None).
@@ -620,8 +655,12 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
 
                 ###### Color roll number coords #####
 
-    # print(len(roll_number_coods))
-    [roll_dst_pts, roll_rect] = stored_dst_rect[2]    # for roll number the last image data
+    # The roll bubbles live in the third block. A partial detection can leave
+    # fewer blocks; skip the decorative roll overlay instead of crashing.
+    if len(stored_dst_rect) > 2:
+        [roll_dst_pts, roll_rect] = stored_dst_rect[2]
+    else:
+        [roll_dst_pts, roll_rect] = ([], [])
     for roll_cod in roll_number_coods:
         [xx, yy] = roll_cod     
         draw_color(original_with_contours, roll_dst_pts, roll_rect, xx, yy, (0, 0, 0), 8, cv2.FILLED)

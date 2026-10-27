@@ -10,6 +10,8 @@ never touches Telegram.
 """
 import os
 import logging
+import time
+import uuid
 
 import requests
 
@@ -45,27 +47,43 @@ def send_image(file_path, caption=""):
     """
     _require_config()
 
-    try:
-        with open(file_path, "rb") as f:
-            payload = {"chat_id": TELEGRAM_CHAT_ID}
-            if caption:
-                payload["caption"] = caption
-            files = {"document": (os.path.basename(file_path), f)}
-            response = requests.post(
-                _api_url("sendDocument"),
-                data=payload,
-                files=files,
-                timeout=REQUEST_TIMEOUT,
-            )
-    except Exception as e:
-        logger.error(f"Telegram upload failed for {file_path}: {e}")
-        return None
+    response = None
+    for attempt in range(3):
+        try:
+            with open(file_path, "rb") as f:
+                payload = {"chat_id": TELEGRAM_CHAT_ID}
+                if caption:
+                    payload["caption"] = caption
+                files = {"document": (os.path.basename(file_path), f)}
+                response = requests.post(
+                    _api_url("sendDocument"),
+                    data=payload,
+                    files=files,
+                    timeout=REQUEST_TIMEOUT,
+                )
+        except Exception as e:
+            logger.error(f"Telegram upload failed for {file_path}: {e}")
+            return None
 
-    if not response.ok:
+        if response.ok:
+            break
+        if response.status_code == 429 or response.status_code >= 500:
+            try:
+                retry_after = int(response.json().get("parameters", {}).get("retry_after", 2))
+            except ValueError:
+                retry_after = 2
+            logger.warning("Telegram upload throttled; retrying in %ss", retry_after)
+            time.sleep(min(retry_after, 30))
+            continue
+
         logger.error(
             f"Telegram upload failed for {file_path} "
             f"({response.status_code}): {response.text[:200]}"
         )
+        return None
+
+    if response is None or not response.ok:
+        logger.error(f"Telegram upload failed for {file_path} after retries")
         return None
 
     try:
@@ -118,21 +136,34 @@ def file_url(file_id):
 
 
 def download(file_id, dest_path):
-    """Download a file_id to dest_path. Returns True on success."""
+    """Download a file_id to dest_path atomically. Returns True on success.
+
+    Writing straight to dest_path meant a timeout left a truncated image that
+    looked valid to every later request. A sibling .part file is only renamed
+    into place after the complete body has arrived.
+    """
     url = file_url(file_id)
     if not url:
         return False
 
+    os.makedirs(os.path.dirname(dest_path) or ".", exist_ok=True)
+    # Unique per attempt: the boot restore thread and an on-demand /file
+    # request can otherwise write the same .part file at the same time.
+    part_path = f"{dest_path}.{uuid.uuid4().hex}.part"
     try:
-        response = requests.get(url, timeout=DOWNLOAD_TIMEOUT, stream=True)
-        response.raise_for_status()
-        os.makedirs(os.path.dirname(dest_path) or ".", exist_ok=True)
-        with open(dest_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=65536):
-                if chunk:
-                    f.write(chunk)
+        with requests.get(url, timeout=DOWNLOAD_TIMEOUT, stream=True) as response:
+            response.raise_for_status()
+            with open(part_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=65536):
+                    if chunk:
+                        f.write(chunk)
+        os.replace(part_path, dest_path)
     except Exception as e:
         logger.error(f"Telegram download failed for {dest_path}: {e}")
+        try:
+            os.remove(part_path)
+        except OSError:
+            pass
         return False
 
     return True

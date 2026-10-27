@@ -10,7 +10,14 @@ temp_input/
 temp_output/
 duplicates/
 error_images/
+thumbnails/
 *.zip
+
+# Never commit local secrets / certificates.
+.env
+.env.*
+certs/
+*.pem
 
 # C extensions
 *.so

@@ -409,6 +409,7 @@ body {
 
   <script>
       let currentScanId = 0; 
+    let activeTaskId = "";
     let stream, torchOn = false;
     let toastTimer = null; 
     let permanentToast = false;
@@ -624,6 +625,8 @@ body {
       const isInstant = instantToggle.checked;
       const rollNum = document.getElementById('rollInput').value;
       const uniqueId = Date.now();
+      activeTaskId = "";
+      lastProcessedFile = "";
       document.getElementById('rollInput').value = '';
 
       if (isInstant && stream) {
@@ -655,13 +658,18 @@ body {
           mode: 'cors'
         });
 
-        if (!response.ok) throw new Error("Upload Failed");
+        const uploadData = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(uploadData.error || "Upload Failed");
+        activeTaskId = uploadData.task_id || "";
 
         let attempts = 0;
         const checkStatus = async () => {
           attempts++;
           try {
-            const st = await fetch(`${window.location.origin}/status`);
+            const statusUrl = activeTaskId
+              ? `${window.location.origin}/status?task_id=${encodeURIComponent(activeTaskId)}`
+              : `${window.location.origin}/status`;
+            const st = await fetch(statusUrl);
             const data = await st.json();
             if (data.error) {
                 if (isInstant) { handleProcError(loadingScreen, null, data.message || "Analysis Failed"); } 
@@ -693,8 +701,12 @@ body {
                 return;
             } 
             else if (attempts < 150) { setTimeout(checkStatus, 600); } 
-            else { throw new Error("Timeout"); }
-          } catch (e) { setTimeout(checkStatus, 600); }
+            else { throw new Error("Scan timed out"); }
+          } catch (e) {
+            if (attempts < 150) setTimeout(checkStatus, 600);
+            else if (isInstant) handleProcError(loadingScreen, null, "Scan timed out");
+            else showToast("❌ Scan timed out", true);
+          }
         };
         checkStatus();
       } catch (err) {

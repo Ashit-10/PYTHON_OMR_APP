@@ -6,9 +6,25 @@ import configparser
 import os
 import db
 
+_settings_override = None
+
+
+def configure(settings):
+    global _settings_override
+    _settings_override = dict(settings) if settings else None
+
+
+def _int_setting(key, default):
+    try:
+        return int(float(_setting(key, default)))
+    except (TypeError, ValueError):
+        return int(default)
+
+
 def _setting(key, default=""):
-    """Read a setting from Mongo, falling back to config.cfg when db is not
-    initialised (standalone/scripted use of this module)."""
+    """Read a setting from the injected config, Mongo, or config.cfg."""
+    if _settings_override is not None:
+        return _settings_override.get(key, default)
     try:
         return db.get_settings().get(key, default)
     except RuntimeError:
@@ -191,6 +207,27 @@ def find_extremes(coords):
 
     return smallest_x, largest_x, smallest_y, largest_y
 
+def question_block(question):
+    """Physical block index for a 100-question sheet question number.
+
+    Each printed block holds two columns of ten questions, so blocks repeat:
+    1-10, 11-20, 21-30, 31-40, 41-50, 51-60, 61-70, 71-80, 81-90, 91-100.
+    """
+    if 1 <= question <= 10 or 21 <= question <= 30:
+        return 0
+    if 11 <= question <= 20 or 31 <= question <= 40:
+        return 1
+    if 41 <= question <= 50 or 61 <= question <= 70:
+        return 2
+    if 51 <= question <= 60 or 71 <= question <= 80:
+        return 3
+    if 81 <= question <= 90:
+        return 4
+    if 91 <= question <= 100:
+        return 5
+    return None
+
+
 def create_needed_list(a):
     # Split the input list into three sublists of four elements each
     sublists = [a[i:i + 4] for i in range(0, len(a), 4)]
@@ -262,9 +299,12 @@ def choose_12(thresh1, square_contours):
         return []
 def get_roll_cods(cap_given):
     roll = []
-    cap = cap_given.strip()
+    cap = str(cap_given).strip()
+    if not cap.isdigit():
+        cap = "0"
     if len(cap) == 1:
-        cap = f"0{cap_given}"
+        cap = f"0{cap}"
+    cap = cap[-2:]
     p = 0
     for roll_column in [roll_first_column, roll_second_column]:
         cap_int = int(cap[p])
@@ -277,8 +317,9 @@ def get_roll_cods(cap_given):
     return roll
 
 
-def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_shadow, new_cods_=[]):
-    roll_pixel = 200
+def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_shadow,
+                          allow_parcial_marking=None, new_cods_=[]):
+    roll_pixel = _int_setting('roll_pixel', 200)
     white_pixel_value = 170
     m_area = 140
     shadow_pixel_value = 200
@@ -426,18 +467,25 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
         if img_no == 5:
             roll_integral = _dark_pixel_integral(warped_gray, 128)
             for roll_column in [roll_first_column, roll_second_column]:
+                # One digit per column: take the strongest bubble so a light
+                # stray mark cannot turn the whole roll into "0".
+                best = None
                 for fi in roll_column:
                     [xr, yr] = fi
-                    r = 10
                     white_pixel_count_r = _count_dark_pixels(
-                        roll_integral, xr, yr, r, width, height
+                        roll_integral, xr, yr, 10, width, height
                     )
-                    if white_pixel_count_r > roll_pixel:   # white pixel for roll number
-                        f_roll_num = roll_column.index(fi) + 1
-                        if f_roll_num == 10:
-                            f_roll_num = "0"
-                        roll_number += str(f_roll_num)
-                        roll_number_coods.append([xr, yr])
+                    if white_pixel_count_r > roll_pixel and (
+                        best is None or white_pixel_count_r > best[0]
+                    ):
+                        best = (white_pixel_count_r, fi)
+                if best:
+                    fi = best[1]
+                    f_roll_num = roll_column.index(fi) + 1
+                    if f_roll_num == 10:
+                        f_roll_num = "0"
+                    roll_number += str(f_roll_num)
+                    roll_number_coods.append([fi[0], fi[1]])
 
             roll_number = roll_number.strip()
             if (len(str(roll_number)) > 2) or (not roll_number):
@@ -446,7 +494,7 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
 
             if cap_given:
                 roll_number_coods = get_roll_cods(cap_given)
-                roll_number = cap_given.strip()
+                roll_number = "".join(ch for ch in str(cap_given) if ch.isdigit())[-2:] or "0"
 
             if (len(roll_number) == 2) and (str(roll_number).startswith("0")):
                 roll_number = str(roll_number)[1:]
@@ -537,24 +585,17 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
     total_numbers = len(answer_key)
         
     for answer in answer_key:
-        # print(answer)
-        if int(answer) < 11 or (int(answer) > 20 and int(answer) < 30):
-            [all_dst_pts, all_rect] = stored_dst_rect[0]
-
-        elif (int(answer) > 10 and int(answer) < 21) or (int(answer) > 30 and int(answer) < 40):
-            [all_dst_pts, all_rect] = stored_dst_rect[1]
-
-        elif (int(answer) > 40 and int(answer) < 51) or (int(answer) > 60 and int(answer) < 71):
-            [all_dst_pts, all_rect] = stored_dst_rect[2]
-
-        elif (int(answer) > 50 and int(answer) < 61) or (int(answer) > 70 and int(answer) < 81):
-            [all_dst_pts, all_rect] = stored_dst_rect[3]
-
-        elif (int(answer) > 80 and int(answer) < 91):
-            [all_dst_pts, all_rect] = stored_dst_rect[4]
-
-        elif (int(answer) > 90 and int(answer) < 101):
-            [all_dst_pts, all_rect] = stored_dst_rect[5]
+        # Two question numbers share each printed block. The old range test
+        # compared with strict > and < and had holes at 30 and 40, which made
+        # those questions reuse the previous question's perspective transform.
+        try:
+            question_no = int(answer)
+        except (TypeError, ValueError):
+            continue
+        block = question_block(question_no)
+        if block is None or block >= len(stored_dst_rect):
+            continue
+        [all_dst_pts, all_rect] = stored_dst_rect[block]
   
 
         # A block that failed detection has no entry; treat it as unanswered
@@ -562,7 +603,21 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
         to_draw = all_sorted_data.get(answer) or []
         # print("To draw", to_draw)
 
-        if len(to_draw) > 1:
+        if allow_parcial_marking:
+            # Same partial-marking mode as scan50: score all selected options
+            # as correct only when the full expected set is present.
+            all_chosen = [draw[0] for draw in to_draw]
+            if all_chosen and all_chosen == answer_key.get(answer):
+                for to_color in to_draw:
+                    [xx, yy] = to_color[1]
+                    draw_color(original_with_contours, all_dst_pts, all_rect, xx, yy, (10, 245, 0), 6)
+                correct_numbers += 1
+            elif all_chosen:
+                for to_color in to_draw:
+                    [xx, yy] = to_color[1]
+                    draw_color(original_with_contours, all_dst_pts, all_rect, xx, yy, (10, 0, 250), 6)
+                wrong_numbers += 1
+        elif len(to_draw) > 1:
             for d in to_draw:
                 [xx, yy] = d[1]        ### wrong answer   #red
                 draw_color(original_with_contours, all_dst_pts, all_rect, xx, yy, (0, 0, 250), 6)  
@@ -608,8 +663,12 @@ def find_and_draw_squares(image_path, output_path, answer_key, cap_given, has_sh
 
                 ###### Color roll number coords #####
 
-    # print(len(roll_number_coods))
-    [roll_dst_pts, roll_rect] = stored_dst_rect[4]    # for roll number the last image data
+    # The roll bubbles live in the fifth block. A partial detection can leave
+    # fewer blocks; skip the decorative roll overlay instead of crashing.
+    if len(stored_dst_rect) > 4:
+        [roll_dst_pts, roll_rect] = stored_dst_rect[4]
+    else:
+        [roll_dst_pts, roll_rect] = ([], [])
     for roll_cod in roll_number_coods:
         [xx, yy] = roll_cod     
         draw_color(original_with_contours, roll_dst_pts, roll_rect, xx, yy, (0, 0, 0), 8, cv2.FILLED)

@@ -25,4 +25,5 @@ temp_input/
 temp_output/
 duplicates/
 error_images/
+thumbnails/
 *.zip

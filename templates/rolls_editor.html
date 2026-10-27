@@ -6,13 +6,13 @@
     <title>{{ filename }}</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
-        body { background: #121212; color: #e0e0e0; font-family: sans-serif; margin: 0; }
-        header { padding: 15px; background: #222; display: flex; align-items: center; gap: 20px; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #333; }
+        body { background: var(--bg, #0b1020); color: var(--text, #eef4ff); font-family: Inter, sans-serif; margin: 0; min-height: 100vh; }
+        header { padding: 15px; background: rgba(11,16,32,.86); backdrop-filter: blur(12px); display: flex; align-items: center; gap: 20px; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid var(--line, #26324f); }
         .student-item {
             display: flex; align-items: center; gap: 15px;
-            background: #1e1e1e; padding: 12px;
-            margin: 8px; border-radius: 10px;
-            border: 1px solid #333;
+            background: var(--panel, #17203a); padding: 12px;
+            margin: 8px; border-radius: 12px;
+            border: 1px solid var(--line, #26324f);
         }
         .roll-number {
             font-family: monospace; font-size: 1.1rem;
@@ -25,10 +25,10 @@
         }
         input.name-input:focus { border-bottom: 1px solid #00ffaa; outline: none; }
         .delete-btn { background: none; border: none; color: #ff5555; cursor: pointer; font-size: 1.2rem; }
-        
+
         .footer-actions {
-            position: fixed; bottom: 0; width: 100%; 
-            background: #1a1a1a; padding: 15px; 
+            position: fixed; bottom: 0; width: 100%;
+            background: rgba(23,32,58,.96); padding: 15px;
             display: flex; gap: 8px; box-sizing: border-box;
             border-top: 1px solid #333;
         }
@@ -76,8 +76,12 @@ function addNewStudent() {
     const nextRollDefault = maxRoll + 1;
     let customRollStr = prompt("Roll Number:", nextRollDefault);
     if (customRollStr === null || customRollStr.trim() === "") return;
-    
-    let customRoll = parseInt(customRollStr);
+
+    let customRoll = parseInt(customRollStr, 10);
+    if (!Number.isInteger(customRoll) || customRoll < 1) {
+        alert("Roll number must be a positive integer.");
+        return;
+    }
 
     if (existingRolls.includes(customRoll)) {
         alert("Roll " + customRoll + " already exists!");
@@ -90,14 +94,21 @@ function addNewStudent() {
     const container = document.getElementById('list-container');
     const div = document.createElement('div');
     div.className = 'student-item';
-    div.innerHTML = `
-        <span class="roll-number">${customRoll}</span>
-        <input type="text" class="name-input" value="${name}">
-        <button type="button" class="delete-btn" onclick="this.parentElement.remove(); saveChanges(true);">🗑</button>
-    `;
-    
+    const rollEl = document.createElement('span');
+    rollEl.className = 'roll-number';
+    rollEl.textContent = customRoll;
+    const nameEl = document.createElement('input');
+    nameEl.type = 'text';
+    nameEl.className = 'name-input';
+    nameEl.value = name;
+    const delEl = document.createElement('button');
+    delEl.type = 'button';
+    delEl.className = 'delete-btn';
+    delEl.textContent = '🗑';
+    delEl.addEventListener('click', () => { div.remove(); saveChanges(true); });
+    div.append(rollEl, nameEl, delEl);
     container.appendChild(div);
-    sortList(); 
+    sortList();
     div.scrollIntoView({ behavior: 'smooth' });
 
     // Auto-save when adding, but silently
@@ -121,7 +132,7 @@ function saveChanges(silent = false) {
     fetch('/save_rolls', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: "{{ filename }}", students: students })
+        body: JSON.stringify({ filename: {{ filename|tojson }}, students: students })
     })
     .then(r => r.json())
     .then(data => {
@@ -136,11 +147,11 @@ function saveChanges(silent = false) {
 function syncToGithub() {
     const btn = document.getElementById('gitBtn');
     if(!confirm("Push local file to GitHub?")) return;
-    
+
     btn.innerText = "⏳ Pushing...";
     btn.disabled = true;
 
-    fetch(`/sync_roll_github?file={{ filename }}`)
+    fetch('/sync_roll_github?file=' + encodeURIComponent({{ filename|tojson }}), {method: 'POST'})
     .then(r => r.json())
     .then(data => {
         if(data.status === 'success') alert("🚀 Uploaded to GitHub successfully!");

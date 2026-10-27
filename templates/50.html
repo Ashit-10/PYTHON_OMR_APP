@@ -182,7 +182,7 @@
     function displayQuestions() {
         questionContainer.innerHTML = '';
         for (let i = 1; i <= 100; i++) {
-            const options = userInput[i - 1] || []; 
+            const options = userInput[i - 1] || [];
             const questionDiv = createQuestionElement(i, options);
             questionContainer.appendChild(questionDiv);
         }
@@ -226,24 +226,24 @@
     resetBtn.textContent = 'Reset';
     resetBtn.className = 'action-button';
     resetBtn.style.backgroundColor = '#999';
-    resetBtn.style.marginLeft = '10px'; 
-    
+    resetBtn.style.marginLeft = '10px';
+
     resetBtn.addEventListener('click', (e) => {
-        e.preventDefault(); 
+        e.preventDefault();
         if (confirm('Clear all bubbles and saved data?')) {
             // 1. Clear LocalStorage
             localStorage.removeItem('omr_saved_data');
-            
+
             // 2. Uncheck every checkbox in the UI manually
             const checkboxes = document.querySelectorAll('input[type="checkbox"]');
             checkboxes.forEach(cb => cb.checked = false);
-            
+
             // 3. Reset the userInput array
-            userInput.length = 0; 
-            
+            userInput.length = 0;
+
             // 4. Refresh colors (turns everything back to red)
             updateQuestionColors();
-            
+
             alert("Sheet cleared!");
         }
     });
@@ -259,10 +259,10 @@
             .catch(err => console.log("New file, starting blank."));
     }
 
-    const existingContent = `{{ content|safe }}`; 
+    const existingContent = {{ content|tojson }};
     if (existingContent && existingContent.trim() !== "" && existingContent !== "None") {
         try {
-            processJSON(JSON.parse(existingContent)); 
+            processJSON(JSON.parse(existingContent));
         } catch (e) {
             console.error("Jinja content error");
         }
@@ -314,7 +314,7 @@
                     // Process and display the new data
                     processJSON(jsonData);
                     // Automatically trigger save to answer_key.txt
-                    await saveData(); 
+                    await saveData();
                     alert("✅ Data pasted and saved!");
                 }
             } else {
@@ -389,7 +389,7 @@
       <option value="D">set - D</option>
       <option value="none" selected>No set</option>
     </select>
-  
+
   </div>
   <form id="omrForm">
     <div id="questionContainer"></div>

@@ -12,10 +12,18 @@ import uuid
 import atexit
 import fcntl
 import tempfile
+import hashlib
+import hmac
 from concurrent.futures import ThreadPoolExecutor
 
 import db
 import telegram
+
+try:  # Pillow is optional; without it /thumb falls back to the full image.
+    from PIL import Image
+    Image.MAX_IMAGE_PIXELS = 50_000_000
+except ImportError:  # pragma: no cover - exercised only on minimal installs
+    Image = None
 
 # Configure logging to output to stdout for Koyeb terminal
 logging.basicConfig(
@@ -34,6 +42,15 @@ from flask import (
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+
+# Images are uploaded in batches by a background worker. The UI never waits
+# for Telegram, and the free instance no longer spends CPU on TLS during the
+# OpenCV scan.
+SYNC_INTERVAL = int(os.environ.get("SYNC_INTERVAL", "1800"))
+SYNC_ON_START = os.environ.get("SYNC_ON_START", "1").lower() not in ("0", "false", "no")
+RESTORE_ON_BOOT = os.environ.get("RESTORE_ON_BOOT", "1").lower() not in ("0", "false", "no")
+SCAN_TIMEOUT = int(os.environ.get("SCAN_TIMEOUT", "180"))
+MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "25"))
 
 logger = logging.getLogger("omr")
 
@@ -128,8 +145,23 @@ else:
     logger.info("Secondary worker; skipping boot side effects.")
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "omr_app_default_secret_key_12345")
 APP_PASSWORD = os.environ.get("PASSWORD", "")
+_secret = os.environ.get("SECRET_KEY")
+if not _secret:
+    # Deterministic across gunicorn workers, unlike a random per-process key,
+    # and not the old public default that allowed session forgery. Set
+    # SECRET_KEY explicitly to decouple it from the database URL.
+    _secret = hashlib.sha256(
+        f"{APP_PASSWORD}|{os.environ.get('MONGO_URL', '')}|omr-session".encode("utf-8")
+    ).hexdigest()
+    logger.warning("SECRET_KEY is not set; deriving one from PASSWORD and MONGO_URL.")
+app.secret_key = _secret
+app.config.update(
+    MAX_CONTENT_LENGTH=MAX_UPLOAD_MB * 1024 * 1024,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("COOKIE_SECURE", "").lower() in ("1", "true", "yes"),
+)
 
 @app.before_request
 def require_login():
@@ -144,6 +176,11 @@ def require_login():
     if session.get('authenticated') != True:
         return redirect(url_for('login'))
 
+@app.errorhandler(413)
+def too_large(_error):
+    return jsonify({"error": f"Image is larger than {MAX_UPLOAD_MB} MB."}), 413
+
+
 @app.route('/healthz')
 def healthz():
     """Unauthenticated liveness probe, also used by the self-ping thread."""
@@ -156,11 +193,15 @@ def login():
     error = None
     if request.method == 'POST':
         pwd = request.form.get('password', '')
-        if pwd == APP_PASSWORD:
+        if hmac.compare_digest(pwd, APP_PASSWORD):
+            session.clear()
             session['authenticated'] = True
             app.logger.info("User successfully logged in.")
             return redirect(url_for('dashboard'))
         else:
+            # Small fixed delay blunts trivial online guessing without adding
+            # a dependency or per-IP state.
+            time.sleep(0.4)
             error = "Invalid password. Please try again."
             app.logger.warning("Failed login attempt.")
     return render_template_string(LOGIN_HTML, error=error)
@@ -208,25 +249,56 @@ BASE = os.path.abspath(os.getcwd())
 INPUT_FOLDER = os.path.join(BASE, "temp_input")
 OUTPUT_FOLDER = os.path.join(BASE, "temp_output")
 FINAL_OUTPUT_FOLDER = os.path.join(BASE, "output")
+THUMB_FOLDER = os.path.join(BASE, "thumbnails")
 EXTENSIONS = ('.jpg', '.jpeg', '.png', '.webp')
 STATIC_FOLDERS = ["input", "output", "duplicates", "error_images"]
+MANAGED_CONFIG_FILES = {"answer_key.txt", "config.cfg"}
 
 # Ensure essential directories exist
-for folder in [INPUT_FOLDER, OUTPUT_FOLDER, FINAL_OUTPUT_FOLDER] + [os.path.join(BASE, f) for f in STATIC_FOLDERS]:
+for folder in [INPUT_FOLDER, OUTPUT_FOLDER, FINAL_OUTPUT_FOLDER, THUMB_FOLDER] + [os.path.join(BASE, f) for f in STATIC_FOLDERS]:
     os.makedirs(folder, exist_ok=True)
+
+# Answer key + settings cache. Every scan needs both; reading them from Atlas
+# for every sheet was one of the largest sources of latency.
+_config_cache = {"value": None, "expires": 0.0}
+_config_lock = threading.Lock()
+CONFIG_CACHE_TTL = float(os.environ.get("CONFIG_CACHE_TTL", "60"))
+
+
+def invalidate_scan_config():
+    with _config_lock:
+        _config_cache["value"] = None
+        _config_cache["expires"] = 0.0
+    db.invalidate_settings()
+
+
+def get_scan_config(force=False):
+    """Return {"answer_key", "settings"} once per TTL instead of per scan."""
+    now = time.time()
+    with _config_lock:
+        cached = _config_cache["value"]
+        if not force and cached is not None and _config_cache["expires"] > now:
+            return cached
+        answer_key = db.get(db.ANSWER_KEY)
+        settings = db.get_settings()
+        value = {"answer_key": answer_key, "settings": settings}
+        _config_cache["value"] = value
+        _config_cache["expires"] = now + CONFIG_CACHE_TTL
+        return value
 
 # Keep CPU-bound scans separate from network-bound Telegram uploads. A slow
 # upload/retry must not occupy every worker and leave new scans queued.
 scan_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="omr-scan")
-upload_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="omr-upload")
 
 def set_task(task_id, **fields):
-    task = dict(db.get_task(task_id) or {})
-    task.update(fields)
-    task.setdefault("input_filename", "")
-    task.setdefault("output_filename", "")
-    task.setdefault("error", "")
-    return db.set_task(task_id, task)
+    """Update one task without reading it first (halves Atlas round trips)."""
+    defaults = {
+        "input_filename": "",
+        "output_filename": "",
+        "error": "",
+        "status": "queued",
+    }
+    return db.update_task(task_id, fields, defaults=defaults)
 
 def get_task(task_id):
     return db.get_task(task_id)
@@ -242,32 +314,138 @@ log.addFilter(FilterRequests())
 
 # --- HELPER FUNCTIONS ---
 def get_safe_path(req_path):
-    """Prevents directory traversal attacks."""
+    """Resolve a user path and prove it is inside BASE.
+
+    startswith() was not enough: /workspace and /workspace_evil share a prefix,
+    so "../workspace_evil/x" passed. realpath also blocks symlink escapes.
+    """
     if not req_path:
         return BASE
-    normalized = os.path.normpath(req_path).lstrip("/\\")
-    target = os.path.abspath(os.path.join(BASE, normalized))
-    if not target.startswith(BASE):
+    normalized = str(req_path).replace("\\", "/").lstrip("/")
+    target = os.path.realpath(os.path.join(BASE, normalized))
+    root = os.path.realpath(BASE)
+    try:
+        inside = os.path.commonpath([root, target]) == root
+    except ValueError:
+        inside = False
+    if not inside:
         raise PermissionError("Access denied: Path outside root directory.")
     return target
 
-def get_project_folders():
+
+def is_managed_path(raw):
+    """True for paths the UI is allowed to delete or rename."""
+    if not raw:
+        return False
+    normalized = str(raw).replace("\\", "/").strip("/")
+    if not normalized or normalized.startswith("."):
+        return False
+    parts = normalized.split("/")
+    first = parts[0]
+    if first in STATIC_FOLDERS or first in get_project_folders():
+        return True
+    return len(parts) == 1 and (first in MANAGED_CONFIG_FILES or first.endswith("_rolls.txt"))
+
+_folders_cache = {"value": None, "expires": 0.0}
+FOLDERS_CACHE_TTL = float(os.environ.get("FOLDERS_CACHE_TTL", "30"))
+
+
+def invalidate_folders():
+    _folders_cache["value"] = None
+    _folders_cache["expires"] = 0.0
+
+
+def get_project_folders(force=False):
     """Folders known to MongoDB, plus any image folder present on disk.
 
     The disk half keeps folders visible on a fresh deploy before any folder
     metadata has been written; the Mongo half is what survives redeploys.
+    Cached briefly because every thumbnail request checks this list.
     """
+    now = time.time()
+    if not force and _folders_cache["value"] is not None and _folders_cache["expires"] > now:
+        return _folders_cache["value"]
     out = set(db.get_folders())
     if os.path.exists(BASE):
         for f in os.listdir(BASE):
             full_path = os.path.join(BASE, f)
             if os.path.isdir(full_path) and (f.startswith("class") or f in STATIC_FOLDERS):
                 out.add(f)
-    return sorted(out)
+    value = sorted(out)
+    _folders_cache["value"] = value
+    _folders_cache["expires"] = now + FOLDERS_CACHE_TTL
+    return value
+
+# --- LOCAL IMAGE CACHE / THUMBNAILS ---
+def is_servable_image(raw):
+    """Only image files inside managed folders may be streamed.
+
+    /file previously accepted any path under BASE, which made .env, the Flask
+    source and certs/key.pem downloadable by anyone with a login. Keep the
+    image routes broad enough for temp uploads and class folders, but never
+    serve arbitrary repository files.
+    """
+    if not raw:
+        return False
+    normalized = str(raw).replace("\\", "/").strip("/")
+    if not normalized or ".." in normalized.split("/"):
+        return False
+    parts = normalized.split("/")
+    first = parts[0]
+    if first not in STATIC_FOLDERS and first not in ("temp_input", "temp_output"):
+        try:
+            if first not in get_project_folders():
+                return False
+        except Exception:
+            return False
+    return parts[-1].lower().endswith(EXTENSIONS)
+
+
+def thumb_path_for(folder, filename):
+    digest = hashlib.sha1(f"{folder}/{filename}".encode("utf-8")).hexdigest()
+    return os.path.join(THUMB_FOLDER, digest + ".jpg")
+
+
+def make_thumbnail(source, folder, filename):
+    """Create a small listing image. Missing Pillow is not fatal: /thumb will
+    simply serve the original file."""
+    if Image is None:
+        return None
+    dest = thumb_path_for(folder, filename)
+    try:
+        if os.path.exists(dest) and os.path.getmtime(dest) >= os.path.getmtime(source):
+            return dest
+        os.makedirs(THUMB_FOLDER, exist_ok=True)
+        with Image.open(source) as img:
+            img = img.convert("RGB")
+            img.thumbnail((420, 420), Image.Resampling.LANCZOS)
+            img.save(dest, "JPEG", quality=78, optimize=True)
+        return dest
+    except Exception as e:
+        logger.debug("Could not thumbnail %s/%s: %s", folder, filename, e)
+        return None
+
+
+def queue_image(folder, filename, file_path=None):
+    """Record an image for the next Telegram batch and build its thumbnail."""
+    if file_path is None:
+        file_path = os.path.join(BASE, folder, filename)
+    if not os.path.isfile(file_path):
+        return None
+    make_thumbnail(file_path, folder, filename)
+    try:
+        return db.queue_upload(folder, filename, file_path)
+    except Exception as e:
+        logger.error("Could not queue %s/%s: %s", folder, filename, e)
+        return None
+
 
 # --- TELEGRAM IMAGE STORAGE ---
-UPLOAD_ATTEMPTS = 3
-UPLOAD_RETRY_DELAY = 5
+# Batching means a scan queues its images instantly and the network work is
+# done later by the sync worker. Lower retry counts keep a bad batch from
+# occupying the worker for minutes.
+UPLOAD_ATTEMPTS = int(os.environ.get("UPLOAD_ATTEMPTS", "2"))
+UPLOAD_RETRY_DELAY = int(os.environ.get("UPLOAD_RETRY_DELAY", "2"))
 
 
 def store_image(folder, filename, file_path=None, _attempts=None):
@@ -304,9 +482,7 @@ def store_image(folder, filename, file_path=None, _attempts=None):
             time.sleep(UPLOAD_RETRY_DELAY)
 
     if not meta:
-        # Persist the intent so the bytes are not forgotten when the container
-        # is replaced. Without this the only copy was ephemeral disk.
-        logger.error("Giving up on %s/%s; queued for a later retry", folder, filename)
+        logger.error("Giving up on %s/%s; leaving it queued for the next batch", folder, filename)
         try:
             db.queue_upload(folder, filename, file_path)
             db.bump_upload_attempts(folder, filename)
@@ -314,37 +490,47 @@ def store_image(folder, filename, file_path=None, _attempts=None):
             logger.error(f"Could not queue %s/%s for retry: {e}", folder, filename)
         return None
 
-    meta["mtime"] = os.path.getmtime(file_path)
     try:
+        meta["mtime"] = os.path.getmtime(file_path)
+    except OSError:
+        meta["mtime"] = time.time()
+    try:
+        # Index first, clear the queue second: an index failure must leave the
+        # file queued so a later batch can still attach its Telegram id.
         db.put_image(folder, filename, meta)
         db.clear_upload(folder, filename)
+        make_thumbnail(file_path, folder, filename)
     except Exception as e:
         logger.error(f"Could not index {folder}/{filename} in MongoDB: {e}")
     logger.info("Stored %s/%s on Telegram (msg_id=%s)", folder, filename, meta["msg_id"])
     return meta
 
 
-def reconcile_uploads():
-    """Retry every upload that previously failed.
+def sync_pending_uploads(limit=None):
+    """Upload queued local images to Telegram in one batch.
 
-    Runs at boot: the file it refers to may be gone if the container was
-    replaced, in which case there is nothing left to salvage and the entry is
-    dropped. This is a safety net, not the primary path -- results and their
-    scores are written to MongoDB synchronously.
+    Local disk is authoritative while the container lives. Telegram is the
+    durable copy used after a redeploy, so it does not need to be updated on
+    every single scan.
     """
     if not telegram.is_configured():
         return 0
 
     recovered = 0
     lost = 0
-    for entry in db.get_uploads():
+    entries = db.get_uploads()
+    if limit:
+        entries = entries[:limit]
+    for entry in entries:
         folder = entry.get("folder", "")
         filename = entry.get("filename", "")
         path = entry.get("file_path") or os.path.join(BASE, folder, filename)
         if not os.path.isfile(path):
+            # The local copy disappeared. If the image index already has it,
+            # just clear the stale queue row; otherwise there is nothing left
+            # to upload from this container.
             logger.warning(
-                "Queued upload %s/%s has no local copy; the file was lost with "
-                "the previous container", folder, filename,
+                "Queued upload %s/%s has no local copy; dropping it", folder, filename
             )
             db.clear_upload(folder, filename)
             lost += 1
@@ -353,11 +539,72 @@ def reconcile_uploads():
         if store_image(folder, filename, path):
             recovered += 1
     if recovered or lost:
-        logger.info("Reconciled uploads: %d recovered, %d unrecoverable", recovered, lost)
+        logger.info("Telegram sync: %d uploaded, %d dropped", recovered, lost)
     return recovered
 
+
+def reconcile_uploads():
+    """Backwards-compatible alias used by tests and boot code."""
+    return sync_pending_uploads()
+
+
+def restore_missing_images(limit=None):
+    """Download Telegram-backed images that are absent from this container.
+
+    Runs in the background after boot, so the first page load does not pay for
+    thousands of sequential downloads. The on-demand /file path remains the
+    fallback for anything not restored yet.
+    """
+    if not telegram.is_configured():
+        return 0
+
+    images = db.list_images()
+    restored = 0
+    for full_key, meta in images.items():
+        if limit and restored >= limit:
+            break
+        if not meta.get("file_id"):
+            continue
+        folder, _, filename = full_key.partition("/")
+        if not folder or not filename:
+            continue
+        try:
+            dest = get_safe_path(f"{folder}/{filename}")
+        except PermissionError:
+            logger.warning("Skipping unsafe indexed image path %s", full_key)
+            continue
+        if os.path.isfile(dest):
+            make_thumbnail(dest, folder, filename)
+            continue
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        if telegram.download(meta["file_id"], dest):
+            restored += 1
+            make_thumbnail(dest, folder, filename)
+    if restored:
+        logger.info("Restored %d image(s) from Telegram", restored)
+    return restored
+
+
+def _background_sync_loop():
+    """Batch uploads every SYNC_INTERVAL seconds, forever."""
+    if SYNC_ON_START:
+        try:
+            # Queue any pre-existing on-disk images (first local boot, or a
+            # partially completed previous batch) before flushing the queue.
+            backfill_images()
+            sync_pending_uploads()
+        except Exception as e:
+            logger.error("Initial Telegram sync failed: %s", e)
+    while True:
+        time.sleep(SYNC_INTERVAL)
+        try:
+            backfill_images()
+            sync_pending_uploads()
+        except Exception as e:
+            logger.error("Telegram sync failed: %s", e)
+
 def store_folder_images(folder, limit=None):
-    """Upload every image in a folder that is not already in MongoDB."""
+    """Queue every new image in one folder for the next Telegram batch."""
     folder_path = os.path.join(BASE, folder)
     if not os.path.isdir(folder_path):
         return 0
@@ -367,24 +614,23 @@ def store_folder_images(folder, limit=None):
     for name in sorted(os.listdir(folder_path)):
         if not name.lower().endswith(EXTENSIONS) or name in known:
             continue
-        if store_image(folder, name):
+        if queue_image(folder, name, os.path.join(folder_path, name)):
             stored += 1
         if limit and stored >= limit:
             break
     return stored
 
 def backfill_images():
-    """Upload any on-disk image that is not yet recorded in MongoDB.
+    """Queue on-disk images that are not yet recorded in MongoDB.
 
-    Covers images that predate this change and repairs partial upload runs.
+    Only managed folders are considered: static signatures and template assets
+    must never be uploaded as if they were answer sheets.
     """
-    if not telegram.is_configured():
-        return
-    for folder in [f for f in os.listdir(BASE) if os.path.isdir(os.path.join(BASE, f))]:
+    for folder in get_project_folders():
         try:
             count = store_folder_images(folder)
             if count:
-                logger.info("Backfilled %d image(s) from %s", count, folder)
+                logger.info("Queued %d image(s) from %s", count, folder)
         except Exception as e:
             logger.error(f"Backfill failed for {folder}: {e}")
 
@@ -395,11 +641,10 @@ def fetch_image_from_telegram(folder, filename, dest_path):
         return False
 
     if telegram.download(meta["file_id"], dest_path):
+        make_thumbnail(dest_path, folder, filename)
         return True
 
-    # A dead file_id would otherwise serve a broken image forever.
-    logger.warning("Dropping unreachable Telegram entry %s/%s", folder, filename)
-    db.remove_image(folder, filename)
+    logger.warning("Could not download Telegram image %s/%s", folder, filename)
     return False
 
 # --- BACKGROUND TASK WORKER ---
@@ -435,24 +680,40 @@ def parse_result_filename(filename):
     The score is encoded in the filename by scan50/scan100, which makes the
     image the only record of it. Returns None when the name does not match.
     """
-    match = re.match(r"^(\d+)_(\d+)\.", os.path.basename(filename or ""))
+    match = re.match(r"^(\d+)_(\d+)(?:_\d+)?\.", os.path.basename(filename or ""))
     if not match:
         return None
     return {"roll": int(match.group(1)), "marks": int(match.group(2))}
 
 
+def _write_scan_config(task_output_dir):
+    """Freeze the answer key/settings for this task.
+
+    The engine subprocess reads this file, so it does not need Mongo, DNS, TLS
+    or the settings collection before it can start working.
+    """
+    config = get_scan_config()
+    if not config.get("answer_key"):
+        raise RuntimeError("No answer key found. Save an answer key before scanning.")
+    path = os.path.join(task_output_dir, "scan_config.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(config, f, separators=(",", ":"))
+    return path
+
+
 def process_omr_task(task_id, input_filepath, original_filename):
     """Evaluate one sheet, then persist the verdict.
 
-    The score is written to MongoDB synchronously, before any image upload, so
-    the result survives a redeploy even if Telegram is unreachable. Uploads
-    run afterwards and queue themselves for retry if they fail.
+    The score is written to MongoDB synchronously, before any Telegram batch,
+    so the result survives a redeploy even if the image upload is still queued.
     """
     task_output_dir = os.path.join(OUTPUT_FOLDER, task_id)
     os.makedirs(task_output_dir, exist_ok=True)
+    process = None
 
     try:
-        set_task(task_id, status="processing")
+        set_task(task_id, status="processing", input_filename=original_filename or "")
+        _write_scan_config(task_output_dir)
 
         with _SCAN_LOCK, _CrossProcessLock(SCAN_LOCK_PATH):
             process = subprocess.Popen(
@@ -461,7 +722,15 @@ def process_omr_task(task_id, input_filepath, original_filename):
                 stderr=subprocess.PIPE,
                 cwd=BASE,
             )
-            stdout, stderr = process.communicate()
+            try:
+                stdout, stderr = process.communicate(timeout=SCAN_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                stdout, stderr = process.communicate()
+                raise RuntimeError(f"OMR engine timed out after {SCAN_TIMEOUT}s.")
+            except TypeError:
+                # Test doubles / old wrappers may not accept timeout.
+                stdout, stderr = process.communicate()
 
             # Only this task's own output directory, never a shared folder: the
             # previous "newest file in temp_output/" could pick up a different
@@ -471,12 +740,16 @@ def process_omr_task(task_id, input_filepath, original_filename):
             )
 
         if not files:
-            detail = (stderr or b"").decode(errors="replace").strip()
+            detail = (stdout or b"").decode(errors="replace").strip()
+            err_detail = (stderr or b"").decode(errors="replace").strip()
+            if err_detail:
+                detail = f"{detail}\n{err_detail}" if detail else err_detail
             set_task(
                 task_id,
                 status="failed",
                 error=detail or "No output file produced by OMR engine.",
             )
+            shutil.rmtree(task_output_dir, ignore_errors=True)
             return
 
         newest_file = files[0]
@@ -515,16 +788,24 @@ def process_omr_task(task_id, input_filepath, original_filename):
             marks=verdict.get("marks"),
         )
 
-        upload_executor.submit(store_image, "output", newest_file, dest_path)
+        # Local-first: make the images available in the UI immediately and let
+        # the 30-minute batch worker deal with Telegram.
+        queue_image("output", newest_file, dest_path)
         if original_filename:
-            upload_executor.submit(
-                store_image, "temp_input", original_filename, input_filepath
-            )
+            queue_image("temp_input", original_filename, input_filepath)
 
     except Exception as e:
         logger.error(f"OMR task {task_id} failed: {e}")
-        set_task(task_id, status="failed", error=str(e))
+        try:
+            set_task(task_id, status="failed", error=str(e))
+        except Exception as db_error:
+            logger.error("Could not record task failure: %s", db_error)
         shutil.rmtree(task_output_dir, ignore_errors=True)
+        if process is not None:
+            poll = getattr(process, "poll", None)
+            kill = getattr(process, "kill", None)
+            if poll and kill and poll() is None:
+                kill()
 
 # --- ROUTES ---
 
@@ -538,30 +819,77 @@ def dashboard():
     folder_counts = {}
     for folder in folders:
         folder_path = os.path.join(BASE, folder)
+        disk_count = 0
         if os.path.isdir(folder_path):
-            count = len([f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f)) and not f.startswith('.')])
-            folder_counts[folder] = count
-        else:
-            folder_counts[folder] = 0
+            disk_count = len([
+                f for f in os.listdir(folder_path)
+                if os.path.isfile(os.path.join(folder_path, f))
+                and not f.startswith('.')
+                and f.lower().endswith(EXTENSIONS)
+            ])
+        try:
+            indexed = db.count_images(folder)
+        except Exception:
+            indexed = 0
+        # After a redeploy the disk is empty but Telegram still has the image;
+        # show the larger of the two so the dashboard is not misleading.
+        folder_counts[folder] = max(disk_count, indexed)
 
-    return render_template("index.html", folders=folders, folder_counts=folder_counts, rolls_files=rolls_files)
+    pending = 0
+    try:
+        pending = db.count_uploads()
+    except Exception:
+        pass
+    return render_template(
+        "index.html",
+        folders=folders,
+        folder_counts=folder_counts,
+        total_images=sum(folder_counts.values()),
+        rolls_files=rolls_files,
+        pending_uploads=pending,
+        telegram_configured=telegram.is_configured(),
+    )
+
+def _save_upload(file_obj, dest_path):
+    """Normalise a camera image to a sane size and a real JPEG.
+
+    Phone cameras produce 12MP+ files; decoding those wastes most of the
+    engine's CPU. Pillow is optional so the app still works without it.
+    """
+    if Image is None:
+        file_obj.save(dest_path)
+        return
+    try:
+        with Image.open(file_obj.stream) as img:
+            img = img.convert("RGB")
+            img.thumbnail((2400, 2400), Image.Resampling.LANCZOS)
+            img.save(dest_path, "JPEG", quality=90, optimize=True)
+    except Exception:
+        # Not a composable image (or a HEIC-only upload): keep the original
+        # bytes so the engine can produce its normal error instead of a 500.
+        file_obj.stream.seek(0)
+        file_obj.save(dest_path)
+
 
 @app.route('/upload', methods=['POST'])
 def upload():
     if 'image' not in request.files:
         return jsonify({"error": "No image file uploaded"}), 400
-        
-    file = request.files['image']
-    roll = request.form.get('roll', '').strip()
-    timestamp = int(time.time())
-    
-    filename = f"OMR_sheet_roll_{roll}_{timestamp}.jpg" if roll else f"OMR_sheet_{timestamp}.jpg"
-    input_filepath = os.path.join(INPUT_FOLDER, filename)
-    file.save(input_filepath)
 
-    # Persist the original immediately, so the sheet survives even if the scan
-    # itself fails.
-    upload_executor.submit(store_image, "temp_input", filename, input_filepath)
+    file = request.files['image']
+    roll = re.sub(r"[^0-9]", "", request.form.get('roll', ''))[:6]
+    stamp = f"{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
+
+    filename = f"OMR_sheet_roll_{roll}_{stamp}.jpg" if roll else f"OMR_sheet_{stamp}.jpg"
+    input_filepath = os.path.join(INPUT_FOLDER, filename)
+    try:
+        _save_upload(file, input_filepath)
+    except Exception as e:
+        logger.error("Could not save upload: %s", e)
+        return jsonify({"error": "Could not save upload"}), 500
+
+    # Local-first. The 30-minute batch worker copies this to Telegram.
+    queue_image("temp_input", filename, input_filepath)
 
     task_id = str(uuid.uuid4())
     set_task(task_id, status="queued", input_filename=filename)
@@ -571,12 +899,15 @@ def upload():
 
 @app.route('/status')
 def status():
-    task_id = request.args.get('task_id')
-    t = get_task(task_id) if task_id else None
-    if t is None:
-        # Fallback to returning the most recent task
-        all_tasks = db.all_tasks()
-        t = max(all_tasks.values(), key=lambda x: x.get("created_at", 0), default=None)
+    task_id = request.args.get('task_id', '').strip()
+    if task_id:
+        # A specific task must never fall back to somebody else's result. One
+        # indexed point lookup, not a scan of every task ever created.
+        t = get_task(task_id)
+    else:
+        # Legacy clients (and the live page before an upload) may omit the id;
+        # one newest document is still O(1).
+        t = db.latest_task()
 
     if t:
         return jsonify({
@@ -592,12 +923,13 @@ def status():
 
     return jsonify({
         "processing": False, "filename": "", "input_filename": "",
-        "roll": None, "marks": None, "error": False, "message": ""
+        "roll": None, "marks": None, "error": bool(task_id),
+        "message": "Task not found." if task_id else "",
     })
 
 @app.route("/scan")
 def scan_ui():
-    if os.path.exists("templates/camera_ui.html"):
+    if os.path.exists(os.path.join(BASE, "templates", "camera_ui.html")):
         return render_template("camera_ui.html")
     return "Camera UI Template Missing", 404
 
@@ -613,15 +945,25 @@ def list_files_for_count():
     except PermissionError as e:
         return jsonify({"error": str(e)}), 403
 
-    if not os.path.exists(target_folder) or not os.path.isdir(target_folder):
-        return jsonify({"items": []})
+    items = []
+    if os.path.exists(target_folder) and os.path.isdir(target_folder):
+        try:
+            items = [
+                {"name": f, "is_dir": False}
+                for f in os.listdir(target_folder)
+                if f.lower().endswith(EXTENSIONS)
+            ]
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
+    # After a redeploy the folder is empty on disk but the images still exist
+    # in MongoDB/Telegram. Report the larger count so recheck progress is not
+    # stuck at zero.
     try:
-        files = os.listdir(target_folder)
-        image_items = [{"name": f, "is_dir": False} for f in files if f.lower().endswith(EXTENSIONS)]
-        return jsonify({"items": image_items})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        indexed = db.count_images(folder_name)
+    except Exception:
+        indexed = 0
+    return jsonify({"items": items, "count": max(len(items), indexed)})
 
 @app.route('/clear_project_folders', methods=['POST'])
 def clear_project_folders():
@@ -636,9 +978,16 @@ def clear_project_folders():
                         os.unlink(file_path)
                     elif os.path.isdir(file_path):
                         shutil.rmtree(file_path)
-            # Drop the MongoDB index too, otherwise the images would still be
-            # listed (and restorable from Telegram) after being cleared.
+            # Drop the MongoDB index and pending queue too, otherwise the
+            # images would still be listed/retried after being cleared.
             db.remove_images_in_folder(folder)
+            db.remove_uploads_in_folder(folder)
+        # Thumbnails are keyed by path, not folder; rebuild after a clear.
+        try:
+            for thumb in os.listdir(THUMB_FOLDER):
+                os.remove(os.path.join(THUMB_FOLDER, thumb))
+        except OSError:
+            pass
         return jsonify({"status": "success"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -649,15 +998,40 @@ def get_config():
     return {
         "pixel_value": config.get('pixel_value', '200'),
         "signature": config.get('signature', ''),
-        "roll_pixel": config.get('roll_pixel', '200')
+        "roll_pixel": config.get('roll_pixel', '200'),
+        "pending_uploads": db.count_uploads(),
+        "telegram_configured": telegram.is_configured(),
     }
 
 @app.route('/update_config', methods=['POST'])
 def update_config():
     data = request.get_json() or {}
-    patch = {k: str(data[k]) for k in ['signature', 'pixel_value', 'roll_pixel'] if k in data}
-    db.set_settings(patch)
+    patch = {}
+    for key in ('signature', 'pixel_value', 'roll_pixel'):
+        if key not in data:
+            continue
+        value = str(data[key]).strip()
+        if key == 'signature':
+            if value and (value != os.path.basename(value) or '/' in value or '\\' in value):
+                return jsonify({"status": "error", "message": "Invalid signature"}), 400
+            patch[key] = value
+        else:
+            if not value.isdigit() or not (0 <= int(value) <= 5000):
+                return jsonify({"status": "error", "message": "Value must be 0-5000"}), 400
+            patch[key] = value
+    if patch:
+        db.set_settings(patch)
+        invalidate_scan_config()
     return {"status": "success"}
+
+
+@app.route('/sync_telegram', methods=['POST'])
+def sync_telegram():
+    """Optional manual flush; the background worker normally does this."""
+    if not telegram.is_configured():
+        return jsonify({"status": "error", "message": "Telegram is not configured"}), 400
+    threading.Thread(target=sync_pending_uploads, daemon=True, name="telegram-manual-sync").start()
+    return jsonify({"status": "success"})
 
 def rolls_name(raw):
     """Validate a rolls filename and normalise it to the Mongo key suffix.
@@ -705,7 +1079,17 @@ def save_rolls():
         return jsonify({"status": "error", "message": "Access denied"}), 403
 
     student_list = data.get('students', [])
-    json_data = {str(s['roll']): s['name'] for s in student_list}
+    if not isinstance(student_list, list) or len(student_list) > 5000:
+        return jsonify({"status": "error", "message": "Invalid student list"}), 400
+    json_data = {}
+    for student in student_list:
+        if not isinstance(student, dict) or 'roll' not in student or 'name' not in student:
+            return jsonify({"status": "error", "message": "Invalid student entry"}), 400
+        roll = str(student['roll']).strip()
+        name = str(student['name']).strip()
+        if not roll or not name:
+            continue
+        json_data[roll] = name[:120]
 
     try:
         db.set_rolls(name, json_data)
@@ -713,7 +1097,7 @@ def save_rolls():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/sync_roll_github')
+@app.route('/sync_roll_github', methods=['POST'])
 def sync_roll_github():
     if not GITHUB_TOKEN:
         return jsonify({"status": "error", "message": "GitHub token environment variable missing"}), 500
@@ -735,10 +1119,11 @@ def sync_roll_github():
     try:
         content = base64.b64encode(json.dumps(data, indent=4).encode("utf-8")).decode("utf-8")
 
-        url = f"https://api.github.com/repos/{OWNER}/{REPO}/contents/{filename}"
+        from urllib.parse import quote
+        url = f"https://api.github.com/repos/{OWNER}/{REPO}/contents/{quote(filename)}"
         headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
         
-        get_res = requests.get(url, headers=headers)
+        get_res = requests.get(url, headers=headers, timeout=20)
         sha = get_res.json().get("sha") if get_res.status_code == 200 else None
 
         data = {
@@ -748,7 +1133,7 @@ def sync_roll_github():
         }
         if sha: data["sha"] = sha
 
-        put_res = requests.put(url, headers=headers, json=data)
+        put_res = requests.put(url, headers=headers, json=data, timeout=30)
         if put_res.status_code in [200, 201]:
             return jsonify({"status": "success"})
         return jsonify({"status": "error", "message": put_res.json()}), 500
@@ -756,32 +1141,51 @@ def sync_roll_github():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/run_gitup')
+@app.route('/run_gitup', methods=['POST'])
 def run_gitup():
-    tution = request.args.get('tution', '')
-    cls = request.args.get('class', '')
-    sub = request.args.get('subject', '')
+    """Stream gitup.py output to the dashboard.
+
+    POST only: a GET could be triggered by any cross-site image/link and would
+    then push the user's gallery to GitHub.
+    """
+    tution = request.form.get('tution') or request.args.get('tution', '')
+    cls = request.form.get('class') or request.args.get('class', '')
+    sub = request.form.get('subject') or request.args.get('subject', '')
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,30}", tution or ""):
+        return "Invalid tuition", 400
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,30}", cls or ""):
+        return "Invalid class", 400
+    if not re.fullmatch(r"[A-Za-z0-9 _-]{1,40}", sub or ""):
+        return "Invalid subject", 400
 
     def generate():
-        process = subprocess.Popen(
-            ['python3', 'gitup.py', tution, cls, sub],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            cwd=BASE
-        )
-        for line in process.stdout:
-            yield line
-        process.wait()
+        try:
+            process = subprocess.Popen(
+                ['python3', '-u', 'gitup.py', tution, cls, sub],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                cwd=BASE
+            )
+            for line in process.stdout:
+                yield line
+            process.wait()
+            if process.returncode:
+                yield f"\n[gitup exited with {process.returncode}]\n"
+        except Exception as e:
+            yield f"\n[gitup failed: {e}]\n"
 
     return Response(generate(), mimetype='text/plain')
 
 @app.route('/rename', methods=['POST'])
 def rename():
     data = request.json or {}
+    raw_old, raw_new = data.get('old', ''), data.get('new', '')
+    if not is_managed_path(raw_old) or not is_managed_path(raw_new):
+        return jsonify({"error": "Access denied"}), 403
     try:
-        old_path = get_safe_path(data.get('old', ''))
-        new_path = get_safe_path(data.get('new', ''))
+        old_path = get_safe_path(raw_old)
+        new_path = get_safe_path(raw_new)
     except PermissionError as e:
         return jsonify({"error": str(e)}), 403
 
@@ -793,17 +1197,24 @@ def rename():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    # Move the image index entry too. Without this the old key still points at
-    # the previous name, so the renamed file loses its Telegram backup and
-    # becomes unreachable after a redeploy.
-    old_folder, _, old_name = data.get('old', '').rpartition("/")
-    new_folder, _, new_name = data.get('new', '').rpartition("/")
-    if old_name and new_name and old_name != new_name:
+    # Move the image index entry too. db.move_image strips storage-only
+    # fields, otherwise the new document inherits the old key and violates the
+    # unique index.
+    old_folder, _, old_name = raw_old.rpartition("/")
+    new_folder, _, new_name = raw_new.rpartition("/")
+    if (old_folder and new_folder and old_name and new_name
+            and old_name != new_name):
         try:
-            meta = db.get_image(old_folder, old_name)
-            if meta:
-                db.put_image(new_folder, new_name, meta)
-                db.remove_image(old_folder, old_name)
+            db.move_image(old_folder, old_name, new_folder, new_name)
+            if os.path.isfile(new_path):
+                make_thumbnail(new_path, new_folder, new_name)
+            # If the image had not reached Telegram yet, move its queue entry
+            # too; otherwise the batch worker would look for the old path and
+            # drop the only pending backup.
+            queued = db.get(db.UPLOAD_PREFIX + db.image_key(old_folder, old_name))
+            if queued and os.path.isfile(new_path):
+                db.clear_upload(old_folder, old_name)
+                db.queue_upload(new_folder, new_name, new_path)
         except Exception as e:
             logger.error(f"Could not move image index entry for {old_name}: {e}")
 
@@ -812,8 +1223,8 @@ def rename():
 @app.route("/create_folder", methods=["POST"])
 def create_folder():
     data = request.json or {}
-    cls = re.sub(r'[^a-zA-Z0-9]', '-', data.get("class", "NA"))
-    sub = re.sub(r'[^a-zA-Z0-9]', '-', data.get("subject", "NA"))
+    cls = re.sub(r'[^a-zA-Z0-9]', '-', str(data.get("class", "NA"))[:30]) or "NA"
+    sub = re.sub(r'[^a-zA-Z0-9]', '-', str(data.get("subject", "NA"))[:30]) or "NA"
     existing = set(get_project_folders())
     counter = 1
     while True:
@@ -824,26 +1235,113 @@ def create_folder():
             break
         counter += 1
     db.add_folder(folder_name)
-    return jsonify(folders=get_project_folders())
+    invalidate_folders()
+    return jsonify(folders=get_project_folders(force=True))
+
+RECHECK_KEY = "recheck_state"
+_recheck_lock = threading.Lock()
+_recheck_fd = None
+RECHECK_LOCK_PATH = os.path.join(tempfile.gettempdir(), "omr_recheck.lock")
+
+
+def _recheck_worker():
+    """Evaluate every sheet in input/ through the normal task pipeline.
+
+    The old implementation ran app.py inside the request and only wrote files,
+    so results were neither durable in Mongo nor queued for Telegram and a
+    realistic batch exceeded gunicorn's timeout.
+    """
+    files = sorted(
+        f for f in os.listdir(os.path.join(BASE, "input"))
+        if f.lower().endswith(EXTENSIONS)
+        and os.path.isfile(os.path.join(BASE, "input", f))
+    )
+    state = {
+        "running": True,
+        "total": len(files),
+        "done": 0,
+        "failed": 0,
+        "started_at": time.time(),
+        "finished_at": None,
+        "message": "",
+    }
+    db.set(RECHECK_KEY, state)
+    for name in files:
+        task_id = str(uuid.uuid4())
+        path = os.path.join(BASE, "input", name)
+        try:
+            set_task(task_id, status="queued", input_filename=name)
+            process_omr_task(task_id, path, name)
+            task = get_task(task_id) or {}
+            if task.get("status") == "completed":
+                state["done"] += 1
+            else:
+                state["failed"] += 1
+        except Exception as e:
+            logger.error("Recheck failed for %s: %s", name, e)
+            state["failed"] += 1
+        state["updated_at"] = time.time()
+        db.set(RECHECK_KEY, state)
+    state["running"] = False
+    state["finished_at"] = time.time()
+    state["message"] = f"{state['done']} completed, {state['failed']} failed"
+    db.set(RECHECK_KEY, state)
+
 
 @app.route('/run-recheck', methods=['POST'])
 def trigger_recheck():
-    """Re-run sheets sitting in input/.
-
-    Deliberately does not clear output/, duplicates/ or error_images/. The
-    script used to accept a "y" that wiped those folders unconditionally, which
-    destroyed results on the server while leaving the Mongo image index
-    listing files that no longer existed. Existing results are preserved.
-    """
+    global _recheck_fd
+    if not _recheck_lock.acquire(blocking=False):
+        return jsonify({"status": "running", "message": "A recheck is already running."}), 202
     try:
-        script_path = os.path.join(BASE, "app.py")
-        result = subprocess.run(
-            ["python3", "-u", script_path, "n"],
-            check=True, capture_output=True, text=True, cwd=BASE,
-        )
-        return jsonify({"message": "Success", "output": result.stdout}), 200
+        fd = os.open(RECHECK_LOCK_PATH, os.O_CREAT | os.O_RDWR, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _recheck_fd = fd
+    except OSError:
+        _recheck_lock.release()
+        return jsonify({"status": "running", "message": "A recheck is already running."}), 202
+    try:
+        db.set(RECHECK_KEY, {
+            "running": True, "total": 0, "done": 0, "failed": 0,
+            "started_at": time.time(), "finished_at": None,
+            "message": "Starting…",
+        })
+        threading.Thread(target=_run_recheck_locked, daemon=True, name="omr-recheck").start()
     except Exception as e:
+        _recheck_lock.release()
+        os.close(_recheck_fd)
+        _recheck_fd = None
         return jsonify({"error": str(e)}), 500
+    return jsonify({"status": "started"}), 202
+
+def _run_recheck_locked():
+    global _recheck_fd
+    try:
+        _recheck_worker()
+    except Exception as e:
+        logger.error("Recheck worker failed: %s", e)
+        db.set(RECHECK_KEY, {
+            "running": False,
+            "total": 0, "done": 0, "failed": 1,
+            "finished_at": time.time(),
+            "message": str(e),
+        })
+    finally:
+        _recheck_lock.release()
+        try:
+            fcntl.flock(_recheck_fd, fcntl.LOCK_UN)
+            os.close(_recheck_fd)
+        except Exception:
+            pass
+        _recheck_fd = None
+
+
+@app.route('/recheck_status')
+def recheck_status():
+    state = db.get(RECHECK_KEY) or {
+        "running": False, "total": 0, "done": 0, "failed": 0, "message": ""
+    }
+    return jsonify(state)
 
 @app.route("/browse")
 def browse():
@@ -852,6 +1350,11 @@ def browse():
         full_path = get_safe_path(path)
     except PermissionError:
         return "Access denied", 403
+    try:
+        page = max(1, int(request.args.get("page", "1")))
+    except ValueError:
+        page = 1
+    page_size = 60
 
     items = []
     seen = set()
@@ -860,43 +1363,107 @@ def browse():
             if f.startswith('.'):
                 continue
             fp = os.path.join(full_path, f)
-            mtime = os.path.getmtime(fp) if os.path.exists(fp) else 0
+            try:
+                mtime = os.path.getmtime(fp)
+            except OSError:
+                mtime = 0
             items.append({"name": f, "is_dir": os.path.isdir(fp), "mtime": mtime})
             seen.add(f)
 
     # Images held in Telegram are absent from a fresh container, so merge in
     # the MongoDB index to keep the folder listing complete after a redeploy.
-    for name, meta in db.list_images(path).items():
-        if name in seen or name.startswith('.'):
-            continue
-        items.append({"name": name, "is_dir": False, "mtime": meta.get("mtime", 0)})
+    if path:
+        for name, meta in db.list_images(path).items():
+            if name in seen or name.startswith('.'):
+                continue
+            items.append({"name": name, "is_dir": False, "mtime": meta.get("mtime", 0)})
 
     def sort_key(x):
-        if x["is_dir"]: return (0, x["name"])
+        if x["is_dir"]:
+            return (0, x["name"])
         m = re.search(r"(\d+)", x["name"])
         return (1, int(m.group(1)) if m else 999999)
-        
+
     items.sort(key=sort_key)
-    return render_template("browser.html", items=items, path=path)
+    dirs = [i for i in items if i["is_dir"]]
+    files = [i for i in items if not i["is_dir"]]
+    total_pages = max(1, (len(files) + page_size - 1) // page_size)
+    page = min(page, total_pages)
+    page_files = files[(page - 1) * page_size: page * page_size]
+
+    # Duplicate roll detection across the whole folder, not just this page.
+    roll_counts = {}
+    for item in files:
+        match = re.match(r"^(\d+)_", item["name"])
+        if match:
+            item["roll"] = match.group(1)
+            roll_counts[item["roll"]] = roll_counts.get(item["roll"], 0) + 1
+    duplicate_rolls = {roll for roll, count in roll_counts.items() if count > 1}
+
+    return render_template(
+        "browser.html",
+        items=dirs + page_files,
+        path=path,
+        page=page,
+        total_pages=total_pages,
+        total_files=len(files),
+        page_size=page_size,
+        duplicate_rolls=duplicate_rolls,
+    )
 
 @app.route("/file")
 def get_file():
     raw = request.args.get("path", "")
+    if not is_servable_image(raw):
+        return "Access denied", 403
     try:
         target = get_safe_path(raw)
     except PermissionError:
         return "Access denied", 403
 
-    if os.path.exists(target) and os.path.isfile(target):
-        return send_file(target)
+    if not (os.path.exists(target) and os.path.isfile(target)):
+        # Not on this container: restore it from Telegram. The first view
+        # after a redeploy pays the download; after that it is local.
+        folder, _, name = raw.rpartition("/")
+        if not (folder and name and fetch_image_from_telegram(folder, name, target)):
+            return "Not Found", 404
 
-    # Not on this container: restore it from Telegram. The first view after a
-    # redeploy pays the download; after that it is served from local cache.
+    response = send_file(target, conditional=True, max_age=86400)
+    response.cache_control.private = True
+    return response
+
+
+@app.route("/thumb")
+def get_thumb():
+    """Serve a small listing image instead of a multi-megabyte scan."""
+    raw = request.args.get("path", "")
+    if not is_servable_image(raw):
+        return "Access denied", 403
+    try:
+        target = get_safe_path(raw)
+    except PermissionError:
+        return "Access denied", 403
+
     folder, _, name = raw.rpartition("/")
-    if folder and fetch_image_from_telegram(folder, name, target):
-        return send_file(target)
+    if not (folder and name):
+        return "Not Found", 404
 
-    return "Not Found", 404
+    thumb = thumb_path_for(folder, name)
+    if not os.path.isfile(thumb):
+        if not os.path.isfile(target):
+            if not fetch_image_from_telegram(folder, name, target):
+                return "Not Found", 404
+        thumb = make_thumbnail(target, folder, name)
+    if not thumb or not os.path.isfile(thumb):
+        # Pillow unavailable or the image is not decodable: the original is
+        # still better than a broken tile.
+        response = send_file(target, conditional=True, max_age=86400)
+        response.cache_control.private = True
+        return response
+
+    response = send_file(thumb, conditional=True, max_age=604800)
+    response.cache_control.private = True
+    return response
 
 @app.route("/delete", methods=["POST"])
 def delete_item():
@@ -908,27 +1475,52 @@ def delete_item():
     """
     data = request.json or {}
     raw = data.get("path", "")
+    if not is_managed_path(raw):
+        return jsonify({"error": "Access denied"}), 403
     try:
         path = get_safe_path(raw)
     except PermissionError as e:
         return jsonify({"error": str(e)}), 403
 
-    folder, _, name = raw.rpartition("/")
-    if name in db.get_folders():
-        db.remove_folder(name)
-        db.remove_images_in_folder(name)
+    normalized = str(raw).replace("\\", "/").strip("/")
+    folder, _, name = normalized.rpartition("/")
+    if os.path.isdir(path):
+        # A top-level project folder has folder metadata; nested folders only
+        # need their image/upload prefix removed. Delete by the full relative
+        # path so a folder created on disk but not yet in Mongo is not missed.
+        if "/" not in normalized and (
+            normalized in get_project_folders() or normalized in STATIC_FOLDERS
+        ):
+            db.remove_folder(normalized)
+            invalidate_folders()
+        db.remove_images_in_folder(normalized)
+        db.remove_uploads_in_folder(normalized)
     elif name.lower().endswith(EXTENSIONS):
         db.remove_image(folder, name)
+        db.clear_upload(folder, name)
+        try:
+            os.remove(thumb_path_for(folder, name))
+        except OSError:
+            pass
     elif name.endswith("_rolls.txt"):
         db.delete(db.ROLLS_PREFIX + name[: -len(".txt")])
     elif name == "answer_key.txt":
         db.delete(db.ANSWER_KEY)
+        invalidate_scan_config()
     elif name == "config.cfg":
         db.set(db.SETTINGS_KEY, db.DEFAULT_SETTINGS)
+        invalidate_scan_config()
 
     # Drop the local cache copy so it stops being listed and served.
     if os.path.isdir(path):
         shutil.rmtree(path, ignore_errors=True)
+        # A folder delete must remove its thumbnails as well, otherwise they
+        # linger and count against the small container disk.
+        try:
+            for thumb in os.listdir(THUMB_FOLDER):
+                os.remove(os.path.join(THUMB_FOLDER, thumb))
+        except OSError:
+            pass
     elif os.path.exists(path):
         try:
             os.remove(path)
@@ -944,6 +1536,12 @@ def answer_key_route():
         content = json.dumps(content, indent=2)
     return render_template("50.html", content=content, folder=".")
 
+
+@app.route("/50")
+def answer_key_alias():
+    """Legacy public URL used by older published galleries."""
+    return answer_key_route()
+
 @app.route("/save_answer_key", methods=['POST'])
 def save_key():
     data = request.json or {}
@@ -953,72 +1551,142 @@ def save_key():
         # engines see the same shape regardless of how the key was saved.
         if isinstance(content, (str, bytes)):
             content = json.loads(content or "{}")
-        db.set(db.ANSWER_KEY, content)
+        if not isinstance(content, dict) or not content:
+            raise ValueError("Answer key must be a non-empty JSON object.")
+        cleaned = {}
+        for question, options in content.items():
+            if not str(question).isdigit():
+                raise ValueError(f"Invalid question number: {question}")
+            number = int(question)
+            if not (1 <= number <= 100):
+                raise ValueError(f"Question out of range: {question}")
+            if not isinstance(options, (list, tuple)):
+                raise ValueError(f"Question {question} must be a list of options.")
+            answer = []
+            for option in options:
+                letter = str(option).strip().upper()
+                if letter not in ("A", "B", "C", "D"):
+                    raise ValueError(f"Invalid option {option!r} for question {question}.")
+                if letter not in answer:
+                    answer.append(letter)
+            if not answer:
+                raise ValueError(f"Question {question} has no answer.")
+            cleaned[str(number)] = answer
+        db.set(db.ANSWER_KEY, cleaned)
+        invalidate_scan_config()
         return jsonify(ok=True)
     except Exception as e:
-        return jsonify(ok=False, error=str(e)), 500
+        return jsonify(ok=False, error=str(e)), 400
 
 @app.route('/temp_output/<path:filename>')
 def serve_output(filename):
+    # The task scratch directory contains scan_config.json, which includes the
+    # answer key; only image files from it are ever served.
+    if not filename.lower().endswith(EXTENSIONS):
+        return "Not Found", 404
     return send_from_directory(FINAL_OUTPUT_FOLDER, filename)
 
 @app.route('/temp_input/<path:filename>')
 def serve_input(filename):
+    if not filename.lower().endswith(EXTENSIONS):
+        return "Not Found", 404
     return send_from_directory(INPUT_FOLDER, filename)
 
 # --- RESULTS HTML TEMPLATE ---
 RESULTS_HTML = """
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>OMR Result Viewer</title>
-  <style>
-    body { margin: 0; background: #121212; color: white; text-align: center; font-family: sans-serif; }
-    #status { margin-top: 20px; font-size: 22px; }
-    img { max-height: 75vh; width: auto; display: block; margin: 20px auto; border: 2px solid #333; border-radius: 8px; }
-    #timestamp { font-size: 32px; font-weight: bold; color: #00ffcc; margin-top: 10px; }
-    .btn { padding: 12px 24px; font-size: 16px; background: #5451f0; color: white; border: none; border-radius: 6px; cursor: pointer; }
-  </style>
-  <script>
-    let activeTaskId = "";
-    let lastInput = ""; let lastOutput = "";
-
-    async function pollStatus() {
-      try {
-        const url = activeTaskId ? `/status?task_id=${activeTaskId}` : '/status';
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        const statusDiv = document.getElementById("status");
-        const imgTag = document.getElementById("result-img");
-        const ts = document.getElementById("timestamp");
-
-        if (data.input_filename && data.input_filename !== lastInput) {
-            lastInput = data.input_filename;
-            statusDiv.textContent = "🟡 Processing New Image...";
-            imgTag.src = "/temp_input/" + data.input_filename + "?t=" + Date.now();
-            imgTag.style.display = "block";
-            ts.textContent = new Date().toLocaleTimeString();
-        }
-
-        if (!data.processing && data.filename && data.filename !== lastOutput) {
-            lastOutput = data.filename;
-            statusDiv.textContent = "✅ Processing Complete!";
-            imgTag.src = "/temp_output/" + data.filename + "?t=" + Date.now();
-        } else if (data.error) {
-            statusDiv.textContent = "❌ " + (data.message || "OMR Analysis Failed");
-        }
-      } catch (err) { console.error(err); }
-    }
-    setInterval(pollStatus, 1200);
-  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live OMR Results</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <h2>📸 OMR LIVE FEED</h2>
-  <div id="status">⏳ Waiting for scan...</div>
-  <div id="timestamp"></div>
-  <img id="result-img" style="display:none;" />
-  <button class="btn" onclick="window.location.href='/'">🔙 Back to Dashboard</button>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-mark">◉</div>
+        <div><h1 class="brand-title">Live results</h1><p class="brand-sub">Updates automatically</p></div>
+      </div>
+      <a class="btn btn-ghost" href="/">Dashboard</a>
+    </div>
+  </header>
+  <main class="app-main">
+    <div class="panel">
+      <div class="section-head">
+        <div>
+          <h2 id="status">⏳ Waiting for scan…</h2>
+          <p id="timestamp" class="muted"></p>
+        </div>
+        <span id="pill" class="badge badge-warn">Live</span>
+      </div>
+      <div style="display:flex;justify-content:center;">
+        <img id="result-img" style="display:none;max-width:100%;max-height:72vh;border-radius:14px;border:1px solid var(--line);" alt="Marked OMR result">
+      </div>
+      <div id="meta" class="stats-grid" style="margin-bottom:0;margin-top:18px;"></div>
+    </div>
+  </main>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const requestedTask = (params.get('task_id') || '').trim();
+    let lastTask = requestedTask;
+    let lastInput = ""; let lastOutput = ""; let stopped = false;
+
+    function setPill(text, cls) {
+      const pill = document.getElementById('pill');
+      pill.textContent = text;
+      pill.className = 'badge ' + (cls || 'badge-warn');
+    }
+
+    async function pollStatus() {
+      if (stopped) return;
+      try {
+        const url = requestedTask ? `/status?task_id=${encodeURIComponent(requestedTask)}` : '/status';
+        const response = await fetch(url, {cache: 'no-store'});
+        const data = await response.json();
+        const failed = data.error && !data.filename;
+        if (failed) {
+          document.getElementById('status').textContent = '❌ ' + (data.message || 'Scan failed');
+          setPill('Failed', 'badge-danger');
+          // A live page must recover when the next sheet is scanned; only a
+          // page pinned to one task id stops on that task's failure.
+          if (requestedTask) return;
+        }
+
+        if (!failed && !requestedTask && data.input_filename && data.input_filename !== lastInput) {
+          lastInput = data.input_filename;
+          document.getElementById('status').textContent = '🟡 Processing new sheet…';
+          setPill('Processing', 'badge-warn');
+          const input = document.getElementById('result-img');
+          input.style.display = 'block';
+          input.src = '/file?path=' + encodeURIComponent('temp_input/' + data.input_filename) + '&v=' + Date.now();
+          document.getElementById('timestamp').textContent = new Date().toLocaleTimeString();
+        }
+
+        if (!failed && !data.processing && data.filename && data.filename !== lastOutput) {
+          lastOutput = data.filename;
+          document.getElementById('status').textContent = '✅ Marked result';
+          setPill('Complete', 'badge-warn');
+          const img = document.getElementById('result-img');
+          img.style.display = 'block';
+          img.src = '/file?path=' + encodeURIComponent('output/' + data.filename) + '&v=' + Date.now();
+          document.getElementById('timestamp').textContent = new Date().toLocaleTimeString();
+          document.getElementById('meta').innerHTML =
+            `<div class="stat-card"><div class="stat-label">Roll</div><div class="stat-value">${data.roll ?? '—'}</div></div>` +
+            `<div class="stat-card"><div class="stat-label">Marks</div><div class="stat-value">${data.marks ?? '—'}</div></div>`;
+          if (requestedTask) stopped = true;
+        } else if (!failed && data.processing) {
+          document.getElementById('status').textContent = '🟡 Processing…';
+          setPill('Processing', 'badge-warn');
+        }
+      } catch (err) {
+        setPill('Offline', 'badge-danger');
+      }
+    }
+    pollStatus();
+    setInterval(pollStatus, 1200);
+  </script>
 </body>
 </html>
 """
@@ -1056,17 +1724,19 @@ if (
 ):
     _start_self_ping()
 
-# Uploads that failed before the last deploy are retried here. This ran only
-# under __main__ before, so gunicorn never reconciled anything and a Telegram
-# outage lost every image uploaded in that window. Started after the module is
-# fully defined because reconcile_uploads is defined further down.
+# Telegram work is batched. The sync thread queues any on-disk images and
+# flushes the upload queue; the restore thread repopulates the local cache so
+# browsing is fast after a redeploy. Both are single-winner per container.
 if IS_PRIMARY_WORKER and telegram.is_configured():
-    threading.Thread(target=reconcile_uploads, daemon=True, name="reconcile").start()
+    threading.Thread(
+        target=_background_sync_loop, daemon=True, name="telegram-sync"
+    ).start()
+    if RESTORE_ON_BOOT and os.environ.get("DISABLE_RESTORE", "").lower() not in ("1", "true", "yes"):
+        threading.Thread(
+            target=restore_missing_images, daemon=True, name="telegram-restore"
+        ).start()
+    logger.info("Telegram batch sync enabled (interval %ds).", SYNC_INTERVAL)
 
 if __name__ == '__main__':
-    # Images are uploaded to Telegram automatically, so catch up on anything
-    # that never made it (pre-existing files, previously failed uploads).
-    if telegram.is_configured():
-        upload_executor.submit(backfill_images)
     port = int(os.environ.get("PORT", 8000))
     app.run(host='0.0.0.0', port=port, threaded=True)

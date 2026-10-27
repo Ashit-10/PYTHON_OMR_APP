@@ -1,720 +1,382 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>File Browser</title>
-<link rel="stylesheet" href="/static/style.css">
-<style>
-  body { background: #fff; color: #111; margin: 0; padding: 0; font-family: sans-serif; }
-  header { background: #111; color: #fff; padding: 15px; position: sticky; top: 0; z-index: 100; text-align: center; cursor: pointer; }
-/* Full-screen Progress Overlay */
-#progressOverlay {
-    display: none; /* Hidden by default */
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(5px);
-    z-index: 9999;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    color: white;
-    font-family: sans-serif;
-}
-
-.progress-container {
-    width: 80%;
-    max-width: 500px;
-    background: #333;
-    border-radius: 20px;
-    padding: 3px;
-    margin: 20px 0;
-    box-shadow: 0 0 20px rgba(0,0,0,0.5);
-}
-
-#progressBar {
-    width: 0%;
-    height: 25px;
-    background: linear-gradient(90deg, #22c55e, #16a34a);
-    border-radius: 20px;
-    transition: width 0.4s ease;
-}
-
-.progress-stats {
-    font-size: 1.2rem;
-    font-weight: bold;
-    margin-bottom: 10px;
-}
-
-.progress-eta {
-    font-size: 0.9rem;
-    color: #aaa;
-}
-
-  
-  /* RECHECK BUTTON STYLE */
-  .recheck-btn {
-    position: fixed;
-    top: 2px;
-    right: 3px;
-    z-index: 1001;
-    padding: 18px 6px;
-    background: #22c55e;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-weight: bold;
-    font-size: 13px;
-    cursor: pointer;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-  }
-  .recheck-btn:active { background: #16a34a; }
-
-  /* BATCH DELETE FLOATING BUTTON */
-  .batch-delete-floating {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 1002;
-    padding: 15px 25px;
-    background: #ef4444;
-    color: white;
-    border: none;
-    border-radius: 50px;
-    font-weight: bold;
-    display: none; /* Hidden by default */
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    cursor: pointer;
-  }
-
-  .search-bar { padding: 10px; display: flex; gap: 8px; background: #fff; border-bottom: 1px solid #ddd; align-items: center;}
-  .search-bar input { flex: 1; width: 10vw; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }
-  .search-bar button { padding: 10px 15px; background: #2563eb; color: white; border: none; border-radius: 5px; }
-
-  .file-container { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 0; }
-
-  .image-card {
-    background: #fff;
-    width: 98%; 
-    border-radius: 4px;
-    border: 1px solid #ddd;
-    overflow: hidden;
-    margin-bottom: 5px;
-    position: relative;
-  }
-
-/* Remove position: absolute and top/left values */
-.select-checkbox {
-  
-  z-index: 10;
-  appearance: none;
-  -webkit-appearance: none;
-  width: 22px;
-  height: 22px;
-  border: 2px solid rgba(0,0,0,0.2); /* Slight border for visibility on light images */
-  border-radius: 4px;
-  background-color: rgba(255,255,255,0.9); /* Semi-transparent white */
-  cursor: pointer;
-  display: inline-grid;
-  place-content: center;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-  margin-right: 5px;
-  margin-left: 2px;
-}
-
-.select-checkbox:checked {
-  background-color: #2563eb;
-  border-color: #2563eb;
-}
-
-.select-checkbox:checked::before {
-  content: "✔";
-  color: #ffffff !important;
-  font-size: 13px;
-  font-weight: bold;
-}
-
-.select-checkbox:focus {
-  outline: 2px solid rgba(37, 99, 235, 0.3);
-}
-
-
-
-
-
-  .img-wrapper {
-    width: 100%;
-    background: #fff;
-    overflow: hidden;
-    position: relative;
-    display: flex;
-    justify-content: center;
-  }
-
-  .img-wrapper img {
-    width: 100% !important;
-    height: auto !important;
-    max-height: none !important;
-    display: block;
-    object-fit: contain;
-  }
-
-  .rotate-box {
-    width: 100%;
-    height: 35vh;
-    position: relative;
-    background: #000;
-    overflow: hidden;
-  }
-
-  .rotate-box img {
-    width: auto !important;
-    height: 95vw !important;
-    max-width: none !important;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotate(-90deg);
-    object-fit: contain !important;
-  }
-
-  .file-actions {
-    padding: 8px 4px;
-    display: flex;
-    justify-content: space-between;   
-    background: #f1f1f1;
-  }
-
-/* Ensure the fname span aligns items properly */
-.fname { 
-  font-size: 12px; 
-  font-weight: bold; 
-  color: #333; 
-  display: flex; 
-  align-items: center; 
-}
-  #noMatch { display: none; padding: 20px; text-align: center; color: red; font-weight: bold; }
-
-  .btn-delete-all {
-    width: 95%;
-    padding: 15px;
-    background-color: #ef4444;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: bold;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  }
-  .btn-delete-all:active { background-color: #b91c1c; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ path or 'Folders' }} · OMR Browser</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+<div class="app-shell">
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <a class="btn btn-ghost btn-icon" href="/" aria-label="Dashboard">←</a>
+        <div>
+          <h1 class="brand-title">{{ path or 'All folders' }}</h1>
+          <div class="breadcrumbs">
+            <a href="/browse">root</a>
+            {% if path %}
+              {% set crumbs = path.split('/') %}
+              {% for crumb in crumbs %}
+                <span>/</span>
+                <a href="/browse?path={{ crumbs[:loop.index]|join('/')|urlencode }}">{{ crumb }}</a>
+              {% endfor %}
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <a class="btn btn-primary" href="/scan">📷 Scan</a>
+    </div>
+  </header>
 
-<body>
+  <main class="app-main">
+    <div class="browser-toolbar">
+      <div class="search-wrap">
+        <input id="rollSearch" type="search" placeholder="Search by roll, marks or filename…" autocomplete="off">
+      </div>
+      <select id="sortOption" aria-label="Sort">
+        <option value="default">Default order</option>
+        <option value="date">Newest first</option>
+        <option value="roll">Roll number</option>
+        <option value="marks">Marks</option>
+        {% if path == 'output' or 'class' in path %}
+        <option value="duplicates">Only renamed duplicates</option>
+        {% endif %}
+      </select>
+      <label class="check-label"><input type="checkbox" id="selectAll"> Select all</label>
+    </div>
+
+    <div class="section-head">
+      <div>
+        <h2>{{ total_files }} image{{ '' if total_files == 1 else 's' }}</h2>
+        <p>Page {{ page }} of {{ total_pages }}{% if path == 'input' or path == 'output' %} · Recheck runs the selected pipeline again{% endif %}</p>
+      </div>
+      {% if path == 'input' or path == 'output' %}
+      <button class="btn btn-good" id="runRecheckBtn" type="button">🔄 Recheck folder</button>
+      {% endif %}
+    </div>
+
+    <div id="noMatch" class="empty-state hidden">
+      <strong>No match</strong>Try a different roll number or filename.
+    </div>
+
+    <div class="file-container" id="fileBox">
+      {% for item in items %}
+        {% set item_path = (path ~ '/' ~ item.name) if path else item.name %}
+        {% if item.is_dir %}
+          {% set dir_path = (path ~ '/' ~ item.name) if path else item.name %}
+          <a class="folder-card" href="/browse?path={{ dir_path|urlencode }}">
+            <div class="folder-name"><span>📁</span><span>{{ item.name }}</span></div>
+            <span class="count-pill">Open</span>
+          </a>
+        {% else %}
+          {% set ext = item.name.split('.')[-1].lower() %}
+          {% if ext in ['jpg', 'jpeg', 'png', 'webp'] %}
+          <article class="image-card"
+                   data-name="{{ item.name }}"
+                   data-path="{{ item_path }}"
+                   data-roll="{{ item.roll|default('') }}"
+                   data-date="{{ item.mtime or 0 }}">
+            <div class="img-wrapper {% if path == 'input' or path == 'duplicates' or path == 'error_images' %}rotate-box{% endif %}">
+              <img src="/thumb?path={{ item_path|urlencode }}"
+                   data-full="/file?path={{ item_path|urlencode }}"
+                   alt="{{ item.name }}"
+                   loading="lazy">
+            </div>
+            <div class="card-meta">
+              <div class="card-title">
+                <input type="checkbox" class="select-checkbox" data-path="{{ item_path }}" aria-label="Select {{ item.name }}">
+                <span class="name">{{ item.name }}</span>
+              </div>
+              <div class="card-badges">
+                {% if item.roll|default('') and duplicate_rolls and item.roll in duplicate_rolls %}
+                  <span class="badge badge-danger">Duplicate roll</span>
+                {% endif %}
+                {% if (path == 'output' or 'class' in path) and item.name.split('_')|length > 2 %}
+                  <span class="badge badge-warn">Rename recommended</span>
+                {% endif %}
+              </div>
+              <div class="card-actions">
+                <button class="mini action-rename" type="button" title="Rename">✏️</button>
+                <button class="mini danger action-delete" type="button" title="Delete">🗑️</button>
+              </div>
+            </div>
+          </article>
+          {% endif %}
+        {% endif %}
+      {% endfor %}
+    </div>
+
+    {% if not items %}
+    <div class="empty-state">
+      <strong>This folder is empty</strong>
+      Scan a sheet or choose another folder.
+    </div>
+    {% endif %}
+
+    {% if total_pages > 1 %}
+    <nav class="pagination" aria-label="Pages">
+      {% if page > 1 %}
+        <a href="/browse?path={{ path|urlencode }}&page={{ page - 1 }}">← Prev</a>
+      {% endif %}
+      <span class="current">{{ page }}</span>
+      <span class="muted">/ {{ total_pages }}</span>
+      {% if page < total_pages %}
+        <a href="/browse?path={{ path|urlencode }}&page={{ page + 1 }}">Next →</a>
+      {% endif %}
+    </nav>
+    {% endif %}
+  </main>
+
+  <footer class="site-footer">Thumbnails are generated locally · full images restore from Telegram when needed.</footer>
+</div>
+
+<button id="batchDeleteBtn" class="batch-delete-floating" type="button">
+  🗑️ Delete selected (<span id="selectedCount">0</span>)
+</button>
+
 <div id="progressOverlay">
-    <div class="progress-stats">
-        Processing: <span id="currentCount">0</span> / <span id="totalCount">0</span>
-    </div>
-    <div class="progress-container">
-        <div id="progressBar"></div>
-    </div>
-    <div id="progressPercentage" style="font-weight: bold; margin-bottom: 5px;">0%</div>
-    <div class="progress-eta" id="etaDisplay">Calculating ETA...</div>
-</div>
-
-  
-{# This counts images ONLY if the current folder is "input" #}
-{% set input_images_list = [] %}
-{% if path == "input" %}
-  {% for item in items %}
-    {% set ext = item.name.split('.')[-1].lower() %}
-    {% if not item.is_dir and ext in ['jpg', 'jpeg', 'png', 'webp'] %}
-      {% set _ = input_images_list.append(1) %}
-    {% endif %}
-  {% endfor %}
-{% endif %}
-
-
-  
-{% if path == "input" or path == "output" %}
-<button class="recheck-btn" id="runRecheckBtn" onclick="runRecheck()">
-    🔄 Recheck <span id="recheckTimer" style="display:none; font-size: 0.9em; color: #fff;"></span>
-</button>
-{% endif %}
-
-
-<button id="batchDeleteBtn" class="batch-delete-floating" onclick="deleteSelectedFiles()">
-    🗑️ Delete Selected (<span id="selectedCount">0</span>)
-</button>
-
-<header onclick="location.href='/'">
-  ⬅ {{ path }} 
-  <span style="font-size: 0.8em; opacity: 0.8; margin-left: 6px;">
-    ({% set count = [] %}{% for item in items %}{% set ext = item.name.split('.')[-1].lower() %}{% if not item.is_dir and ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}{% set _ = count.append(1) %}{% endif %}{% endfor %}{{ count|length }} Images)
-  </span>
-</header>
-
-<div class="search-bar">
-  {% if path == "output" or "class" in path %}
-  <input id="rollSearch" placeholder="Search Roll No." oninput="searchRoll()">
-  {% endif %}
-  
-  <select id="sortOption" onchange="sortFiles()" style="padding: 10px; margin-right: 20px; border-radius: 5px; border: 1px solid #ccc;">
-  <option value="default">Sort</option>
-  <option value="date">Date</option>
-  <option value="roll">Roll No</option>
-  <option value="marks">Marks</option>
-  <option value="duplicates">Duplicates</option> </select>
-
-
-  <label style="font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 0px; cursor: pointer;">
-    <input type="checkbox" id="selectAll" onclick="toggleSelectAll()" style="transform: scale(1.3);"> Select All
-  </label>
-</div>
-
-
-{% set roll_tracker = {} %}
-
-<div id="noMatch">❌ Roll Number Not Found</div>
-
-<div class="file-container" id="fileBox">
-{% for item in items %}
-  {% set ext = item.name.split('.')[-1].lower() %}
-  {% if not item.is_dir and ext in ['jpg', 'jpeg', 'png', 'webp'] %}
-  
-  {# --- NEW LOGIC TO DETECT DUPLICATE ROLLS --- #}
-  {% set roll_num = item.name.split('_')[0] %}
-  {% set is_duplicate_roll = false %}
-  {% if roll_num in roll_tracker %}
-    {% set is_duplicate_roll = true %}
-  {% else %}
-    {% set _ = roll_tracker.update({roll_num: True}) %}
-  {% endif %}
-  {# ------------------------------------------- #}
-
-  <div class="image-card" 
-     data-name="{{ item.name }}" 
-     data-date="{{ item.mtime if item.mtime else 0 }}">
-
-    <div class="img-wrapper {% if path == 'input' or path == 'duplicates' or path == 'error_images' %}rotate-box{% endif %}">
-      <img src="/file?path={{ path }}/{{ item.name }}" onclick="openPreview(this.src)" loading="lazy">
-    </div>
-<div class="file-actions">
-  <span class="fname">
-    <input type="checkbox" class="select-checkbox" data-path="{{ path }}/{{ item.name }}" onclick="updateBatchUI()">
-    
-    {# Warning for Output folder (Existing) #}
-    {% if (path == "output" or "class" in path) and item.name.split('_')|length > 2 %}
-      <span style="color: #ef4444; margin-right: 8px; font-weight: bold;">
-        ⚠️ Rename is recommended
-      </span>
-    {% endif %}
-
-    {# NEW: Warning for Input folder duplicate rolls #}
-    {% if path == "output" and is_duplicate_roll %}
-      <span style="color: #f59e0b; margin-right: 8px; font-weight: bold;">
-        ⚠️ Duplicate Roll
-      </span>
-    {% endif %}
-
-    {{ item.name }}
-  </span>
-<div>
-    <button class="mini" onclick="renameFile('{{ path }}/{{ item.name }}')">✏️</button>
-    <button class="mini danger" onclick="deleteFile('{{ path }}/{{ item.name }}')">🗑️</button>
+  <div class="progress-card">
+    <div class="progress-stats">Rechecking <span id="currentCount">0</span> / <span id="totalCount">0</span></div>
+    <div class="progress-container"><div id="progressBar"></div></div>
+    <div id="progressPercentage" style="font-weight:800;">0%</div>
+    <div class="progress-eta" id="etaDisplay">Starting…</div>
   </div>
 </div>
 
-
-  </div>
-  {% endif %}
-{% endfor %}
-</div>
-
-
-<div id="preview" onclick="this.style.display='none'" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:1000; justify-content:center; align-items:center;">
-  <img id="previewImg" style="max-width:98%; max-height:98%;">
+<div id="preview" style="display:none; position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,.92); padding:16px; align-items:center; justify-content:center;">
+  <img id="previewImg" alt="Full result" style="max-width:100%; max-height:100%; object-fit:contain; border-radius:10px;">
 </div>
 
 <script>
-  // 1. Initialize with Jinja2 count (works instantly if you are in 'input')
-  window.inputImageCount = {{ input_images_list|length if input_images_list is defined else 0 }};
+const PAGE_PATH = {{ path|tojson }};
+const IS_OUTPUT = PAGE_PATH === "output" || PAGE_PATH.includes("class");
+let progressInterval = null;
 
-  // 2. Define the background fetcher
-  async function syncInputCount() {
-    // Skip if we already have the count from Jinja
-    if (window.inputImageCount > 0) return;
-
-    try {
-      console.log("Fetching global input count...");
-      const response = await fetch('/api/files?path=input'); 
-      if (!response.ok) throw new Error("Backend API missing");
-      
-      const data = await response.json();
-      // Filter for images and update the global count
-      const count = data.items.filter(item => 
-        !item.is_dir && /\.(jpg|jpeg|png|webp)$/i.test(item.name)
-      ).length;
-      
-      window.inputImageCount = count;
-      console.log("Successfully synced input count:", window.inputImageCount);
-    } catch (e) {
-      console.error("Sync failed: Make sure you added the Python route!", e);
-    }
-  }
-
-  // 3. Run the sync if we aren't currently viewing the 'input' folder
-  if ("{{ path }}" !== "input") {
-    syncInputCount();
-  }
-
-
-
-
-
-  function sortFiles() {
-    const sortBy = document.getElementById("sortOption").value;
-    const container = document.getElementById("fileBox");
-    const cards = Array.from(container.getElementsByClassName("image-card"));
-
-    if (sortBy === "default") {
-        // Optional: Reset visibility if user switches back to default
-        cards.forEach(card => card.style.display = "block");
-        return;
-    }
-
-    // --- NEW: Duplicates Filter Logic ---
-    if (sortBy === "duplicates") {
-        cards.forEach(card => {
-            const name = card.getAttribute("data-name");
-            // Checks if there are at least two underscores
-            if ((name.match(/_/g) || []).length >= 2) {
-                card.style.display = "block";
-            } else {
-                card.style.display = "none";
-                card.querySelector('.select-checkbox').checked = false; // Uncheck hidden
-            }
-        });
-        updateBatchUI();
-        return; // Exit here as we are filtering, not sorting
-    }
-
-    // Ensure cards are visible when switching between other sort modes
-    cards.forEach(card => card.style.display = "block");
-
-    cards.sort((a, b) => {
-        if (sortBy === "date") {
-            const dateA = parseFloat(a.getAttribute("data-date")) || 0;
-            const dateB = parseFloat(b.getAttribute("data-date")) || 0;
-            return dateB - dateA; 
-        } 
-        
-        const nameA = a.getAttribute("data-name").toLowerCase();
-        const nameB = b.getAttribute("data-name").toLowerCase();
-        const partsA = nameA.match(/\d+/g) || [];
-        const partsB = nameB.match(/\d+/g) || [];
-
-        if (sortBy === "roll") {
-            const rollA = parseInt(partsA[0]) || 0;
-            const rollB = parseInt(partsB[0]) || 0;
-            return rollA - rollB; 
-        } 
-        
-        if (sortBy === "marks") {
-            const markA = parseInt(partsA[1]) || 0;
-            const markB = parseInt(partsB[1]) || 0;
-            return markB - markA; 
-        }
-        return 0;
-    });
-
-    
-  
-
-
-    // Clear and Re-append to force visual refresh
-    container.replaceChildren(...cards);
-}
-
-
-// --- BATCH SELECTION LOGIC ---
-function toggleSelectAll() {
-    const isChecked = document.getElementById('selectAll').checked;
-    const checkboxes = document.querySelectorAll('.select-checkbox');
-    
-    checkboxes.forEach(cb => {
-        // Find the closest parent image-card to check if it's visible
-        const card = cb.closest('.image-card');
-        
-        // Only toggle the checkbox if the card is currently visible
-        if (card && card.style.display !== 'none') {
-            cb.checked = isChecked;
-        } else {
-            // Ensure hidden cards remain unchecked
-            cb.checked = false;
-        }
-    });
-    updateBatchUI();
-}
-
-
+function cards() { return Array.from(document.querySelectorAll(".image-card")); }
 function updateBatchUI() {
-    const selected = document.querySelectorAll('.select-checkbox:checked');
-    const btn = document.getElementById('batchDeleteBtn');
-    const countSpan = document.getElementById('selectedCount');
-    
-    if (selected.length > 0) {
-        btn.style.display = 'block';
-        countSpan.innerText = selected.length;
-    } else {
-        btn.style.display = 'none';
-        document.getElementById('selectAll').checked = false;
-    }
+  const selected = document.querySelectorAll(".select-checkbox:checked");
+  const btn = document.getElementById("batchDeleteBtn");
+  const all = document.getElementById("selectAll");
+  document.getElementById("selectedCount").textContent = selected.length;
+  btn.style.display = selected.length ? "block" : "none";
+  if (!selected.length) all.checked = false;
 }
 
-async function deleteSelectedFiles() {
-    const selected = document.querySelectorAll('.select-checkbox:checked');
-    if (selected.length === 0) return;
-
-    if (!confirm(`Are you sure you want to delete ${selected.length} selected files?`)) return;
-
-    const btn = document.getElementById('batchDeleteBtn');
-    btn.innerText = "Deleting...";
-    btn.disabled = true;
-
-    let deletePromises = [];
-    selected.forEach(cb => {
-        const fullPath = cb.getAttribute("data-path");
-        const p = fetch("/delete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ path: fullPath })
-        });
-        deletePromises.push(p);
-    });
-
-    try {
-        await Promise.all(deletePromises);
-        alert("Selected files deleted.");
-        location.reload();
-    } catch (err) {
-        console.error(err);
-        alert("An error occurred during deletion.");
-        location.reload();
-    }
-}
-
-// --- NEW RECHECK FUNCTION ---
-let progressInterval;
-
-async function getFileCount(folder) {
-    try {
-        const response = await fetch(`/api/files?path=${folder}`);
-        const data = await response.json();
-        return data.items.filter(item => 
-            !item.is_dir && /\.(jpg|jpeg|png|webp)$/i.test(item.name)
-        ).length;
-    } catch (e) {
-        return 0;
-    }
-}
-
-async function runRecheck() {
-    if (!confirm("Run recheck?")) return;
-
-    const overlay = document.getElementById('progressOverlay');
-    const bar = document.getElementById('progressBar');
-    const currentText = document.getElementById('currentCount');
-    const totalText = document.getElementById('totalCount');
-    const percentText = document.getElementById('progressPercentage');
-    const etaText = document.getElementById('etaDisplay');
-
-    // Initial Setup
-    const totalFiles = window.inputImageCount || await getFileCount('input');
-    if (totalFiles === 0) {
-        alert("No images found in input folder.");
-        return;
-    }
-
-    totalText.innerText = totalFiles;
-    overlay.style.display = 'flex';
-    
-    // Start the backend process
-    fetch("/run-recheck", { method: "POST" })
-        .then(res => res.json())
-        .then(data => {
-            clearInterval(progressInterval);
-            bar.style.width = '100%';
-            percentText.innerText = '100%';
-            setTimeout(() => {
-                alert("✅ Task Finished!");
-                location.reload();
-            }, 500);
-        })
-        .catch(err => {
-            clearInterval(progressInterval);
-            alert("Error during recheck.");
-            overlay.style.display = 'none';
-        });
-
-    // Start Real-time Polling
-    const startTime = Date.now();
-    
-    progressInterval = setInterval(async () => {
-        const outputCount = await getFileCount('output');
-        const errorCount = await getFileCount('error_images');
-        const processed = outputCount + errorCount;
-        
-        // Update UI
-        const percent = Math.min(Math.round((processed / totalFiles) * 100), 99);
-        bar.style.width = percent + '%';
-        currentText.innerText = processed;
-        percentText.innerText = percent + '%';
-
-        // Calculate ETA
-        if (processed > 0) {
-            const elapsedMs = Date.now() - startTime;
-            const msPerFile = elapsedMs / processed;
-            const remainingFiles = totalFiles - processed;
-            const remainingMs = remainingFiles * msPerFile;
-            const remainingSec = Math.ceil(remainingMs / 1000);
-            etaText.innerText = `ETA: ${remainingSec}s remaining`;
-        }
-    }, 1000); // Polls every 2 seconds to avoid server spam
-}
-
-
-function searchRoll(){
-  let val = document.getElementById("rollSearch").value.toLowerCase();
-  let cards = document.querySelectorAll(".image-card");
+function applySearch() {
+  const val = document.getElementById("rollSearch").value.trim().toLowerCase();
   let found = 0;
-  cards.forEach(card => {
-    let name = card.getAttribute("data-name").toLowerCase();
-    if(name.includes(val)){
-      card.style.display = "block";
-      found++;
-    } else {
-      card.style.display = "none";
-      // Uncheck hidden cards so they aren't accidentally deleted
-      card.querySelector('.select-checkbox').checked = false;
-    }
+  cards().forEach(card => {
+    const match = card.dataset.name.toLowerCase().includes(val);
+    card.style.display = match ? "" : "none";
+    if (!match) card.querySelector(".select-checkbox").checked = false;
+    if (match) found++;
   });
-  document.getElementById("noMatch").style.display = (found === 0 && val !== "") ? "block" : "none";
+  document.getElementById("noMatch").classList.toggle("hidden", !(found === 0 && val));
   updateBatchUI();
 }
 
-function openPreview(src){
-    document.getElementById('previewImg').src = src;
-    document.getElementById('preview').style.display = 'flex';
-}
+function sortFiles() {
+  const mode = document.getElementById("sortOption").value;
+  const box = document.getElementById("fileBox");
+  const list = cards();
 
-function deleteFile(p){
-    if(confirm("Delete this file?")) {
-        fetch("/delete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ path: p })
-        }).then(() => location.reload());
-    }
-}
-
-async function deleteAllFiles() {
-    const confirmed = confirm("⚠️ WARNING: This will delete EVERY file in this folder. This cannot be undone. Proceed?");
-    if (confirmed) {
-        const cards = document.querySelectorAll(".image-card");
-        const folderPath = "{{ path }}";
-        const btn = document.querySelector(".btn-delete-all");
-        btn.innerText = "Deleting... Please wait";
-        btn.disabled = true;
-
-        let deletePromises = [];
-        cards.forEach(card => {
-            const fileName = card.getAttribute("data-name");
-            const fullPath = folderPath + "/" + fileName;
-            const p = fetch("/delete", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ path: fullPath })
-            });
-            deletePromises.push(p);
-        });
-
-        if (deletePromises.length === 0) {
-            alert("No files found to delete.");
-            return;
-        }
-
-        try {
-            await Promise.all(deletePromises);
-            alert("Folder cleared successfully.");
-            location.reload();
-        } catch (err) {
-            console.error(err);
-            alert("Some files might not have been deleted. Refreshing...");
-            location.reload();
-        }
-    }
-}
-
-function renameFile(oldPath) {
-    const currentPath = "{{ path }}";
-    const isOutput = currentPath.includes("output") || currentPath.includes("class");
-    
-    let filename = oldPath.split('/').pop();
-    let parts = filename.split('.');
-    let ext = parts.length > 1 ? '.' + parts.pop() : '';
-    let baseName = parts.join('.');
-
-    let newName = "";
-
-    if (isOutput) {
-        // Splits "23_99_1" into ["23", "99", "1"]
-        let nameParts = baseName.split('_');
-        let oldRoll = nameParts[0] || "";
-        let oldMarks = nameParts[1] || "";
-
-        let newRoll = prompt("Enter Roll Number:", oldRoll);
-        if (newRoll === null) return; 
-
-        let strippedRoll = parseInt(newRoll, 10).toString();
-        if (isNaN(strippedRoll)) strippedRoll = "0"; 
-
-        let newMarks = prompt("Enter Marks:", oldMarks);
-        if (newMarks === null) return;
-
-        // Force roll_mark.jpg format (strips the _1)
-        newName = strippedRoll + "_" + newMarks;
-    } else {
-        let n = prompt("New name", baseName);
-        if (!n || n === baseName) return;
-        newName = n;
-    }
-
-    let folder = oldPath.substring(0, oldPath.lastIndexOf('/'));
-    let newPath = folder + "/" + newName + ext;
-
-    if (newPath === oldPath) return;
-
-    fetch("/rename", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ old: oldPath, new: newPath })
-    }).then(async res => {
-        if (res.status === 409) {
-            alert("Error: File '" + newName + ext + "' already exists. Edit cancelled.");
-        } else if (!res.ok) {
-            alert("Rename failed.");
-        } else {
-            location.reload();
-        }
+  if (mode === "default") {
+    list.forEach(card => card.style.display = "");
+    applySearch();
+    return;
+  }
+  if (mode === "duplicates") {
+    list.forEach(card => {
+      const show = (card.dataset.name.match(/_/g) || []).length >= 2;
+      card.style.display = show ? "" : "none";
+      if (!show) card.querySelector(".select-checkbox").checked = false;
     });
+    updateBatchUI();
+    return;
+  }
+
+  list.forEach(card => card.style.display = "");
+  list.sort((a, b) => {
+    if (mode === "date") return (parseFloat(b.dataset.date) || 0) - (parseFloat(a.dataset.date) || 0);
+    const numsA = a.dataset.name.match(/\d+/g) || [];
+    const numsB = b.dataset.name.match(/\d+/g) || [];
+    const idx = mode === "marks" ? 1 : 0;
+    return (parseInt(numsB[idx]) || 0) - (parseInt(numsA[idx]) || 0);
+  });
+  box.replaceChildren(...list);
+  applySearch();
 }
+
+async function deleteSelectedFiles() {
+  const selected = Array.from(document.querySelectorAll(".select-checkbox:checked"));
+  if (!selected.length) return;
+  if (!confirm(`Delete ${selected.length} selected image${selected.length === 1 ? "" : "s"}? Telegram backups are kept.`)) return;
+
+  const btn = document.getElementById("batchDeleteBtn");
+  btn.disabled = true; btn.textContent = "Deleting…";
+  try {
+    await Promise.all(selected.map(cb => fetch("/delete", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({path: cb.dataset.path})
+    }).then(r => { if (!r.ok) throw new Error(); })));
+    location.reload();
+  } catch (e) {
+    alert("Some images could not be deleted.");
+    btn.disabled = false; btn.textContent = "Delete selected";
+  }
+}
+
+async function deleteImage(path) {
+  if (!confirm("Delete this image? The Telegram backup is kept.")) return;
+  const res = await fetch("/delete", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({path})
+  });
+  if (res.ok) location.reload(); else alert("Delete failed.");
+}
+
+async function renameImage(path) {
+  const filename = path.split("/").pop();
+  const dot = filename.lastIndexOf(".");
+  const ext = dot >= 0 ? filename.slice(dot) : "";
+  const base = dot >= 0 ? filename.slice(0, dot) : filename;
+  let newBase;
+
+  if (IS_OUTPUT) {
+    const parts = base.split("_");
+    const oldRoll = parts[0] || "";
+    const oldMarks = parts[1] || "";
+    const roll = prompt("Roll number:", oldRoll);
+    if (roll === null) return;
+    if (!/^\d+$/.test(roll.trim())) { alert("Roll must be numeric."); return; }
+    const marks = prompt("Marks:", oldMarks);
+    if (marks === null) return;
+    if (!/^\d+$/.test(marks.trim())) { alert("Marks must be numeric."); return; }
+    newBase = `${parseInt(roll, 10)}_${parseInt(marks, 10)}`;
+  } else {
+    newBase = prompt("New filename (without extension):", base);
+    if (newBase === null || !newBase.trim() || newBase === base) return;
+    if (newBase.includes("/") || newBase.includes("\\")) { alert("Filename cannot contain slashes."); return; }
+  }
+
+  const folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+  const newPath = (folder ? folder + "/" : "") + newBase + ext;
+  if (newPath === path) return;
+
+  const res = await fetch("/rename", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({old: path, new: newPath})
+  });
+  if (res.status === 409) alert("A file with that name already exists.");
+  else if (!res.ok) alert("Rename failed.");
+  else location.reload();
+}
+
+async function getFileCount(folder) {
+  try {
+    const res = await fetch(`/api/files?path=${encodeURIComponent(folder)}`);
+    const data = await res.json();
+    return typeof data.count === "number" ? data.count : (data.items || []).length;
+  } catch (e) { return 0; }
+}
+
+async function runRecheck() {
+  if (!confirm("Recheck every image in this folder? Existing output is kept.")) return;
+  const btn = document.getElementById("runRecheckBtn");
+  const overlay = document.getElementById("progressOverlay");
+  const bar = document.getElementById("progressBar");
+  const currentText = document.getElementById("currentCount");
+  const totalText = document.getElementById("totalCount");
+  const percentText = document.getElementById("progressPercentage");
+  const etaText = document.getElementById("etaDisplay");
+
+  btn.disabled = true;
+  overlay.style.display = "flex";
+  bar.style.width = "0%"; percentText.textContent = "0%"; etaText.textContent = "Starting…";
+  currentText.textContent = "0";
+  totalText.textContent = "0";
+
+  try {
+    const res = await fetch("/run-recheck", {method: "POST"});
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok && res.status !== 202) throw new Error(data.error || "Could not start recheck");
+    const startTime = Date.now();
+
+    clearInterval(progressInterval);
+    progressInterval = setInterval(async () => {
+      try {
+        const state = await (await fetch("/recheck_status")).json();
+        const total = state.total || 0;
+        const done = (state.done || 0) + (state.failed || 0);
+        const percent = total ? Math.min(Math.round(done / total * 100), 100) : 0;
+        bar.style.width = percent + "%";
+        percentText.textContent = percent + "%";
+        currentText.textContent = done;
+        totalText.textContent = total;
+        if (done > 0) {
+          const elapsed = (Date.now() - startTime) / 1000;
+          const remaining = Math.max(0, Math.ceil((elapsed / done) * (total - done)));
+          etaText.textContent = `About ${remaining}s remaining`;
+        }
+        if (!state.running) {
+          clearInterval(progressInterval);
+          etaText.textContent = state.message || "Finished";
+          setTimeout(() => location.reload(), 900);
+        }
+      } catch (e) {
+        etaText.textContent = "Waiting for server…";
+      }
+    }, 1200);
+  } catch (err) {
+    clearInterval(progressInterval);
+    overlay.style.display = "none";
+    btn.disabled = false;
+    alert(err.message);
+  }
+}
+
+// Event wiring
+document.getElementById("rollSearch").addEventListener("input", applySearch);
+document.getElementById("sortOption").addEventListener("change", sortFiles);
+document.getElementById("selectAll").addEventListener("change", (e) => {
+  document.querySelectorAll(".select-checkbox").forEach(cb => {
+    if (cb.closest(".image-card").style.display !== "none") cb.checked = e.target.checked;
+  });
+  updateBatchUI();
+});
+document.getElementById("batchDeleteBtn").addEventListener("click", deleteSelectedFiles);
+const recheckBtn = document.getElementById("runRecheckBtn");
+if (recheckBtn) recheckBtn.addEventListener("click", runRecheck);
+
+document.querySelectorAll(".select-checkbox").forEach(cb => cb.addEventListener("change", updateBatchUI));
+document.querySelectorAll(".action-delete").forEach(btn => btn.addEventListener("click", () => {
+  deleteImage(btn.closest(".image-card").dataset.path);
+}));
+document.querySelectorAll(".action-rename").forEach(btn => btn.addEventListener("click", () => {
+  renameImage(btn.closest(".image-card").dataset.path);
+}));
+document.querySelectorAll(".img-wrapper img").forEach(img => {
+  img.addEventListener("click", () => {
+    const preview = document.getElementById("preview");
+    const previewImg = document.getElementById("previewImg");
+    previewImg.src = img.dataset.full;
+    preview.style.display = "flex";
+  });
+  img.addEventListener("error", () => {
+    if (img.dataset.fallback !== "1") {
+      img.dataset.fallback = "1";
+      img.src = img.dataset.full;
+    }
+  });
+});
+document.getElementById("preview").addEventListener("click", (e) => {
+  if (e.target.id === "preview") e.target.style.display = "none";
+});
 </script>
 </body>
 </html>

@@ -4,14 +4,18 @@ Configuration comes from the environment. The token used to be hard-coded
 here, which leaked a live PAT into the repository and into the Docker image.
 """
 import base64
+import html
 import json
 import os
 import re
+import shutil
 import sys
+import tempfile
 
 import requests
 
 import db
+import telegram
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 REPO_OWNER = os.environ.get("GITHUB_REPO_OWNER", "Ashit-10")
@@ -47,18 +51,22 @@ print(f"Target: {tuition.upper()} | Class: {cls} | Subject: {subject}")
 def get_next_exam_no(session, github_base, cls, clean_subject):
     """Checks GitHub to see how many exams exist and returns the next number."""
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{github_base}"
-    res = session.get(url)
-    
+    res = session.get(url, timeout=20)
+    if res.status_code not in (200, 404):
+        raise RuntimeError(
+            f"GitHub could not list {github_base} ({res.status_code}): {res.text[:200]}"
+        )
+
     exam_no = 1
     if res.status_code == 200:
         contents = res.json()
         # Look for folders like "class-10_math_1", "class-10_math_2"
         pattern = f"class-{cls}_{clean_subject}_"
         existing_exams = [
-            item['name'] for item in contents 
+            item['name'] for item in contents
             if item['type'] == 'dir' and item['name'].startswith(pattern)
         ]
-        
+
         if existing_exams:
             # Find the highest number currently in use
             numbers = []
@@ -70,7 +78,7 @@ def get_next_exam_no(session, github_base, cls, clean_subject):
                     continue
             if numbers:
                 exam_no = max(numbers) + 1
-    
+
     return exam_no
 def get_total_marks():
     """Returns the number of items in the MongoDB answer key."""
@@ -102,13 +110,13 @@ def upload_to_github(session, local_path, github_path, content_bytes=None):
         else:
             with open(local_path, "rb") as f:
                 content = base64.b64encode(f.read()).decode()
-        
-        get_file = session.get(url)
+
+        get_file = session.get(url, timeout=20)
         data = {"message": f"Upload {github_path}", "content": content}
         if get_file.status_code == 200:
             data["sha"] = get_file.json()["sha"]
-        
-        res = session.put(url, json=data)
+
+        res = session.put(url, json=data, timeout=60)
         return res.status_code in [200, 201]
     except Exception as e:
         print(f"Error: {e}")
@@ -118,42 +126,91 @@ def run():
     raw_subject = subject.strip()
     exam_no = 1
     clean_subject = raw_subject.replace(" ", "").lower()
-    
+
     github_tuition = tuition.upper()
     github_base = f"{github_tuition}/{YEAR}/class-{cls}"
-    
+
     session = requests.Session()
     session.headers.update({"Authorization": f"token {GITHUB_TOKEN}"})
     exam_no = get_next_exam_no(session, github_base, cls, clean_subject)
     print(f"📈 Setting Exam Number to: {exam_no}")
-    
+
     folder_path = f"class-{cls}_{clean_subject}_{exam_no}"
     github_img_folder = f"{github_base}/{folder_path}/eval_files"
-    
+
     output_folder = "./output"
     names_db = get_student_names(tuition, cls)
-    
-    if not os.path.exists(output_folder):
-        print(f"❌ Error: Folder '{output_folder}' not found!")
-        return
 
-    # 2. Process Data
-    raw_files = [f for f in os.listdir(output_folder) if "_" in f and f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder, exist_ok=True)
+
+    # Mongo is the source of truth, not the container filesystem: after a
+    # redeploy output/ is empty and the old code published an empty gallery.
+    # Enumerate indexed output images, then materialise any missing bytes from
+    # Telegram into a temporary directory for this one sync.
+    indexed = db.list_images("output")
+    disk_files = {
+        f for f in os.listdir(output_folder)
+        if f.lower().endswith((".jpg", ".jpeg", ".png"))
+    }
+    image_names = sorted(set(indexed) | disk_files)
+    results = {}
+    try:
+        results = {
+            r.get("output_filename"): r
+            for r in db.list_results()
+            if r.get("output_filename")
+        }
+    except Exception as e:
+        print(f"Warning: could not read result history: {e}")
+
+    temp_dir = tempfile.mkdtemp(prefix="omr_gitup_")
     student_list = []
-    for file_name in raw_files:
+    for file_name in image_names:
+        if ".." in file_name.replace("\\", "/").split("/") or file_name.startswith("/"):
+            print(f"⚠️ Skipping unsafe filename: {file_name}")
+            continue
+        local_path = os.path.join(output_folder, file_name)
+        if not os.path.isfile(local_path):
+            meta = indexed.get(file_name) or {}
+            if meta.get("file_id") and telegram.is_configured():
+                local_path = os.path.join(temp_dir, file_name)
+                print(f"⬇️ Restoring missing image from Telegram: {file_name}")
+                if not telegram.download(meta["file_id"], local_path):
+                    print(f"⚠️ Could not restore {file_name}; skipping.")
+                    continue
+            else:
+                print(f"⚠️ Missing local image without Telegram copy: {file_name}")
+                continue
+
         match = re.search(r"(\d+)_(\d+)", file_name)
-        if match:
-            roll, mark = int(match.group(1)), int(match.group(2))
-            student_list.append({
-                "roll": roll, "mark": mark, "file": file_name,
-                "name": lookup_student_name(names_db, roll),
-                "path": f"{folder_path}/eval_files/{file_name}" 
-            })
+        if not match:
+            continue
+        record = results.get(file_name) or {}
+        roll = record.get("roll")
+        mark = record.get("marks")
+        if roll is None:
+            roll = int(match.group(1))
+        if mark is None:
+            mark = int(match.group(2))
+        student_list.append({
+            "roll": int(roll),
+            "mark": int(mark),
+            "file": file_name,
+            "local_path": local_path,
+            "name": lookup_student_name(names_db, roll),
+            "path": f"{folder_path}/eval_files/{file_name}",
+        })
+
+    if not student_list:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        print("❌ No indexed result images were found; nothing to publish.")
+        return
 
     gallery_students = sorted(student_list, key=lambda x: x['roll'])
     ranked_students = sorted(student_list, key=lambda x: x['mark'], reverse=True)
     for i, s in enumerate(ranked_students): s['rank'] = i + 1
-    
+
     total_possible_marks = get_total_marks()
 
     # 3. HTML Generation (CSS Updated for Left Alignment of Names)
@@ -170,10 +227,10 @@ def run():
         #search-bar {{ margin-bottom: 20px; width: 100%; padding: 10px; font-size: 16px; }}
         table {{ width: 100%; border-collapse: collapse; }}
         th, td {{ text-align: center; padding: 8px; vertical-align: middle; }}
-        
+
         /* FIX: Align names column to the left */
         th:first-child, td:first-child {{ text-align: left; padding-left: 20px; }}
-        
+
         tr:nth-child(even) {{ background-color: #eee9e9; }}
         a {{ text-decoration: none !important; color: blue; }}
         a:hover {{ text-decoration: underline; }}
@@ -189,7 +246,7 @@ def run():
                </a>
             </li>
             <li class="nav-item">
-               <a href="{site_link}/50?user=student&filename={github_base}/class-{cls}_{clean_subject.lower()}_{exam_no}/answer_key.txt" class="btn btn-outline-primary" target="_blank">
+               <a href="class-{cls}_{clean_subject.lower()}_{exam_no}/answer_key.txt" class="btn btn-outline-primary" target="_blank">
                   View Answer Key
                </a>
             </li>
@@ -203,7 +260,7 @@ def run():
     for s in ranked_students:
         html_content += f"""
             <tr>
-                <td><a href="{s['path']}">{s['name']}</a></td>
+                <td><a href="{html.escape(s['path'])}">{html.escape(str(s['name']))}</a></td>
                 <td>{total_possible_marks}</td>
                 <td>{s['mark']}</td>
                 <td>{s['rank']}</td>
@@ -219,8 +276,8 @@ def run():
     for s in gallery_students:
         html_content += f"""
         <div class="imgs" style="text-align:center; margin-bottom:40px;">
-            <img src="{s['path']}" alt="{s['name']}" style="max-width:98%; height:auto; border:1px solid #ccc;"> 
-            <p>{s['name']} (Roll: {s['roll']})</p>
+            <img src="{html.escape(s['path'])}" alt="{html.escape(str(s['name']))}" style="max-width:98%; height:auto; border:1px solid #ccc;">
+            <p>{html.escape(str(s['name']))} (Roll: {s['roll']})</p>
         </div>"""
 
     html_content += """
@@ -251,30 +308,32 @@ def run():
     # 5. Upload to GitHub (Automatic)
     session = requests.Session()
     session.headers.update({"Authorization": f"token {GITHUB_TOKEN}"})
-    
+
     print(f"📤 Uploading HTML to GitHub...")
     html_success = upload_to_github(session, output_filename, f"{github_base}/{output_filename}")
-    
+
     if ANSWER_KEY:
         print(f"📤 Uploading answer_key.txt to GitHub...")
         upload_to_github(session, None, f"{github_base}/class-{cls}_{clean_subject.lower()}_{exam_no}/answer_key.txt", content_bytes=get_answer_key_bytes())
-    
+
     if html_success:
         print(f"🚀 Uploading {len(student_list)} images...")
         count = 0
         for s in student_list:
-            img_success = upload_to_github(session, f"{output_folder}/{s['file']}", f"{github_img_folder}/{s['file']}")
+            img_success = upload_to_github(session, s['local_path'], f"{github_img_folder}/{s['file']}")
             count += 1
             status = "✅" if img_success else "❌"
             print(f"[{count}/{len(student_list)}] {status} {s['name']}")
-            sys.stdout.flush() 
+            sys.stdout.flush()
 
         os.remove(output_filename)
+        shutil.rmtree(temp_dir, ignore_errors=True)
         print(f"\n✅ SYNC COMPLETE")
         print()
         print(f"The webpage will be available in 5 minutes: {site_link}/{github_base}/{output_filename}")
         print()
     else:
+        shutil.rmtree(temp_dir, ignore_errors=True)
         print("❌ FAILED: Could not upload HTML file to GitHub.")
         print()
 

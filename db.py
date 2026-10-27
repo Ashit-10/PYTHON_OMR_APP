@@ -11,8 +11,8 @@ import re
 import threading
 import time
 
-from pymongo import MongoClient, ASCENDING
-from pymongo.errors import PyMongoError
+from pymongo import MongoClient, ASCENDING, DESCENDING
+from pymongo.errors import DuplicateKeyError, PyMongoError
 
 MONGO_URL = os.environ.get("MONGO_URL")
 DB_NAME = os.environ.get("MONGO_DB", "omr")
@@ -37,8 +37,17 @@ UPLOAD_PREFIX = "upload:"
 TASK_RETENTION_SECONDS = 7 * 24 * 60 * 60
 RESULT_RETENTION_SECONDS = 365 * 24 * 60 * 60
 
+# A task that has not moved for this long is considered abandoned. Covers a
+# worker killed by a redeploy or a subprocess that hung.
+STALE_TASK_SECONDS = 30 * 60
+
+# Settings are read by every scan and every config request. A short TTL keeps
+# the read off Mongo's hot path without making the dashboard feel stale.
+SETTINGS_CACHE_TTL = float(os.environ.get("SETTINGS_CACHE_TTL", "30"))
+
 _client = None
 _lock = threading.Lock()
+_settings_cache = {"value": None, "expires": 0.0}
 
 DEFAULT_SETTINGS = {
     "signature": "",
@@ -77,7 +86,7 @@ def _validate_url(url):
             "Copy the connection string from Atlas > Database Access, which fills "
             "in your real username and password."
         )
-    if not user:
+    if not user and parsed.hostname not in ("localhost", "127.0.0.1", "::1", "mongo"):
         return "MONGO_URL has no username."
 
     if " " in url:
@@ -134,18 +143,32 @@ def init_db():
         raise RuntimeError(invalid)
 
     try:
-        client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=10000)
+        client = MongoClient(
+            MONGO_URL,
+            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=10000,
+            socketTimeoutMS=30000,
+            maxPoolSize=20,
+            appname="omr",
+        )
         client.admin.command("ping")
     except PyMongoError as e:
         raise RuntimeError(f"MongoDB at MONGO_URL is unreachable: {_connection_error(e)}") from e
 
     with _lock:
         _client = client
+        _settings_cache["value"] = None
+        _settings_cache["expires"] = 0.0
 
-    get_collection().create_index([("key", ASCENDING)], unique=True)
-    # Supports the retention sweeps; not unique, and not a TTL index because
-    # pruning runs at boot rather than in the background.
-    get_collection().create_index([("created_at", ASCENDING)])
+    collection = get_collection()
+    collection.create_index([("key", ASCENDING)], unique=True)
+    # Supports the retention sweeps and newest-task lookup.
+    collection.create_index([("created_at", DESCENDING)])
+    # New documents carry a type so listings can be indexed rather than
+    # scanning every key with a regex. Existing prefix-keyed documents still
+    # work through the key index.
+    collection.create_index([("type", ASCENDING), ("created_at", DESCENDING)])
+    collection.create_index([("type", ASCENDING), ("folder", ASCENDING)])
 
 
 def get(key, default=None):
@@ -167,6 +190,8 @@ def set(key, value):
     get_collection().update_one(
         {"key": key}, {"$set": {"value": value}}, upsert=True
     )
+    if key == SETTINGS_KEY:
+        invalidate_settings()
     return value
 
 
@@ -175,15 +200,51 @@ def delete(key):
 
 
 def get_settings():
-    return {**DEFAULT_SETTINGS, **(get(SETTINGS_KEY) or {})}
+    now = time.time()
+    cached = _settings_cache["value"]
+    if cached is not None and _settings_cache["expires"] > now:
+        return dict(cached)
+
+    merged = {**DEFAULT_SETTINGS, **(get(SETTINGS_KEY) or {})}
+    _settings_cache["value"] = merged
+    _settings_cache["expires"] = now + SETTINGS_CACHE_TTL
+    return dict(merged)
+
+
+def invalidate_settings():
+    _settings_cache["value"] = None
+    _settings_cache["expires"] = 0.0
 
 
 def set_settings(patch):
-    with _lock:
-        merged = get_settings()
-        merged.update(patch)
-        set(SETTINGS_KEY, merged)
-    return merged
+    """Merge settings without losing a concurrent worker's change.
+
+    Optimistic compare-and-set: the update only succeeds while "value" still
+    has the exact contents that were read. A concurrent write causes one retry
+    instead of silently dropping the other key.
+    """
+    for _ in range(5):
+        current = get(SETTINGS_KEY)
+        base = dict(current) if isinstance(current, dict) else {}
+        merged = {**base, **patch}
+        if current is None:
+            try:
+                get_collection().insert_one({"key": SETTINGS_KEY, "value": merged})
+            except DuplicateKeyError:
+                continue
+            invalidate_settings()
+            return merged
+        result = get_collection().update_one(
+            {"key": SETTINGS_KEY, "value": current},
+            {"$set": {"value": merged}},
+        )
+        if result.matched_count:
+            invalidate_settings()
+            return merged
+    # Extremely unlikely, but do not leave the caller with an exception after
+    # a read they can retry from the UI.
+    invalidate_settings()
+    return get_settings()
 
 
 def get_rolls(filename):
@@ -205,21 +266,40 @@ def get_folders():
     return get(FOLDERS_KEY, []) or []
 
 
+def _mutate_folder_list(mutator):
+    """Atomically apply mutator(list) -> list to the folder singleton."""
+    for _ in range(5):
+        current = get(FOLDERS_KEY)
+        folders = list(current) if isinstance(current, list) else []
+        updated = mutator(list(folders))
+        if updated == folders:
+            return sorted(updated)
+        if current is None:
+            try:
+                get_collection().insert_one({"key": FOLDERS_KEY, "value": updated})
+            except DuplicateKeyError:
+                continue
+            return sorted(updated)
+        result = get_collection().update_one(
+            {"key": FOLDERS_KEY, "value": current},
+            {"$set": {"value": updated}},
+        )
+        if result.modified_count:
+            return sorted(updated)
+    return sorted(get_folders())
+
+
 def add_folder(name):
-    with _lock:
-        folders = get_folders()
+    def add(folders):
         if name not in folders:
             folders.append(name)
-            folders.sort()
-            set(FOLDERS_KEY, folders)
-    return folders
+        return folders
+
+    return _mutate_folder_list(add)
 
 
 def remove_folder(name):
-    with _lock:
-        folders = [f for f in get_folders() if f != name]
-        set(FOLDERS_KEY, folders)
-    return folders
+    return _mutate_folder_list(lambda folders: [f for f in folders if f != name])
 
 
 def get_task(task_id):
@@ -229,12 +309,13 @@ def get_task(task_id):
 def set_task(task_id, data):
     """Upsert one task document atomically.
 
-    run_web.set_task() merges a full task dict, so a whole-document $set keeps
-    the write a single atomic operation instead of a read-modify-write.
+    Kept for callers that already hold a merged task dict. New code should
+    prefer update_task(), which changes only the fields it is given.
     """
     data = dict(data)
     data["updated_at"] = time.time()
     data.setdefault("created_at", data["updated_at"])
+    data.setdefault("type", "task")
     get_collection().update_one(
         {"key": TASK_PREFIX + task_id},
         {"$set": data},
@@ -243,15 +324,56 @@ def set_task(task_id, data):
     return data
 
 
+def update_task(task_id, fields, defaults=None):
+    """Update only the supplied task fields, without a preceding read.
+
+    $setOnInsert writes created_at/defaults on the first write and is ignored
+    afterwards, so the common "processing" and "completed" updates are one
+    round trip each.
+    """
+    now = time.time()
+    fields = dict(fields)
+    fields["updated_at"] = now
+    on_insert = {"created_at": now, "type": "task"}
+    if defaults:
+        on_insert.update(defaults)
+    # Mongo rejects a field that appears in both $set and $setOnInsert.
+    for key in fields:
+        on_insert.pop(key, None)
+    get_collection().update_one(
+        {"key": TASK_PREFIX + task_id},
+        {"$set": fields, "$setOnInsert": on_insert},
+        upsert=True,
+    )
+    return fields
+
+
+def latest_task():
+    """Most recently created task, or None. One indexed document, not a scan."""
+    doc = get_collection().find_one(
+        {"type": "task"},
+        sort=[("created_at", DESCENDING)],
+    )
+    if doc is None:
+        # Tasks created before the type field was introduced.
+        doc = get_collection().find_one(
+            {"key": {"$regex": "^" + re.escape(TASK_PREFIX)}},
+            sort=[("created_at", DESCENDING)],
+        )
+    return _doc_value(doc) if doc else None
+
+
 def all_tasks():
-    """Every task, newest first. Scans by prefix so the small settings/folder
-    documents in the same collection are never loaded."""
+    """Every task. Only used by maintenance/tests now; request paths use
+    get_task() or latest_task()."""
     cursor = get_collection().find(
-        {"key": {"$regex": "^" + re.escape(TASK_PREFIX)}}
+        {"key": {"$regex": "^" + re.escape(TASK_PREFIX)}},
+        {"_id": 0},
     )
     tasks = {}
     for doc in cursor:
-        tasks[doc["key"][len(TASK_PREFIX):]] = _doc_value(doc)
+        key = doc.get("key", "")
+        tasks[key[len(TASK_PREFIX):]] = _doc_value(doc)
     return tasks
 
 
@@ -259,9 +381,12 @@ def _doc_value(doc):
     """Flatten a stored document back into a plain dict.
 
     Entities are written with $set at the top level, so a document holds the
-    fields directly rather than under "value".
+    fields directly rather than under "value". Storage-only fields (the _id
+    and the key prefix) are stripped so callers cannot accidentally write them
+    back during a copy/rename.
     """
     doc.pop("_id", None)
+    doc.pop("key", None)
     return doc
 
 
@@ -277,6 +402,33 @@ def prune_tasks(max_age=TASK_RETENTION_SECONDS):
     return result.deleted_count
 
 
+def fail_stale_tasks(max_age=STALE_TASK_SECONDS):
+    """Mark tasks abandoned by a dying worker as failed.
+
+    Without this a redeploy during a scan leaves the row at "processing"
+    forever, and the live view waits on it indefinitely.
+    """
+    cutoff = time.time() - max_age
+    result = get_collection().update_many(
+        {
+            "key": {"$regex": "^" + re.escape(TASK_PREFIX)},
+            "status": {"$in": ["queued", "processing"]},
+            "$or": [
+                {"updated_at": {"$lt": cutoff}},
+                {"updated_at": {"$exists": False}, "created_at": {"$lt": cutoff}},
+            ],
+        },
+        {
+            "$set": {
+                "status": "failed",
+                "error": "Scan was interrupted by a restart.",
+                "updated_at": time.time(),
+            }
+        },
+    )
+    return result.modified_count
+
+
 def put_result(task_id, data):
     """Persist a scan's verdict.
 
@@ -287,6 +439,7 @@ def put_result(task_id, data):
     data = dict(data)
     data["task_id"] = task_id
     data["created_at"] = time.time()
+    data["type"] = "result"
     get_collection().update_one(
         {"key": RESULT_PREFIX + task_id}, {"$set": data}, upsert=True
     )
@@ -334,11 +487,31 @@ def get_image(folder, filename):
 def put_image(folder, filename, meta):
     """Index one image. A single upsert is atomic, so concurrent uploads from
     different workers cannot overwrite each other's entries."""
+    meta = dict(meta)
+    meta.pop("key", None)
+    meta.pop("_id", None)
+    meta["type"] = "image"
+    meta["folder"] = folder
+    meta["filename"] = filename
+    meta["updated_at"] = time.time()
     get_collection().update_one(
         {"key": IMAGE_PREFIX + image_key(folder, filename)},
-        {"$set": dict(meta)},
+        {"$set": meta},
         upsert=True,
     )
+    return meta
+
+
+def move_image(old_folder, old_name, new_folder, new_name):
+    """Move an image's index entry, preserving only its storage metadata."""
+    meta = get_image(old_folder, old_name)
+    if not meta:
+        return None
+    meta = dict(meta)
+    meta.pop("key", None)
+    meta.pop("_id", None)
+    put_image(new_folder, new_name, meta)
+    remove_image(old_folder, old_name)
     return meta
 
 
@@ -363,8 +536,22 @@ def remove_images_in_folder(folder):
 
 def list_images(folder=None):
     """Stored image metadata keyed by "folder/filename", optionally limited to
-    one folder."""
-    query = {"key": {"$regex": "^" + re.escape(IMAGE_PREFIX)}}
+    one folder.
+
+    Limiting happens in the query, not in Python: browsing one folder must not
+    download every image record on the server.
+    """
+    if folder is None:
+        query = {"key": {"$regex": "^" + re.escape(IMAGE_PREFIX)}}
+    else:
+        query = {
+            "key": {
+                "$regex": "^"
+                + re.escape(IMAGE_PREFIX)
+                + re.escape(folder)
+                + "/"
+            }
+        }
     images = {}
     for doc in get_collection().find(query, {"_id": 0}):
         full_key = doc["key"][len(IMAGE_PREFIX):]
@@ -373,6 +560,20 @@ def list_images(folder=None):
         return images
     prefix = f"{folder}/"
     return {k[len(prefix):]: v for k, v in images.items() if k.startswith(prefix)}
+
+
+def count_images(folder):
+    """Number of indexed images in one folder, without transferring them."""
+    return get_collection().count_documents(
+        {
+            "key": {
+                "$regex": "^"
+                + re.escape(IMAGE_PREFIX)
+                + re.escape(folder)
+                + "/"
+            }
+        }
+    )
 
 
 def migrate_legacy_images():
@@ -389,9 +590,16 @@ def migrate_legacy_images():
     for key, meta in legacy.items():
         if not isinstance(meta, dict):
             continue
+        meta = dict(meta)
+        meta.pop("_id", None)
+        meta.pop("key", None)
+        folder, _, filename = str(key).partition("/")
+        meta["type"] = "image"
+        meta["folder"] = folder
+        meta["filename"] = filename
         get_collection().update_one(
             {"key": IMAGE_PREFIX + key},
-            {"$set": dict(meta)},
+            {"$set": meta},
             upsert=True,
         )
     delete(IMAGES_KEY)
@@ -414,12 +622,24 @@ def queue_upload(folder, filename, file_path):
     get_collection().update_one(
         {"key": UPLOAD_PREFIX + image_key(folder, filename)},
         {
-            "$set": {"folder": folder, "filename": filename, "file_path": file_path},
+            "$set": {
+                "folder": folder,
+                "filename": filename,
+                "file_path": file_path,
+                "type": "upload",
+                "updated_at": time.time(),
+            },
             "$setOnInsert": {"attempts": 0, "created_at": time.time()},
         },
         upsert=True,
     )
     return get(UPLOAD_PREFIX + image_key(folder, filename))
+
+
+def count_uploads():
+    return get_collection().count_documents(
+        {"key": {"$regex": "^" + re.escape(UPLOAD_PREFIX)}}
+    )
 
 
 def get_uploads():
@@ -437,6 +657,20 @@ def clear_upload(folder, filename):
     get_collection().delete_one({"key": UPLOAD_PREFIX + image_key(folder, filename)})
 
 
+def remove_uploads_in_folder(folder):
+    result = get_collection().delete_many(
+        {
+            "key": {
+                "$regex": "^"
+                + re.escape(UPLOAD_PREFIX)
+                + re.escape(folder)
+                + "/"
+            }
+        }
+    )
+    return result.deleted_count
+
+
 def bump_upload_attempts(folder, filename):
     get_collection().update_one(
         {"key": UPLOAD_PREFIX + image_key(folder, filename)},
@@ -445,42 +679,51 @@ def bump_upload_attempts(folder, filename):
 
 
 def seed_from_disk(base_dir="."):
-    """Bootstrap an empty database from the files committed to the repo.
+    """Bootstrap missing keys from the files committed to the repo.
 
-    No-op once the collection has any document, so live Mongo data always
-    wins over the on-disk defaults.
+    Per-key rather than all-or-nothing: a deployment that wrote settings but
+    failed before the answer key must heal on the next boot instead of being
+    permanently treated as already seeded.
     """
-    if get_collection().count_documents({}, limit=1):
-        return False
-
     def read_json(path):
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
 
-    if os.path.exists(os.path.join(base_dir, "answer_key.txt")):
+    seeded = 0
+
+    answer_path = os.path.join(base_dir, "answer_key.txt")
+    if os.path.exists(answer_path) and not get(ANSWER_KEY):
         try:
-            set(ANSWER_KEY, read_json(os.path.join(base_dir, "answer_key.txt")))
+            set(ANSWER_KEY, read_json(answer_path))
+            seeded += 1
         except (ValueError, OSError):
             pass
 
     config_path = os.path.join(base_dir, "config.cfg")
-    if os.path.exists(config_path):
-        settings = get_settings()
-        with open(config_path, "r", encoding="utf-8") as f:
-            for line in f:
-                if "=" in line and not line.strip().startswith("["):
-                    k, v = line.split("=", 1)
-                    settings[k.strip()] = v.strip()
-        set(SETTINGS_KEY, settings)
+    if os.path.exists(config_path) and not get(SETTINGS_KEY):
+        settings = dict(DEFAULT_SETTINGS)
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if "=" in line and not line.strip().startswith("["):
+                        k, v = line.split("=", 1)
+                        settings[k.strip()] = v.strip()
+            set(SETTINGS_KEY, settings)
+            seeded += 1
+        except OSError:
+            pass
 
     for path in glob.glob(os.path.join(base_dir, "*_rolls.txt")):
         name = os.path.basename(path)[: -len(".txt")]
+        if get(ROLLS_PREFIX + name):
+            continue
         try:
             set_rolls(name, read_json(path))
+            seeded += 1
         except (ValueError, OSError):
             pass
 
-    return True
+    return seeded > 0
 
 
 def startup_maintenance():
@@ -490,10 +733,12 @@ def startup_maintenance():
     call on every start: each step is idempotent.
     """
     migrated = migrate_legacy_images()
+    stale_tasks = fail_stale_tasks()
     pruned_tasks = prune_tasks()
     pruned_results = prune_results()
     return {
         "migrated_images": migrated,
+        "stale_tasks": stale_tasks,
         "pruned_tasks": pruned_tasks,
         "pruned_results": pruned_results,
     }
