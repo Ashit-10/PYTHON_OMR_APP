@@ -289,6 +289,7 @@ def get_scan_config(force=False):
 # Keep CPU-bound scans separate from network-bound Telegram uploads. A slow
 # upload/retry must not occupy every worker and leave new scans queued.
 scan_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="omr-scan")
+image_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="omr-image")
 
 def set_task(task_id, **fields):
     """Update one task without reading it first (halves Atlas round trips)."""
@@ -446,6 +447,7 @@ def queue_image(folder, filename, file_path=None):
 # occupying the worker for minutes.
 UPLOAD_ATTEMPTS = int(os.environ.get("UPLOAD_ATTEMPTS", "2"))
 UPLOAD_RETRY_DELAY = int(os.environ.get("UPLOAD_RETRY_DELAY", "2"))
+_sync_lock = threading.Lock()
 
 
 def store_image(folder, filename, file_path=None, _attempts=None):
@@ -515,29 +517,36 @@ def sync_pending_uploads(limit=None):
     """
     if not telegram.is_configured():
         return 0
+    # A manual "Sync now" click must not overlap the background batch and
+    # upload/clear the same queue rows twice.
+    if not _sync_lock.acquire(blocking=False):
+        return 0
 
     recovered = 0
     lost = 0
-    entries = db.get_uploads()
-    if limit:
-        entries = entries[:limit]
-    for entry in entries:
-        folder = entry.get("folder", "")
-        filename = entry.get("filename", "")
-        path = entry.get("file_path") or os.path.join(BASE, folder, filename)
-        if not os.path.isfile(path):
-            # The local copy disappeared. If the image index already has it,
-            # just clear the stale queue row; otherwise there is nothing left
-            # to upload from this container.
-            logger.warning(
-                "Queued upload %s/%s has no local copy; dropping it", folder, filename
-            )
-            db.clear_upload(folder, filename)
-            lost += 1
-            continue
-        db.bump_upload_attempts(folder, filename)
-        if store_image(folder, filename, path):
-            recovered += 1
+    try:
+        entries = db.get_uploads()
+        if limit:
+            entries = entries[:limit]
+        for entry in entries:
+            folder = entry.get("folder", "")
+            filename = entry.get("filename", "")
+            path = entry.get("file_path") or os.path.join(BASE, folder, filename)
+            if not os.path.isfile(path):
+                # The local copy disappeared. If the image index already has it,
+                # just clear the stale queue row; otherwise there is nothing left
+                # to upload from this container.
+                logger.warning(
+                    "Queued upload %s/%s has no local copy; dropping it", folder, filename
+                )
+                db.clear_upload(folder, filename)
+                lost += 1
+                continue
+            db.bump_upload_attempts(folder, filename)
+            if store_image(folder, filename, path):
+                recovered += 1
+    finally:
+        _sync_lock.release()
     if recovered or lost:
         logger.info("Telegram sync: %d uploaded, %d dropped", recovered, lost)
     return recovered
@@ -712,16 +721,18 @@ def process_omr_task(task_id, input_filepath, original_filename):
     process = None
 
     try:
-        set_task(task_id, status="processing", input_filename=original_filename or "")
         _write_scan_config(task_output_dir)
 
         with _SCAN_LOCK, _CrossProcessLock(SCAN_LOCK_PATH):
+            # Start the engine first, then record the status while it runs.
+            # The scan no longer waits for an Atlas write before importing cv2.
             process = subprocess.Popen(
                 ["python3", "autoapp.py", input_filepath, task_output_dir],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd=BASE,
             )
+            set_task(task_id, status="processing", input_filename=original_filename or "")
             try:
                 stdout, stderr = process.communicate(timeout=SCAN_TIMEOUT)
             except subprocess.TimeoutExpired:
@@ -788,11 +799,9 @@ def process_omr_task(task_id, input_filepath, original_filename):
             marks=verdict.get("marks"),
         )
 
-        # Local-first: make the images available in the UI immediately and let
-        # the 30-minute batch worker deal with Telegram.
-        queue_image("output", newest_file, dest_path)
-        if original_filename:
-            queue_image("temp_input", original_filename, input_filepath)
+        # Local-first but off the critical path: the next scan can start while
+        # thumbnails are generated and uploads are queued.
+        image_executor.submit(queue_image, "output", newest_file, dest_path)
 
     except Exception as e:
         logger.error(f"OMR task {task_id} failed: {e}")
@@ -860,10 +869,23 @@ def _save_upload(file_obj, dest_path):
         file_obj.save(dest_path)
         return
     try:
+        file_obj.stream.seek(0)
         with Image.open(file_obj.stream) as img:
+            # The browser already sends a 1600px JPEG. Copying those bytes
+            # avoids a full decode + JPEG re-encode on every upload (which also
+            # throws away quality for no benefit).
+            if img.format == "JPEG" and max(img.size) <= 1600:
+                file_obj.stream.seek(0)
+                with open(dest_path, "wb") as out:
+                    shutil.copyfileobj(file_obj.stream, out)
+                return
+            # Decode JPEGs at a reduced DCT scale instead of fully expanding a
+            # 12MP phone photo only to feed the engine, which resizes to 960px
+            # wide anyway. This cuts upload latency and disk usage a lot.
+            img.draft("RGB", (1600, 1600))
             img = img.convert("RGB")
-            img.thumbnail((2400, 2400), Image.Resampling.LANCZOS)
-            img.save(dest_path, "JPEG", quality=90, optimize=True)
+            img.thumbnail((1600, 1600), Image.Resampling.BILINEAR)
+            img.save(dest_path, "JPEG", quality=88, optimize=True)
     except Exception:
         # Not a composable image (or a HEIC-only upload): keep the original
         # bytes so the engine can produce its normal error instead of a 500.
@@ -888,8 +910,9 @@ def upload():
         logger.error("Could not save upload: %s", e)
         return jsonify({"error": "Could not save upload"}), 500
 
-    # Local-first. The 30-minute batch worker copies this to Telegram.
-    queue_image("temp_input", filename, input_filepath)
+    # The response and the scan must not wait for a thumbnail and a Mongo
+    # queue write; the batch worker only needs the file to exist.
+    image_executor.submit(queue_image, "temp_input", filename, input_filepath)
 
     task_id = str(uuid.uuid4())
     set_task(task_id, status="queued", input_filename=filename)
@@ -1030,6 +1053,8 @@ def sync_telegram():
     """Optional manual flush; the background worker normally does this."""
     if not telegram.is_configured():
         return jsonify({"status": "error", "message": "Telegram is not configured"}), 400
+    if _sync_lock.locked():
+        return jsonify({"status": "running", "message": "A sync is already running."}), 202
     threading.Thread(target=sync_pending_uploads, daemon=True, name="telegram-manual-sync").start()
     return jsonify({"status": "success"})
 
@@ -1723,6 +1748,15 @@ if (
     and os.environ.get("DISABLE_SELF_PING", "").lower() not in ("1", "true", "yes")
 ):
     _start_self_ping()
+
+# Warm the caches in every worker before the first camera upload so its scan
+# does not pay for two Atlas reads (answer key + settings) or a folder listing.
+try:
+    if not get_scan_config(force=True).get("answer_key"):
+        invalidate_scan_config()
+    get_project_folders(force=True)
+except Exception as e:
+    logger.warning("Could not warm startup caches: %s", e)
 
 # Telegram work is batched. The sync thread queues any on-disk images and
 # flushes the upload queue; the restore thread repopulates the local cache so

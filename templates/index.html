@@ -94,14 +94,14 @@
         {% set ordered_list = ['input', 'output', 'error_images', 'duplicates'] %}
         {% for target in ordered_list %}
           {% if target in folders %}
-          <div class="folder-card" onclick="openFolder({{ target|tojson }})">
+          <div class="folder-card" data-folder="{{ target }}" role="button" tabindex="0">
             <div class="folder-name"><span>📁</span><span>{{ target }}</span></div>
             <span class="count-pill">{{ folder_counts[target] }}</span>
           </div>
           {% endif %}
         {% endfor %}
         {% for target in folders if target not in ordered_list %}
-          <div class="folder-card" onclick="openFolder({{ target|tojson }})">
+          <div class="folder-card" data-folder="{{ target }}" role="button" tabindex="0">
             <div class="folder-name"><span>🎓</span><span>{{ target }}</span></div>
             <span class="count-pill">{{ folder_counts.get(target, 0) }}</span>
           </div>
@@ -214,6 +214,16 @@ window.onclick = function(event) {
 };
 
 function openFolder(folder) { window.location.href = "/browse?path=" + encodeURIComponent(folder); }
+document.querySelectorAll(".folder-card[data-folder]").forEach(card => {
+  const go = () => openFolder(card.dataset.folder);
+  card.addEventListener("click", go);
+  card.addEventListener("keydown", event => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      go();
+    }
+  });
+});
 function openAnswerKey() { window.location.href = "/answer_key?folder=input"; }
 function openLivePage() { window.location.href = "/results"; }
 

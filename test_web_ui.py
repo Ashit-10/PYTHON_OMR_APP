@@ -85,6 +85,9 @@ db.update_task(
 # --- pages render ---
 r = client.get("/")
 check("dashboard renders", r.status_code == 200 and b"Project folders" in r.data, r.status_code)
+check("folder cards carry a JS-safe target",
+      b'data-folder="input"' in r.data and b'onclick="openFolder' not in r.data,
+      r.status_code)
 r = client.get("/browse?path=output")
 check("browser renders an image", r.status_code == 200 and out_name.encode() in r.data, r.status_code)
 check("browser links the thumbnail", b"/thumb?path=" in r.data, r.status_code)

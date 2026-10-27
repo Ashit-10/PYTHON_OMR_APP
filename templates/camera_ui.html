@@ -700,10 +700,10 @@ body {
                 }
                 return;
             } 
-            else if (attempts < 150) { setTimeout(checkStatus, 600); } 
+            else if (attempts < 600) { setTimeout(checkStatus, 350); }
             else { throw new Error("Scan timed out"); }
           } catch (e) {
-            if (attempts < 150) setTimeout(checkStatus, 600);
+            if (attempts < 600) setTimeout(checkStatus, 350);
             else if (isInstant) handleProcError(loadingScreen, null, "Scan timed out");
             else showToast("❌ Scan timed out", true);
           }
@@ -741,12 +741,19 @@ body {
       startX = (videoWidth - zoomedWidth) / 2;
       startY = (videoHeight - zoomedHeight) / 2;
 
-      canvas.width = sourceWidth; 
-      canvas.height = sourceHeight;
+      // Send a 1600px long-edge JPEG instead of the full camera resolution.
+      // The OMR engine works at 960-980px wide, so this cuts upload time and
+      // JPEG encoding on phones without losing useful detail.
+      const maxCaptureSide = 1600;
+      const captureScale = Math.min(1, maxCaptureSide / Math.max(sourceWidth, sourceHeight));
+      canvas.width = Math.max(1, Math.round(sourceWidth * captureScale));
+      canvas.height = Math.max(1, Math.round(sourceHeight * captureScale));
       const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       const isDarkenEnabled = document.getElementById('contrastToggle').checked;
       if (isDarkenEnabled) { ctx.filter = 'contrast(1.8) brightness(0.7) grayscale(1)'; }
-      ctx.drawImage(video, startX, startY, zoomedWidth, zoomedHeight, 0, 0, sourceWidth, sourceHeight);
+      ctx.drawImage(video, startX, startY, zoomedWidth, zoomedHeight, 0, 0, canvas.width, canvas.height);
       ctx.filter = 'none'; 
       const previewDataUrl = canvas.toDataURL('image/jpeg', 0.8);
       animateCapture(previewDataUrl);
@@ -754,13 +761,40 @@ body {
     };
 
     fileBtn.onclick = () => fileInput.click();
-    fileInput.onchange = (e) => {
+
+    async function shrinkImageFile(file) {
+      if (!file || !file.type.startsWith('image/')) return file;
+      if (typeof createImageBitmap !== 'function') return file;
+      try {
+        const bitmap = await createImageBitmap(file);
+        const maxSide = 1600;
+        const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+        if (scale >= 0.99) { if (bitmap.close) bitmap.close(); return file; }
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(bitmap.width * scale));
+        c.height = Math.max(1, Math.round(bitmap.height * scale));
+        const context = c.getContext('2d');
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = 'high';
+        context.drawImage(bitmap, 0, 0, c.width, c.height);
+        if (bitmap.close) bitmap.close();
+        return (await canvasToBlob(c, 0.88)) || file;
+      } catch (_) {
+        return file;
+      }
+    }
+
+    function canvasToBlob(canvas, quality) {
+      return new Promise(resolve => canvas.toBlob(blob => resolve(blob || null), 'image/jpeg', quality));
+    }
+
+    fileInput.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
       currentScanId = Date.now();
-      const reader = new FileReader();
-      reader.onload = (event) => { processImage(file, event.target.result); };
-      reader.readAsDataURL(file);
+      const prepared = await shrinkImageFile(file);
+      fileInput.value = '';
+      processImage(prepared, URL.createObjectURL(prepared));
     };
 
     function handleProcError(overlay, interval, msg) {
