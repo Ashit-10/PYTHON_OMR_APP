@@ -448,6 +448,14 @@ def queue_image(folder, filename, file_path=None):
 UPLOAD_ATTEMPTS = int(os.environ.get("UPLOAD_ATTEMPTS", "2"))
 UPLOAD_RETRY_DELAY = int(os.environ.get("UPLOAD_RETRY_DELAY", "2"))
 _sync_lock = threading.Lock()
+# Set while OpenCV is running. Telegram traffic is deliberately paused then so
+# background downloads/uploads cannot steal CPU/TLS time from a live scan.
+_scan_busy = threading.Event()
+
+
+def _wait_for_scan_idle():
+    while _scan_busy.is_set():
+        time.sleep(0.25)
 
 
 def store_image(folder, filename, file_path=None, _attempts=None):
@@ -529,6 +537,7 @@ def sync_pending_uploads(limit=None):
         if limit:
             entries = entries[:limit]
         for entry in entries:
+            _wait_for_scan_idle()
             folder = entry.get("folder", "")
             filename = entry.get("filename", "")
             path = entry.get("file_path") or os.path.join(BASE, folder, filename)
@@ -574,6 +583,7 @@ def restore_missing_images(limit=None):
             break
         if not meta.get("file_id"):
             continue
+        _wait_for_scan_idle()
         folder, _, filename = full_key.partition("/")
         if not folder or not filename:
             continue
@@ -726,6 +736,7 @@ def process_omr_task(task_id, input_filepath, original_filename):
         with _SCAN_LOCK, _CrossProcessLock(SCAN_LOCK_PATH):
             # Start the engine first, then record the status while it runs.
             # The scan no longer waits for an Atlas write before importing cv2.
+            _scan_busy.set()
             process = subprocess.Popen(
                 ["python3", "autoapp.py", input_filepath, task_output_dir],
                 stdout=subprocess.PIPE,
@@ -815,6 +826,8 @@ def process_omr_task(task_id, input_filepath, original_filename):
             kill = getattr(process, "kill", None)
             if poll and kill and poll() is None:
                 kill()
+    finally:
+        _scan_busy.clear()
 
 # --- ROUTES ---
 
